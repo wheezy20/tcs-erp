@@ -60,3 +60,36 @@ Wilelik's `docs/session-*.md` but rolling instead of one file per session.
 - PAYE band thresholds not yet verified against an official GRA source.
 - No separate Supabase project created yet for TCS (still pointing at
   local dev only, per `CONSTRAINTS.md`).
+
+---
+
+## 2026-09-08 — CLAUDE.md rewrite, docs ownership model
+
+- Rewrote `CLAUDE.md` (~300KB → ~180 lines). Kept the still-accurate
+  engineering content (repo layout, commands, TanStack Start routing,
+  shadcn/ui conventions, SSR error handling, lint/format, the local-dev
+  and production-Manager bootstrap scripts). Deleted all Wilelik business
+  narrative — the session-by-session build ledger, "Phase 1.5" language,
+  building-materials domain rules, `business-app-spec.md` references (that
+  file is deleted).
+- Backend conventions that used to be inline in CLAUDE.md's "Data layer"
+  section are now referenced from `docs/DESIGN.md` instead of duplicated.
+- Added a "Project docs — read these first" section to CLAUDE.md pointing
+  at all five `docs/` files, and made "keep the docs current" a standing
+  instruction: scope/constraint/stack/design decisions get written to the
+  relevant doc in the same session, JOURNAL always gets a dated entry, no
+  need to be prompted.
+- `docs/DESIGN.md`: updated its intro (CLAUDE.md now points here rather
+  than being "due a rewrite"); added the accounting naming-discipline
+  convention (never shorten "gross profit"/"operating margin" to
+  "profit"/"net profit") that was previously only in CLAUDE.md's dropped
+  Business Domain Rules section.
+- No scope, stack, or constraint change this session — `PLANNING.md`,
+  `STACK.md`, `CONSTRAINTS.md` untouched.
+
+### bun-vs-npm resolved
+- Confirmed **npm** is the package manager (`frontend/package-lock.json`
+  current; `bun.lock` was stale pre-rebrand). Deleted `frontend/bun.lock`
+  and `frontend/bunfig.toml`, dropped the `bun.lock` line from
+  `frontend/.prettierignore`, and updated `STACK.md` and `CLAUDE.md`
+  accordingly.

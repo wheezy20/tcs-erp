@@ -1,9 +1,9 @@
 # TCS ERP — Design Conventions
 
-This file exists so backend conventions survive independently of
-`CLAUDE.md` (which is due a rewrite to strip Wilelik-specific narrative).
-Anything load-bearing gets documented here in plain terms, not just
-inferred from reading old migrations.
+This file is the source of truth for backend/architectural conventions.
+`CLAUDE.md` points here rather than restating them. Anything load-bearing
+gets documented here in plain terms, not just inferred from reading old
+migrations.
 
 ## Conventions inherited from Wilelik (keep these)
 
@@ -50,6 +50,11 @@ depend on them holding true for every new table/function added.
 - **`getErrorMessage()` duck-typing** — `supabase-js` errors aren't real
   `Error` instances, so error handling needs to check shape, not rely on
   `instanceof Error`.
+- **Accounting naming discipline.** In the reports/accounting UI and code,
+  "gross profit" (revenue − cost of goods sold) and "operating margin"
+  (gross profit − recorded expenses) are never shortened to "profit" or
+  "net profit" — neither figure accounts for payroll, and conflating them
+  is a real reporting error, not a wording preference.
 
 ## New conventions introduced for TCS-specific work
 

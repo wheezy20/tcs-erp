@@ -11,10 +11,9 @@
   aliases; components live grouped by domain under
   `frontend/src/components/`.
 - **Vite** for dev/build.
-- Package manager: the repo has both `bun.lock` and `package-lock.json`
-  present (inherited from Wilelik's transition history) — confirm which
-  one is actually in use before installing anything, to avoid two
-  divergent lockfiles.
+- Package manager: **npm** (`frontend/package-lock.json` is the lockfile).
+  Resolved 2026-09-08 — `bun.lock` was stale from before the rebrand and
+  has been deleted along with `bunfig.toml`. Use `npm`, not `bun`.
 
 ## Backend
 
