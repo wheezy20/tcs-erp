@@ -93,3 +93,113 @@ Wilelik's `docs/session-*.md` but rolling instead of one file per session.
   and `frontend/bunfig.toml`, dropped the `bun.lock` line from
   `frontend/.prettierignore`, and updated `STACK.md` and `CLAUDE.md`
   accordingly.
+
+---
+
+## 2026-09-08 — Payroll: schema review + applied, full UI built
+
+**Migration review (`20260908070000_payroll_schema.sql`).** The draft was
+structurally sound but had four deviations from `DESIGN.md` /
+`supabase/migrations/` convention, all fixed in-place before applying
+(the migration was still unapplied, so editing it was correct):
+1. **No `service_role` grants** on any of the 8 tables — added (the exact
+   gap `20260803130000` once existed to fix).
+2. **Accountant/Auditor got INSERT + UPDATE** on every payroll table (the
+   `do $$` loop applied `has_role(['Manager','Accountant/Auditor'])` to
+   all of select/insert/update). Restructured to the real three-tier
+   shape: select = Manager + Auditor; write = Manager only.
+3. **No DELETE policy anywhere** → a mistaken payslip/draft run couldn't
+   be removed and there's no update path, dead-ending the "generate →
+   oops" loop. Added Manager delete on config tables; `payroll_runs`
+   delete is Manager + `status='Draft'`; new `delete_payslip()` RPC
+   (Draft-only).
+4. **`payroll_runs.created_by` was client-suppliable** (nullable, no
+   `default auth.uid()`, no trigger, created by raw insert). Replaced raw
+   insert with a `create_payroll_run()` RPC (SECURITY DEFINER,
+   Manager-only, forces `created_by = auth.uid()`, friendly
+   unique-violation message).
+   - Also: `create_payslip()` had no role guard at all and wasn't
+     SECURITY DEFINER — added `require_writable_role()` + Manager check +
+     a Draft-run check + `security definer set search_path = public`.
+   - `create_payslip()`'s `p_allowances` changed from a composite-type
+     array to `jsonb` (the `create_invoice()`/`create_sale()` `p_lines`
+     convention — composite-array params are a PostgREST footgun).
+- `payslips` / `payslip_allowances` / `payroll_runs` are now **select-only
+  tables** — all writes go through the SECURITY DEFINER RPCs, same shape
+  as `journal_entries`.
+- Statutory rates (0.5% / 13% / 5%) and 7 placeholder monthly PAYE bands
+  are seeded **in the migration** (`on conflict do nothing`) — entity-wide
+  reference data belongs there, not `seed.sql` (the `seed_gap` lesson).
+  Both carry a loud "verify against SSNIT/GRA before go-live" comment;
+  the Pay Config screen shows the same warning. Demo `allowance_types` +
+  `staff_pay_config` + `staff_allowances` for the 4 seeded staff (incl.
+  Kojo Boadu set up as an all-exempt National Service case) went into
+  `seed.sql`.
+
+**Applied + verified.** Local Supabase stack was still running under the
+old `wilelik-erp` project id (never restarted after the rebrand renamed
+`project_id`) — stopped those containers (reversible), brought up
+`tcs-erp` fresh. `supabase db reset` applied all 44 migrations + seed
+clean; `database.types.ts` regenerated; `tsc`, `eslint` (payroll files
+clean), `vite build`, and `check-duplicate-function-overloads.sh` all
+pass. RPC-level test as the seeded Manager: `create_payroll_run` +
+`create_payslip` compute correctly (hand-checked — e.g. Ama Owusu basic
+2800 + 400 allowances → gross 3200, SSNIT 14 / Tier 2 140 / PAYE 423.80
+→ net 2622.20). RLS negative paths confirmed: Attendant rejected from
+`create_payroll_run` and sees 0 rows; Auditor rejected from
+`create_payslip` with the read-only message but can still read rates.
+Browser smoke test (headless, dev-manager account) drove the whole flow
+— create run → generate payslip (standing allowances pre-fill
+confirmed) → payslip view (correct real-payslip layout, Print +
+Download PDF present) → Pay Config screen — with **zero console errors**.
+
+**Frontend built (all new, follows existing conventions):**
+- `data/payroll-store.ts` (one combined `usePayroll()` store, same
+  `useSyncExternalStore` + Supabase pattern as `accounts-store.ts`),
+  `data/payroll-format.ts` (shared `MONTHS`/`periodLabel`).
+- Routes: `payroll.tsx` (tabbed layout + Manager/Auditor guard, mirrors
+  `accounting.tsx`), `payroll.index.tsx` (runs list + Create Run),
+  `payroll.$runId.tsx` (run detail: payslip list, generate-payslip
+  dialog with editable pre-filled allowances / overtime / fines / IOU,
+  delete payslip), `payroll.pay-config.tsx` (per-staff pay config + bank
+  + exemption flags + standing allowances; allowance-type management),
+  `payslips.$payslipId.tsx` (payslip view/print — top-level route, not
+  under the payroll layout, so no tab chrome on the print page).
+- `components/print/printable-payslip.tsx` + `lib/pdf/payslip-pdf.ts`
+  (mirrors `printable-invoice.tsx` / `invoice-pdf.ts`, incl. the embedded
+  Inter font for the ₵ sign).
+- "Payroll" nav item added to `app-sidebar.tsx`, gated to
+  Manager/Auditor like Accounting/Reports.
+- **Deliberately deferred** (as instructed): posting a run to the
+  Accounting ledger. `// TODO` markers left in `payroll.$runId.tsx` and
+  the migration where a `post_payroll_run()` RPC + journal entry
+  (salary expense / statutory liabilities / net pay payable) will hook
+  in. `status` is currently just a lock against payslip edits.
+
+**Pay-config edit model (v1).** Editing `staff_pay_config`: same
+effective date = in-place `UPDATE` (a correction; safe because payslips
+snapshot every amount); a later effective date = close the open row +
+insert a new one. Good enough to exercise the flow; a dedicated "record
+a pay change" flow can replace the heuristic later.
+
+**Side effects worth noting:** wrote `frontend/.env.local` (gitignored)
+with the local anon key so the app can reach the stack; ran
+`scripts/seed-local-dev-staff.sh` so the three dev logins exist against
+the fresh DB; fixed one stray prettier error in `routes/reports.tsx`
+that my own 2026-09-08 rebrand sed introduced (shortening "Generated by
+Wilelik" → "TCS" let the line collapse). One pre-existing, unrelated
+prettier error remains in `components/settings/accent-sync.tsx` — left
+alone (not this session's file).
+
+`DESIGN.md` gained six new convention bullets (select-only financial
+records + SECURITY DEFINER writes, Draft-only mutation window, jsonb RPC
+input, the effective-dated edit model, reference-data-in-migration).
+`PLANNING.md` / `STACK.md` / `CONSTRAINTS.md` unchanged — Payroll was
+already Phase 1 scope and CONSTRAINTS already carries the
+PAYE-not-yet-GRA-verified warning.
+
+### Still outstanding
+- `post_payroll_run()` accounting hook (its own follow-up).
+- Real GRA PAYE bands + SSNIT split confirmation before any real payroll.
+- The old `wilelik-erp` Docker containers are stopped, not removed — a
+  `docker rm` once you're sure nothing there is needed.

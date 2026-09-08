@@ -87,6 +87,38 @@ export type Database = {
           },
         ]
       }
+      allowance_types: {
+        Row: {
+          branch_id: string
+          id: string
+          name: string
+          position: number
+          taxable: boolean
+        }
+        Insert: {
+          branch_id: string
+          id?: string
+          name: string
+          position?: number
+          taxable?: boolean
+        }
+        Update: {
+          branch_id?: string
+          id?: string
+          name?: string
+          position?: number
+          taxable?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "allowance_types_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -1522,6 +1554,214 @@ export type Database = {
           },
         ]
       }
+      paye_bands: {
+        Row: {
+          band_order: number
+          effective_from: string
+          id: string
+          lower_bound: number
+          rate: number
+          upper_bound: number | null
+        }
+        Insert: {
+          band_order: number
+          effective_from: string
+          id?: string
+          lower_bound: number
+          rate: number
+          upper_bound?: number | null
+        }
+        Update: {
+          band_order?: number
+          effective_from?: string
+          id?: string
+          lower_bound?: number
+          rate?: number
+          upper_bound?: number | null
+        }
+        Relationships: []
+      }
+      payroll_runs: {
+        Row: {
+          branch_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          month: number
+          posted_at: string | null
+          status: string
+          year: number
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          month: number
+          posted_at?: string | null
+          status?: string
+          year: number
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          month?: number
+          posted_at?: string | null
+          status?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_runs_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_runs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payslip_allowances: {
+        Row: {
+          allowance_type_id: string
+          amount: number
+          id: string
+          note: string | null
+          payslip_id: string
+        }
+        Insert: {
+          allowance_type_id: string
+          amount: number
+          id?: string
+          note?: string | null
+          payslip_id: string
+        }
+        Update: {
+          allowance_type_id?: string
+          amount?: number
+          id?: string
+          note?: string | null
+          payslip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payslip_allowances_allowance_type_id_fkey"
+            columns: ["allowance_type_id"]
+            isOneToOne: false
+            referencedRelation: "allowance_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslip_allowances_payslip_id_fkey"
+            columns: ["payslip_id"]
+            isOneToOne: false
+            referencedRelation: "payslips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payslips: {
+        Row: {
+          basic_salary: number
+          fines: number
+          generated_at: string
+          gross_salary: number
+          id: string
+          iou: number
+          net_pay: number
+          overtime_hours: number
+          overtime_pay: number
+          overtime_rate: number
+          payroll_run_id: string
+          pdf_path: string | null
+          ssnit: number
+          staff_id: string
+          staff_pay_config_id: string
+          tax: number
+          taxable_income: number
+          tier2: number
+          total_allowances: number
+          total_deductions: number
+          total_earning: number
+        }
+        Insert: {
+          basic_salary: number
+          fines?: number
+          generated_at?: string
+          gross_salary: number
+          id?: string
+          iou?: number
+          net_pay: number
+          overtime_hours?: number
+          overtime_pay?: number
+          overtime_rate?: number
+          payroll_run_id: string
+          pdf_path?: string | null
+          ssnit?: number
+          staff_id: string
+          staff_pay_config_id: string
+          tax?: number
+          taxable_income: number
+          tier2?: number
+          total_allowances?: number
+          total_deductions: number
+          total_earning: number
+        }
+        Update: {
+          basic_salary?: number
+          fines?: number
+          generated_at?: string
+          gross_salary?: number
+          id?: string
+          iou?: number
+          net_pay?: number
+          overtime_hours?: number
+          overtime_pay?: number
+          overtime_rate?: number
+          payroll_run_id?: string
+          pdf_path?: string | null
+          ssnit?: number
+          staff_id?: string
+          staff_pay_config_id?: string
+          tax?: number
+          taxable_income?: number
+          tier2?: number
+          total_allowances?: number
+          total_deductions?: number
+          total_earning?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payslips_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslips_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslips_staff_pay_config_id_fkey"
+            columns: ["staff_pay_config_id"]
+            isOneToOne: false
+            referencedRelation: "staff_pay_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pro_forma_invoice_lines: {
         Row: {
           discount: number
@@ -2384,6 +2624,134 @@ export type Database = {
           },
         ]
       }
+      staff_allowances: {
+        Row: {
+          allowance_type_id: string
+          default_amount: number
+          effective_from: string
+          effective_to: string | null
+          id: string
+          staff_id: string
+        }
+        Insert: {
+          allowance_type_id: string
+          default_amount: number
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          staff_id: string
+        }
+        Update: {
+          allowance_type_id?: string
+          default_amount?: number
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_allowances_allowance_type_id_fkey"
+            columns: ["allowance_type_id"]
+            isOneToOne: false
+            referencedRelation: "allowance_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_allowances_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_pay_config: {
+        Row: {
+          account_no: string | null
+          bank: string | null
+          basic_salary: number
+          created_at: string
+          department: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          pays_paye: boolean
+          pays_ssnit: boolean
+          pays_tier2: boolean
+          position: string | null
+          staff_id: string
+        }
+        Insert: {
+          account_no?: string | null
+          bank?: string | null
+          basic_salary: number
+          created_at?: string
+          department?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          pays_paye?: boolean
+          pays_ssnit?: boolean
+          pays_tier2?: boolean
+          position?: string | null
+          staff_id: string
+        }
+        Update: {
+          account_no?: string | null
+          bank?: string | null
+          basic_salary?: number
+          created_at?: string
+          department?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          pays_paye?: boolean
+          pays_ssnit?: boolean
+          pays_tier2?: boolean
+          position?: string | null
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_pay_config_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      statutory_rates: {
+        Row: {
+          created_at: string
+          effective_from: string
+          id: string
+          ssnit_employee_pct: number
+          ssnit_employer_pct: number
+          tier2_employee_pct: number
+          tier2_employer_pct: number
+        }
+        Insert: {
+          created_at?: string
+          effective_from: string
+          id?: string
+          ssnit_employee_pct: number
+          ssnit_employer_pct: number
+          tier2_employee_pct: number
+          tier2_employer_pct?: number
+        }
+        Update: {
+          created_at?: string
+          effective_from?: string
+          id?: string
+          ssnit_employee_pct?: number
+          ssnit_employer_pct?: number
+          tier2_employee_pct?: number
+          tier2_employer_pct?: number
+        }
+        Relationships: []
+      }
       stock_movements: {
         Row: {
           balance_after: number
@@ -3103,6 +3471,65 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_payroll_run: {
+        Args: { p_branch_id: string; p_month: number; p_year: number }
+        Returns: {
+          branch_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          month: number
+          posted_at: string | null
+          status: string
+          year: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payroll_runs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_payslip: {
+        Args: {
+          p_allowances?: Json
+          p_fines?: number
+          p_iou?: number
+          p_overtime_hours?: number
+          p_overtime_rate?: number
+          p_payroll_run_id: string
+          p_staff_id: string
+        }
+        Returns: {
+          basic_salary: number
+          fines: number
+          generated_at: string
+          gross_salary: number
+          id: string
+          iou: number
+          net_pay: number
+          overtime_hours: number
+          overtime_pay: number
+          overtime_rate: number
+          payroll_run_id: string
+          pdf_path: string | null
+          ssnit: number
+          staff_id: string
+          staff_pay_config_id: string
+          tax: number
+          taxable_income: number
+          tier2: number
+          total_allowances: number
+          total_deductions: number
+          total_earning: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payslips"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_pro_forma_invoice: {
         Args: {
           p_branch_id: string
@@ -3331,6 +3758,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      delete_payslip: { Args: { p_payslip_id: string }; Returns: undefined }
       delete_product: { Args: { p_id: string }; Returns: undefined }
       expense_category_account: {
         Args: { p_branch_id: string; p_category: string }
@@ -4152,12 +4580,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4181,11 +4609,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4206,11 +4634,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4231,11 +4659,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4248,11 +4676,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

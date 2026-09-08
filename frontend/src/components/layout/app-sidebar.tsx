@@ -13,6 +13,7 @@ import {
   BookOpen,
   Landmark,
   Truck,
+  Coins,
   Settings,
   ChevronLeft,
 } from "lucide-react";
@@ -33,6 +34,7 @@ export const navItems = [
   { title: "End of Day", url: "/end-of-day", icon: Vault },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Accounting", url: "/accounting", icon: BookOpen },
+  { title: "Payroll", url: "/payroll", icon: Coins },
   { title: "Banking", url: "/banking", icon: Landmark },
   { title: "Purchasing", url: "/purchasing", icon: Truck },
   { title: "Settings", url: "/settings", icon: Settings },
@@ -61,11 +63,13 @@ export function AppSidebar({
   // stays visible, just pointed straight at /pos/history for that role
   // instead of the Checkout screen they'd otherwise land on and immediately
   // bounce off.
-  // Chart of Accounts shares the same Manager/Accountant-Auditor-only gate
-  // as Reports (routes/accounting.tsx's own guard is the real enforcement).
+  // Accounting, Payroll, Banking and Purchasing share the same
+  // Manager/Accountant-Auditor-only gate as Reports (each route's own guard
+  // + RLS on its tables is the real enforcement; this just hides the link).
   const visibleNavItems = navItems
     .filter((item) => item.url !== "/reports" || canViewReports)
     .filter((item) => item.url !== "/accounting" || canViewReports)
+    .filter((item) => item.url !== "/payroll" || canViewReports)
     .filter((item) => item.url !== "/banking" || canViewReports)
     .filter((item) => item.url !== "/purchasing" || canViewReports)
     .map((item) => (item.url === "/pos" && isAuditor ? { ...item, url: "/pos/history" } : item));

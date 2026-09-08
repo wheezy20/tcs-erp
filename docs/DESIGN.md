@@ -81,6 +81,46 @@ depend on them holding true for every new table/function added.
   `pays_paye` on `staff_pay_config`, independently toggleable — covers
   National Service personnel and any other temporary/contract staff who
   don't participate in some or all of the standard deductions.
+- **Financial records: select-only tables, writes only through their own
+  `SECURITY DEFINER` function.** `payroll_runs` / `payslips` /
+  `payslip_allowances` (like `journal_entries` before them) have a
+  `select` RLS policy and *no* `insert`/`update`/`delete` policy or grant
+  for `authenticated` — every write goes through `create_payroll_run()` /
+  `create_payslip()` / `delete_payslip()`, which are `SECURITY DEFINER`
+  and re-check the role themselves. This keeps the computed figures
+  un-forgeable (a client can't hand-insert a payslip row) without needing
+  a per-column CHECK. Ordinary *config* tables (`allowance_types`,
+  `staff_pay_config`, statutory rate/band tables) stay on plain three-tier
+  RLS — a Manager edits them directly, same as `accounts`.
+- **Mutation window on lifecycle records.** Where a record has a
+  draft→final lifecycle (`payroll_runs.status`), delete/regenerate is
+  allowed only while it's a draft — `delete_payslip()` refuses once the
+  run is Posted, and `payroll_runs_delete` RLS requires `status = 'Draft'`.
+  Corrections after that are new offsetting records, never edits (same
+  rule as posted journal entries).
+- **Multi-row RPC input is `jsonb`, not a composite-type array.**
+  `create_payslip(p_allowances jsonb)` follows `create_invoice()` /
+  `create_sale()`'s `p_lines jsonb` convention — `jsonb_array_elements` in
+  the function body, an array of plain objects from the client. Composite
+  type arrays (`create type ... as (...)` + `foo[]`) work in raw SQL but
+  are a PostgREST footgun; don't reach for them.
+- **Effective-dated config edit model.** Editing an effective-dated config
+  row (`staff_pay_config`): if the effective date is unchanged it's a
+  *correction* → plain in-place `UPDATE` (safe, because every dependent
+  record — a payslip — snapshots the actual amounts at generation, so
+  history is unaffected either way). A *later* effective date is a real
+  change → close the open row (`effective_to` = day before) and insert a
+  new open-ended one. A dedicated "record a pay change" flow can replace
+  the heuristic later.
+- **Entity-wide reference data goes in the migration, not `seed.sql`.**
+  Rows that must exist in *every* environment and have no branch/staff FK
+  — the chart of accounts, statutory rates, PAYE bands — are inserted by
+  the migration itself with `on conflict do nothing`. `seed.sql` never
+  runs on a real deployment, so seed-only reference data silently ends up
+  missing in production (the lesson of
+  `20260819090000_seed_gap_accounts_expense_categories.sql`). Branch-
+  scoped demo data (sample pay configs, allowance types) still goes in
+  `seed.sql`.
 
 ## Branding
 

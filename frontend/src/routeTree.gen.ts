@@ -16,6 +16,7 @@ import { Route as BankingRouteImport } from './routes/banking'
 import { Route as EndOfDayRouteImport } from './routes/end-of-day'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PayrollRouteImport } from './routes/payroll'
 import { Route as PosRouteImport } from './routes/pos'
 import { Route as PurchasingRouteImport } from './routes/purchasing'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -41,6 +42,10 @@ import { Route as EndOfDayHistoryRouteImport } from './routes/end-of-day.history
 import { Route as ExpensesIndexRouteImport } from './routes/expenses.index'
 import { Route as ExpensesExpenseIdRouteImport } from './routes/expenses.$expenseId'
 import { Route as InventoryIndexRouteImport } from './routes/inventory.index'
+import { Route as PayrollIndexRouteImport } from './routes/payroll.index'
+import { Route as PayrollRunIdRouteImport } from './routes/payroll.$runId'
+import { Route as PayrollPayConfigRouteImport } from './routes/payroll.pay-config'
+import { Route as PayslipsPayslipIdRouteImport } from './routes/payslips.$payslipId'
 import { Route as PosIndexRouteImport } from './routes/pos.index'
 import { Route as PosHistoryRouteImport } from './routes/pos.history'
 import { Route as PosReturnsRouteImport } from './routes/pos.returns'
@@ -92,6 +97,11 @@ const InventoryRoute = InventoryRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PayrollRoute = PayrollRouteImport.update({
+  id: '/payroll',
+  path: '/payroll',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PosRoute = PosRouteImport.update({
@@ -221,6 +231,26 @@ const InventoryIndexRoute = InventoryIndexRouteImport.update({
   path: '/',
   getParentRoute: () => InventoryRoute,
 } as any)
+const PayrollIndexRoute = PayrollIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PayrollRoute,
+} as any)
+const PayrollRunIdRoute = PayrollRunIdRouteImport.update({
+  id: '/$runId',
+  path: '/$runId',
+  getParentRoute: () => PayrollRoute,
+} as any)
+const PayrollPayConfigRoute = PayrollPayConfigRouteImport.update({
+  id: '/pay-config',
+  path: '/pay-config',
+  getParentRoute: () => PayrollRoute,
+} as any)
+const PayslipsPayslipIdRoute = PayslipsPayslipIdRouteImport.update({
+  id: '/payslips/$payslipId',
+  path: '/payslips/$payslipId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PosIndexRoute = PosIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -318,6 +348,7 @@ export interface FileRoutesByFullPath {
   '/end-of-day': typeof EndOfDayRouteWithChildren
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
+  '/payroll': typeof PayrollRouteWithChildren
   '/pos': typeof PosRouteWithChildren
   '/purchasing': typeof PurchasingRouteWithChildren
   '/reports': typeof ReportsRoute
@@ -336,6 +367,9 @@ export interface FileRoutesByFullPath {
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
+  '/payroll/$runId': typeof PayrollRunIdRoute
+  '/payroll/pay-config': typeof PayrollPayConfigRoute
+  '/payslips/$payslipId': typeof PayslipsPayslipIdRoute
   '/pos/history': typeof PosHistoryRoute
   '/pos/returns': typeof PosReturnsRoute
   '/pro-forma/$proFormaId': typeof ProFormaProFormaIdRoute
@@ -350,6 +384,7 @@ export interface FileRoutesByFullPath {
   '/end-of-day/': typeof EndOfDayIndexRoute
   '/expenses/': typeof ExpensesIndexRoute
   '/inventory/': typeof InventoryIndexRoute
+  '/payroll/': typeof PayrollIndexRoute
   '/pos/': typeof PosIndexRoute
   '/pro-forma/': typeof ProFormaIndexRoute
   '/purchasing/': typeof PurchasingIndexRoute
@@ -380,6 +415,9 @@ export interface FileRoutesByTo {
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
+  '/payroll/$runId': typeof PayrollRunIdRoute
+  '/payroll/pay-config': typeof PayrollPayConfigRoute
+  '/payslips/$payslipId': typeof PayslipsPayslipIdRoute
   '/pos/history': typeof PosHistoryRoute
   '/pos/returns': typeof PosReturnsRoute
   '/pro-forma/$proFormaId': typeof ProFormaProFormaIdRoute
@@ -394,6 +432,7 @@ export interface FileRoutesByTo {
   '/end-of-day': typeof EndOfDayIndexRoute
   '/expenses': typeof ExpensesIndexRoute
   '/inventory': typeof InventoryIndexRoute
+  '/payroll': typeof PayrollIndexRoute
   '/pos': typeof PosIndexRoute
   '/pro-forma': typeof ProFormaIndexRoute
   '/purchasing': typeof PurchasingIndexRoute
@@ -414,6 +453,7 @@ export interface FileRoutesById {
   '/end-of-day': typeof EndOfDayRouteWithChildren
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
+  '/payroll': typeof PayrollRouteWithChildren
   '/pos': typeof PosRouteWithChildren
   '/purchasing': typeof PurchasingRouteWithChildren
   '/reports': typeof ReportsRoute
@@ -432,6 +472,9 @@ export interface FileRoutesById {
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
+  '/payroll/$runId': typeof PayrollRunIdRoute
+  '/payroll/pay-config': typeof PayrollPayConfigRoute
+  '/payslips/$payslipId': typeof PayslipsPayslipIdRoute
   '/pos/history': typeof PosHistoryRoute
   '/pos/returns': typeof PosReturnsRoute
   '/pro-forma/$proFormaId': typeof ProFormaProFormaIdRoute
@@ -446,6 +489,7 @@ export interface FileRoutesById {
   '/end-of-day/': typeof EndOfDayIndexRoute
   '/expenses/': typeof ExpensesIndexRoute
   '/inventory/': typeof InventoryIndexRoute
+  '/payroll/': typeof PayrollIndexRoute
   '/pos/': typeof PosIndexRoute
   '/pro-forma/': typeof ProFormaIndexRoute
   '/purchasing/': typeof PurchasingIndexRoute
@@ -467,6 +511,7 @@ export interface FileRouteTypes {
     | '/end-of-day'
     | '/inventory'
     | '/login'
+    | '/payroll'
     | '/pos'
     | '/purchasing'
     | '/reports'
@@ -485,6 +530,9 @@ export interface FileRouteTypes {
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
+    | '/payroll/$runId'
+    | '/payroll/pay-config'
+    | '/payslips/$payslipId'
     | '/pos/history'
     | '/pos/returns'
     | '/pro-forma/$proFormaId'
@@ -499,6 +547,7 @@ export interface FileRouteTypes {
     | '/end-of-day/'
     | '/expenses/'
     | '/inventory/'
+    | '/payroll/'
     | '/pos/'
     | '/pro-forma/'
     | '/purchasing/'
@@ -529,6 +578,9 @@ export interface FileRouteTypes {
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
+    | '/payroll/$runId'
+    | '/payroll/pay-config'
+    | '/payslips/$payslipId'
     | '/pos/history'
     | '/pos/returns'
     | '/pro-forma/$proFormaId'
@@ -543,6 +595,7 @@ export interface FileRouteTypes {
     | '/end-of-day'
     | '/expenses'
     | '/inventory'
+    | '/payroll'
     | '/pos'
     | '/pro-forma'
     | '/purchasing'
@@ -562,6 +615,7 @@ export interface FileRouteTypes {
     | '/end-of-day'
     | '/inventory'
     | '/login'
+    | '/payroll'
     | '/pos'
     | '/purchasing'
     | '/reports'
@@ -580,6 +634,9 @@ export interface FileRouteTypes {
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
+    | '/payroll/$runId'
+    | '/payroll/pay-config'
+    | '/payslips/$payslipId'
     | '/pos/history'
     | '/pos/returns'
     | '/pro-forma/$proFormaId'
@@ -594,6 +651,7 @@ export interface FileRouteTypes {
     | '/end-of-day/'
     | '/expenses/'
     | '/inventory/'
+    | '/payroll/'
     | '/pos/'
     | '/pro-forma/'
     | '/purchasing/'
@@ -614,6 +672,7 @@ export interface RootRouteChildren {
   EndOfDayRoute: typeof EndOfDayRouteWithChildren
   InventoryRoute: typeof InventoryRouteWithChildren
   LoginRoute: typeof LoginRoute
+  PayrollRoute: typeof PayrollRouteWithChildren
   PosRoute: typeof PosRouteWithChildren
   PurchasingRoute: typeof PurchasingRouteWithChildren
   ReportsRoute: typeof ReportsRoute
@@ -622,6 +681,7 @@ export interface RootRouteChildren {
   CustomerDepositsDepositIdRoute: typeof CustomerDepositsDepositIdRoute
   CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
   ExpensesExpenseIdRoute: typeof ExpensesExpenseIdRoute
+  PayslipsPayslipIdRoute: typeof PayslipsPayslipIdRoute
   ProFormaProFormaIdRoute: typeof ProFormaProFormaIdRoute
   ProFormaNewRoute: typeof ProFormaNewRoute
   CustomerDepositsIndexRoute: typeof CustomerDepositsIndexRoute
@@ -679,6 +739,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payroll': {
+      id: '/payroll'
+      path: '/payroll'
+      fullPath: '/payroll'
+      preLoaderRoute: typeof PayrollRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pos': {
@@ -855,6 +922,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/inventory/'
       preLoaderRoute: typeof InventoryIndexRouteImport
       parentRoute: typeof InventoryRoute
+    }
+    '/payroll/': {
+      id: '/payroll/'
+      path: '/'
+      fullPath: '/payroll/'
+      preLoaderRoute: typeof PayrollIndexRouteImport
+      parentRoute: typeof PayrollRoute
+    }
+    '/payroll/$runId': {
+      id: '/payroll/$runId'
+      path: '/$runId'
+      fullPath: '/payroll/$runId'
+      preLoaderRoute: typeof PayrollRunIdRouteImport
+      parentRoute: typeof PayrollRoute
+    }
+    '/payroll/pay-config': {
+      id: '/payroll/pay-config'
+      path: '/pay-config'
+      fullPath: '/payroll/pay-config'
+      preLoaderRoute: typeof PayrollPayConfigRouteImport
+      parentRoute: typeof PayrollRoute
+    }
+    '/payslips/$payslipId': {
+      id: '/payslips/$payslipId'
+      path: '/payslips/$payslipId'
+      fullPath: '/payslips/$payslipId'
+      preLoaderRoute: typeof PayslipsPayslipIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/pos/': {
       id: '/pos/'
@@ -1049,6 +1144,21 @@ const InventoryRouteWithChildren = InventoryRoute._addFileChildren(
   InventoryRouteChildren,
 )
 
+interface PayrollRouteChildren {
+  PayrollRunIdRoute: typeof PayrollRunIdRoute
+  PayrollPayConfigRoute: typeof PayrollPayConfigRoute
+  PayrollIndexRoute: typeof PayrollIndexRoute
+}
+
+const PayrollRouteChildren: PayrollRouteChildren = {
+  PayrollRunIdRoute: PayrollRunIdRoute,
+  PayrollPayConfigRoute: PayrollPayConfigRoute,
+  PayrollIndexRoute: PayrollIndexRoute,
+}
+
+const PayrollRouteWithChildren =
+  PayrollRoute._addFileChildren(PayrollRouteChildren)
+
 interface PosRouteChildren {
   PosHistoryRoute: typeof PosHistoryRoute
   PosReturnsRoute: typeof PosReturnsRoute
@@ -1107,6 +1217,7 @@ const rootRouteChildren: RootRouteChildren = {
   EndOfDayRoute: EndOfDayRouteWithChildren,
   InventoryRoute: InventoryRouteWithChildren,
   LoginRoute: LoginRoute,
+  PayrollRoute: PayrollRouteWithChildren,
   PosRoute: PosRouteWithChildren,
   PurchasingRoute: PurchasingRouteWithChildren,
   ReportsRoute: ReportsRoute,
@@ -1115,6 +1226,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomerDepositsDepositIdRoute: CustomerDepositsDepositIdRoute,
   CustomersCustomerIdRoute: CustomersCustomerIdRoute,
   ExpensesExpenseIdRoute: ExpensesExpenseIdRoute,
+  PayslipsPayslipIdRoute: PayslipsPayslipIdRoute,
   ProFormaProFormaIdRoute: ProFormaProFormaIdRoute,
   ProFormaNewRoute: ProFormaNewRoute,
   CustomerDepositsIndexRoute: CustomerDepositsIndexRoute,

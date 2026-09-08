@@ -1669,3 +1669,35 @@ values
   ('00000000-0000-0000-0000-000000000001', 'Diamond Cement Distribution', 'Efua Mensah', '+233 24 555 3021', 'orders@diamondcement.com', 'Tema Industrial Area, Tema', '30000000-0000-0000-0000-000000000004'),
   ('00000000-0000-0000-0000-000000000001', 'A-Life Paints Wholesale', 'Yaw Darko', '+233 20 118 4477', 'wholesale@alifepaints.com', 'Kaneshie Industrial Area, Accra', '30000000-0000-0000-0000-000000000004'),
   ('00000000-0000-0000-0000-000000000001', 'Tiletech Imports', 'Abena Boateng', '+233 26 900 6612', 'info@tiletechgh.com', 'Spintex Road, Accra', '30000000-0000-0000-0000-000000000004');
+
+-- ---------------------------------------------------------------------
+-- Payroll (Phase 1) — local-dev demo config so the Payroll screens have
+-- something to show on a fresh `supabase db reset`. All fabricated dummy
+-- data, same status as everything else in this file (see
+-- docs/CONSTRAINTS.md). Statutory rates + PAYE bands are seeded by the
+-- migration itself, not here.
+-- ---------------------------------------------------------------------
+insert into public.allowance_types (id, branch_id, name, taxable, position)
+values
+  ('a1100000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Extra Classes', true, 0),
+  ('a1100000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Transport', true, 1),
+  ('a1100000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Responsibility', true, 2);
+
+-- One open-ended pay config per seeded staff member. Kojo Boadu is set up
+-- as a National Service person — exempt from all three statutory
+-- deductions — to exercise the pays_ssnit/pays_tier2/pays_paye flags.
+insert into public.staff_pay_config
+  (staff_id, position, department, bank, account_no, basic_salary, pays_ssnit, pays_tier2, pays_paye, effective_from)
+values
+  ('30000000-0000-0000-0000-000000000004', 'Head Teacher',        'Administration', 'GCB Bank', '1234500001', 6500.00, true,  true,  true,  '2026-01-01'),
+  ('30000000-0000-0000-0000-000000000003', 'Accountant',          'Administration', 'Ecobank',  '0201500002', 4200.00, true,  true,  true,  '2026-01-01'),
+  ('30000000-0000-0000-0000-000000000001', 'Class Teacher',       'Lower Primary',  'GCB Bank', '1234500003', 2800.00, true,  true,  true,  '2026-01-01'),
+  ('30000000-0000-0000-0000-000000000002', 'Teaching Assistant',  'Lower Primary',  'Fidelity', '1050000004', 1500.00, false, false, false, '2026-01-01');
+
+-- Standing monthly allowances (pre-filled, editable per payslip).
+insert into public.staff_allowances (staff_id, allowance_type_id, default_amount, effective_from)
+values
+  ('30000000-0000-0000-0000-000000000004', 'a1100000-0000-0000-0000-000000000003', 800.00, '2026-01-01'),
+  ('30000000-0000-0000-0000-000000000004', 'a1100000-0000-0000-0000-000000000002', 300.00, '2026-01-01'),
+  ('30000000-0000-0000-0000-000000000001', 'a1100000-0000-0000-0000-000000000001', 250.00, '2026-01-01'),
+  ('30000000-0000-0000-0000-000000000001', 'a1100000-0000-0000-0000-000000000002', 150.00, '2026-01-01');
