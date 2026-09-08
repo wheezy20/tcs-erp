@@ -1,0 +1,23 @@
+-- service_role currently has only TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on
+-- every table in this project (confirmed via \dp on both an old table,
+-- products, and a table created in the previous migration, staff — same gap
+-- on both, so this isn't something one session's migration regressed, it's
+-- never been granted at all). Every session so far has explicitly granted
+-- anon/authenticated per table (Sessions 1-2 established that convention,
+-- Session 7 revoked anon back down and added role-based policies for
+-- authenticated) but never granted service_role anything, because nothing in
+-- the app's own request path uses the service_role key — only local tooling
+-- scripts (e.g. scripts/seed-local-dev-staff.sh) do, and the first one that
+-- tried to write through PostgREST with it got a bare 42501.
+--
+-- service_role is never exposed client-side (it's not shipped to the
+-- frontend the way anon is, and nothing in this codebase reads it outside of
+-- local scripts), so granting it full CRUD everywhere is standard practice,
+-- not a widening of what any real user can reach — it's Postgres-level
+-- table privilege, which is a separate axis from RLS entirely; service_role
+-- already bypasses RLS by role attribute regardless of what's granted here.
+-- This migration only fixes the "permission denied for table X" layer
+-- underneath that, so tooling that authenticates as service_role actually
+-- works.
+grant select, insert, update, delete on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to service_role;

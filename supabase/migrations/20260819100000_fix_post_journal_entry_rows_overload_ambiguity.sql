@@ -1,0 +1,36 @@
+-- Found live while verifying the accounts/expense_categories fix against
+-- production: calling create_expense() failed with a genuine,
+-- pre-existing bug unrelated to the missing chart of accounts —
+--
+--   ERROR: function public._post_journal_entry_rows(uuid, date, text,
+--   text, jsonb, unknown, text) is not unique
+--
+-- 20260815100000_nullable_cost_price.sql added a `p_cost_data_incomplete
+-- boolean default false` parameter to _post_journal_entry_rows() via
+-- `create or replace function` — but an added parameter, even with a
+-- default, makes CREATE OR REPLACE define a second, separate overload
+-- rather than retarget the original, exactly the trap this repo's own
+-- history already hit and fixed for create_sale_return() and
+-- create_invoice() (both required an explicit `drop function if exists`
+-- first). That migration's own header comment claimed "every existing
+-- call site is updated in the same migration" and only actually updated
+-- the four COGS-touching posters (sale, invoice, sale_return, stock
+-- adjustment) to pass the new argument explicitly — post_expense_
+-- journal_entry(), post_invoice_payment_journal_entry(),
+-- post_day_close_journal_entry(), post_bank_deposit_journal_entry(),
+-- post_purchase_receipt_journal_entry() and post_supplier_payment_
+-- journal_entry() all still call the original 7-argument form. Because the
+-- new 8-arg overload's last parameter has a default, it's ALSO callable
+-- with 7 arguments — so every one of those six callers has been hitting
+-- this exact ambiguity error, in every environment (confirmed live, this
+-- migration was never applied via a fresh local `db reset` calling
+-- create_expense() for real either — seed.sql's dummy expense rows are
+-- inserted directly, bypassing create_expense()/the poster entirely, which
+-- is exactly why this went unnoticed until now).
+--
+-- Fixed the same way the earlier two overload collisions were: drop the
+-- stale, narrower overload outright so only the 8-arg (with a default)
+-- version remains. No caller needs to change — a 7-argument call already
+-- correctly relies on the default for the 8th parameter; it just needs
+-- there to be exactly one function that can mean.
+drop function if exists public._post_journal_entry_rows(uuid, date, text, text, jsonb, text, text);
