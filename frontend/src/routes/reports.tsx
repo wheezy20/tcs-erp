@@ -40,7 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAuth } from "@/data/auth-store";
+import { canViewFinancials, useAuth } from "@/data/auth-store";
 import { currency, TODAY } from "@/data/dashboard";
 import { formatDate, useDocumentSettings } from "@/data/settings-store";
 import {
@@ -125,8 +125,7 @@ const pct = (value: number) => `${value.toFixed(1)}%`;
 
 function ReportsPage() {
   const { staff: currentStaff } = useAuth();
-  const canViewReports =
-    currentStaff?.role === "Manager" || currentStaff?.role === "Accountant/Auditor";
+  const canViewReports = canViewFinancials(currentStaff?.role);
 
   const [filters, setFilters] = useState<ReportFilters>(defaultFilters);
   const [active, setActive] = useState("sales-summary");
@@ -177,10 +176,9 @@ function ReportsPage() {
           <BarChart3 className="size-8 text-muted-foreground" />
           <h2 className="text-lg font-semibold">Reports isn't available for this role</h2>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Reports is restricted to Managers and Accountants/Auditors — it isn't part of Sales,
+            Reports is restricted to Managers, Accountants and Auditors — it isn't part of Sales,
             POS, Returns or Invoices, and some of its figures (cost price, margin) aren't meant for
-            an Attendant to see. Ask a Manager or Accountant/Auditor if you need something from
-            here.
+            an Attendant to see. Ask a Manager or Accountant if you need something from here.
           </p>
         </div>
       </>

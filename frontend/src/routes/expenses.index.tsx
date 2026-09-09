@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currencyPrecise } from "@/data/dashboard";
 import { EXPENSE_METHODS, expenseTotal, type Expense } from "@/data/expenses";
 import { useExpenses } from "@/data/expenses-store";
@@ -41,6 +42,8 @@ export const Route = createFileRoute("/expenses/")({
 });
 
 function ExpensesPage() {
+  const { staff } = useAuth();
+  const canWrite = canWriteFinancials(staff?.role);
   const { expenses, categories: knownCategories } = useExpenses();
   const settings = useDocumentSettings();
 
@@ -124,7 +127,7 @@ function ExpensesPage() {
                 },
               ]}
             />
-            <RecordExpenseDialog />
+            {canWrite && <RecordExpenseDialog />}
           </>
         }
       />

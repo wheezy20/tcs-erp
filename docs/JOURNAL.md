@@ -203,3 +203,115 @@ PAYE-not-yet-GRA-verified warning.
 - Real GRA PAYE bands + SSNIT split confirmation before any real payroll.
 - The old `wilelik-erp` Docker containers are stopped, not removed — a
   `docker rm` once you're sure nothing there is needed.
+
+---
+
+## 2026-09-09 — Split the Accountant/Auditor role in two
+
+`supabase/migrations/20260909090000_split_accountant_auditor_roles.sql`
+(new migration, not an edit to `20260803120000` — it's a behavioural
+change to the permission model). The old combined `Accountant/Auditor`
+role becomes:
+
+- **Accountant** — Manager-equivalent write on Payroll, Accounting and
+  Expenses; read-only elsewhere.
+- **Auditor** — read-only everywhere the combined role could read.
+- **Manager** / **Attendant** — unchanged.
+
+### Mechanism
+- `staff.role` CHECK constraint → `('Attendant','Manager','Accountant','Auditor')`;
+  any existing `'Accountant/Auditor'` row migrated to `'Accountant'`.
+- `can_write()` → excludes both Accountant and Auditor (still "Manager +
+  Attendant", the ordinary-table write predicate — unchanged meaning).
+- `require_writable_role()` → now rejects **only Auditor**. Accountant
+  passes; ordinary RPCs still keep Accountant out via `can_write()`-gated
+  RLS on their target tables (documented tradeoff: the error surfaces deep
+  inside the function, not as an early friendly message — security holds).
+- `require_finance_writer()` — **new**. Manager or Accountant. The 8
+  finance RPCs (`create_expense`, `void_expense`, `create_account`,
+  `post_journal_entry`, `reverse_journal_entry`, `create_payroll_run`,
+  `create_payslip`, `delete_payslip`) each had their
+  `require_writable_role() + has_role(['Manager'])` guard swapped for a
+  single `require_finance_writer()` call. Function bodies were pulled from
+  the live DB with `pg_get_functiondef`, transformed with one perl
+  substitution each, and re-emitted verbatim otherwise (build script kept
+  in scratch, not committed).
+- `handle_new_staff_signup()` accepts the two new role names;
+  `supabase/functions/invite-staff/`'s `ALLOWED_ROLES` too.
+
+### Blast radius (RLS) — 27 tables, all previously `Accountant/Auditor`
+Every affected policy was a **SELECT** policy (the combined role was
+read-only everywhere, so there were no positive write refs to split).
+
+- **Finance-write tables** (15) — writes → `has_role(['Manager','Accountant'])`,
+  selects → `+Auditor`:
+  `expenses`, `expense_categories`, `expense_category_accounts`;
+  `accounts`, `journal_entries`, `journal_lines`,
+  `journal_entry_number_counters`;
+  `allowance_types`, `staff_pay_config`, `staff_allowances`,
+  `statutory_rates`, `paye_bands`, `payroll_runs`, `payslips`,
+  `payslip_allowances`. (`payroll_runs_delete` keeps its
+  `status = 'Draft'` clause — verified.)
+- **Read-only-for-both tables** (12) — select → `+Auditor` only, writes
+  untouched (still Manager-only; Banking/Purchasing aren't Accountant's
+  modules): `audit_log`; `bank_accounts`, `bank_deposits`,
+  `bank_reconciliations`, `bank_statement_lines`; `purchase_orders`,
+  `purchase_order_lines`, `purchase_order_receipts`,
+  `purchase_order_receipt_lines`, `purchase_order_number_counters`;
+  `suppliers`, `supplier_payments`.
+- No grant changes — every affected table already grants the relevant
+  CRUD to `authenticated`; RLS is the differentiator.
+
+### Frontend
+- `data/auth-store.ts`: `StaffRole` gains `"Accountant" | "Auditor"`;
+  new `canViewFinancials()` / `canWriteFinancials()` helpers.
+- Route view-guards (`accounting`, `payroll`, `payslips`, `banking`,
+  `purchasing`, `reports`, dashboard ledger KPI, sidebar nav visibility)
+  → `canViewFinancials` (Manager + Accountant + Auditor).
+- Write-gates in the finance UIs (`payroll.index` / `.$runId` /
+  `.pay-config`, `accounting.index`, `accounting.journal-entries`,
+  `expenses.index` "Record expense", `expenses.$expenseId` void) →
+  `canWriteFinancials` (Manager + Accountant) — so an Accountant has the
+  buttons, not just the DB access.
+- POS (`pos.tsx`, sidebar `/pos` redirect): Checkout/Returns blocked for
+  **both** Accountant and Auditor (read-only for operational modules);
+  Sales history still open. Attendant paths untouched.
+- `STAFF_ROLES` dropdown in Settings → 4 entries.
+- `scripts/seed-local-dev-staff.sh` now creates **four** dev logins:
+  `dev-accountant@tcs.test` + `dev-auditor@tcs.test` replace the single
+  combined `dev-auditor`. `seed.sql` seeds Ebenezer Addo as `Accountant`.
+  `CLAUDE.md`'s dev-account table updated.
+
+### Verification
+- `supabase db reset` clean (all migrations + seed); `gen types` clean;
+  `tsc` / `eslint` / `vite build` / `check-duplicate-function-overloads.sh`
+  all pass.
+- **DB-layer RLS matrix, all 4 roles** (psql + JWT-claims impersonation):
+  Accountant — `create_payroll_run` / `create_expense` / `create_account`
+  / `post_journal_entry` succeed; direct PATCH on `accounts` /
+  `staff_pay_config` / `paye_bands` matches rows; `create_invoice` /
+  `adjust_product_stock` / PATCH `products` blocked; `create_bank_account`
+  → "Only a Manager can add a bank account". Auditor — every write
+  rejected ("Auditor is read-only…" for ordinary, "…limited to Manager
+  and Accountant roles" for finance); reads work everywhere the combined
+  role could. Attendant — unchanged (finance blocked, `products` PATCH
+  still 12 rows). Manager — spot-checked writes succeed. Policy
+  expressions inspected directly — all correct.
+- **Browser** (headless, warmed dev server): Accountant sees "Create
+  run" / "New entry" / "Record expense" and the pages load; Auditor sees
+  the same pages (not access-blocked) with **no** write buttons; zero
+  console errors. (Earlier headless runs flaked on a cold server —
+  transient `branches` 401s that don't reproduce at the DB layer; the
+  warmed re-run was clean.)
+
+### Docs
+- `DESIGN.md` role-model section rewritten for the 4-role model + the
+  three predicates.
+- `CONSTRAINTS.md` gains a "Checklist — must be done before real go-live"
+  section (first item: verify PAYE bands against GRA) and a "Staff roles"
+  section.
+
+### Still outstanding
+- `post_payroll_run()` accounting hook (unchanged from 2026-09-08).
+- The pre-existing prettier error in `components/settings/accent-sync.tsx`
+  is still there (not this session's file).

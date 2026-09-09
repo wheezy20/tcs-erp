@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { PrintDocument } from "@/components/print/print-document";
 import { PrintablePayslip, type PayslipDocMeta } from "@/components/print/printable-payslip";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/data/auth-store";
+import { canViewFinancials, useAuth } from "@/data/auth-store";
 import { useCurrentBranch } from "@/data/branch-store";
 import { currentConfigFor, usePayroll } from "@/data/payroll-store";
 import { useDocumentSettings } from "@/data/settings-store";
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/payslips/$payslipId")({
 function PayslipPage() {
   const { payslipId } = Route.useParams();
   const { staff } = useAuth();
-  const canView = staff?.role === "Manager" || staff?.role === "Accountant/Auditor";
+  const canView = canViewFinancials(staff?.role);
   const { payslips, runs, payConfigs, loading } = usePayroll();
   const { name: branchName } = useCurrentBranch();
   const settings = useDocumentSettings();
@@ -31,7 +31,7 @@ function PayslipPage() {
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 py-24 text-center">
         <h2 className="text-lg font-semibold">Payslips aren't available for this role</h2>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Payroll is restricted to Managers and Accountants/Auditors.
+          Payroll is restricted to Managers, Accountants and Auditors.
         </p>
       </div>
     );

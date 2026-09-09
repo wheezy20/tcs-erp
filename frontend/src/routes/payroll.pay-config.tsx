@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useAuth } from "@/data/auth-store";
+import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import { useStaff } from "@/data/staff-store";
 import {
@@ -50,7 +50,7 @@ const firstOfThisMonth = () => `${today().slice(0, 7)}-01`;
 
 function PayConfigPage() {
   const { staff: currentStaff } = useAuth();
-  const isManager = currentStaff?.role === "Manager";
+  const canWrite = canWriteFinancials(currentStaff?.role);
   const { payConfigs, staffAllowances, allowanceTypes, rates, bands, loading } = usePayroll();
   const { staff: roster } = useStaff();
   const [editing, setEditing] = useState<string | null>(null);
@@ -97,7 +97,7 @@ function PayConfigPage() {
                   <th className="px-5 py-3 text-right font-medium">Basic salary</th>
                   <th className="px-5 py-3 font-medium">Statutory</th>
                   <th className="px-5 py-3 font-medium">Bank</th>
-                  {isManager && <th className="px-5 py-3 font-medium">&nbsp;</th>}
+                  {canWrite && <th className="px-5 py-3 font-medium">&nbsp;</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -145,7 +145,7 @@ function PayConfigPage() {
                           </div>
                         )}
                       </td>
-                      {isManager && (
+                      {canWrite && (
                         <td className="px-5 py-3 text-right">
                           <Button
                             variant="ghost"
@@ -166,7 +166,7 @@ function PayConfigPage() {
         </div>
       </section>
 
-      <AllowanceTypesSection types={allowanceTypes} isManager={isManager} />
+      <AllowanceTypesSection types={allowanceTypes} canWrite={canWrite} />
 
       {editing && (
         <PayConfigDialog
@@ -182,13 +182,7 @@ function PayConfigPage() {
   );
 }
 
-function AllowanceTypesSection({
-  types,
-  isManager,
-}: {
-  types: AllowanceType[];
-  isManager: boolean;
-}) {
+function AllowanceTypesSection({ types, canWrite }: { types: AllowanceType[]; canWrite: boolean }) {
   const [name, setName] = useState("");
   const [taxable, setTaxable] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -217,11 +211,11 @@ function AllowanceTypesSection({
             <p className="text-sm text-muted-foreground">No allowance types yet.</p>
           )}
           {types.map((t) => (
-            <AllowanceTypeChip key={t.id} type={t} isManager={isManager} />
+            <AllowanceTypeChip key={t.id} type={t} canWrite={canWrite} />
           ))}
         </div>
 
-        {isManager && (
+        {canWrite && (
           <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-4">
             <div className="space-y-1.5">
               <Label className="text-xs">New allowance type</Label>
@@ -246,7 +240,7 @@ function AllowanceTypesSection({
   );
 }
 
-function AllowanceTypeChip({ type, isManager }: { type: AllowanceType; isManager: boolean }) {
+function AllowanceTypeChip({ type, canWrite }: { type: AllowanceType; canWrite: boolean }) {
   const [busy, setBusy] = useState(false);
   async function toggleTaxable() {
     setBusy(true);
@@ -277,13 +271,13 @@ function AllowanceTypeChip({ type, isManager }: { type: AllowanceType; isManager
       {type.name}
       <button
         type="button"
-        disabled={!isManager || busy}
+        disabled={!canWrite || busy}
         onClick={toggleTaxable}
         className="text-xs text-muted-foreground hover:text-foreground disabled:cursor-default"
       >
         {type.taxable ? "taxable" : "non-taxable"}
       </button>
-      {isManager && (
+      {canWrite && (
         <button type="button" disabled={busy} onClick={remove} className="text-destructive">
           <Trash2 className="size-3" />
         </button>

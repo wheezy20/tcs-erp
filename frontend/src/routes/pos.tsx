@@ -36,16 +36,18 @@ function PosLayout() {
   const { name: branchName } = useCurrentBranch();
   const { staff: currentStaff } = useAuth();
 
-  // Accountant/Auditor is read-only everywhere (role-permissions-rewrite
-  // migration). Checkout and Returns are pure write screens — every action
-  // either makes is already rejected server-side, so there's no legitimate
-  // reason to be there at all (same access-denied pattern as
-  // routes/reports.tsx's Attendant guard). Sales history is different: it's
-  // a read-only view over the same `sales` table Accountant/Auditor can
-  // already read everywhere else, so it's deliberately NOT blocked here —
-  // only /pos and /pos/returns are, by pathname, not the whole section.
+  // Auditor and Accountant are read-only for operational modules like POS
+  // (Accounting/Payroll/Expenses is Accountant's write scope, not POS).
+  // Checkout and Returns are pure write screens — every action is already
+  // rejected server-side, so there's no legitimate reason to be there at
+  // all (same access-denied pattern as routes/reports.tsx's Attendant
+  // guard). Sales history is different: it's a read-only view over the same
+  // `sales` table those roles can read everywhere else, so it's
+  // deliberately NOT blocked here — only /pos and /pos/returns are, by
+  // pathname, not the whole section.
   const isWriteScreen = pathname === "/pos" || pathname.startsWith("/pos/returns");
-  const blocked = currentStaff?.role === "Accountant/Auditor" && isWriteScreen;
+  const blocked =
+    (currentStaff?.role === "Auditor" || currentStaff?.role === "Accountant") && isWriteScreen;
 
   return (
     <div>
@@ -79,7 +81,7 @@ function PosLayout() {
           <ShoppingCart className="size-8 text-muted-foreground" />
           <h2 className="text-lg font-semibold">POS isn't available for this role</h2>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Accountant/Auditor is read-only everywhere — every checkout, return and exchange here is
+            Auditors and Accountants are read-only here — every checkout, return and exchange is
             already rejected server-side, so there's nothing this screen can do for that role. Ask a
             Manager or Attendant if a sale or return needs to be made, or open Sales history above
             to read past receipts.

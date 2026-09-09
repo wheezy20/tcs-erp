@@ -89,7 +89,7 @@ function EditProductPage() {
   // The same Manager-only restriction Delete already has on this product's
   // detail page — a UI-level gate on this specific direct-edit screen, not a
   // new database boundary: the underlying products RLS write policy stays
-  // "any active staff except Accountant/Auditor" (can_write()), unchanged,
+  // "any active staff except Accountant and Auditor" (can_write()), unchanged,
   // since Attendant's existing bulk-import update path already relies on
   // being able to write these same columns and nothing here should narrow
   // that. The route itself is what actually keeps an Attendant off this

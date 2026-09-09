@@ -4313,6 +4313,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      require_finance_writer: { Args: never; Returns: undefined }
       require_staff: {
         Args: never
         Returns: {

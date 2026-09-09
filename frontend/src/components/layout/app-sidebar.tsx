@@ -20,7 +20,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/data/auth-store";
+import { canViewFinancials, useAuth } from "@/data/auth-store";
 
 export const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -54,17 +54,17 @@ export function AppSidebar({
   // A nicety on top of the real enforcement in routes/reports.tsx (which
   // blocks the page's data even if this link were clicked directly) — an
   // Attendant shouldn't see a nav entry for a page they can't use at all.
-  const canViewReports =
-    currentStaff?.role === "Manager" || currentStaff?.role === "Accountant/Auditor";
-  const isAuditor = currentStaff?.role === "Accountant/Auditor";
-  // routes/pos.tsx blocks Accountant/Auditor from Checkout and Returns
-  // (pure write screens) but not from Sales history (a read-only view they
-  // have as much right to as any other table) — so the nav link itself
-  // stays visible, just pointed straight at /pos/history for that role
-  // instead of the Checkout screen they'd otherwise land on and immediately
-  // bounce off.
+  const canViewReports = canViewFinancials(currentStaff?.role);
+  // Read-only roles for the operational POS screens: routes/pos.tsx blocks
+  // both from Checkout/Returns, so the nav link points them at Sales history.
+  const posReadOnly = currentStaff?.role === "Auditor" || currentStaff?.role === "Accountant";
+  // routes/pos.tsx blocks the read-only roles (Auditor, Accountant) from
+  // Checkout and Returns (pure write screens) but not from Sales history (a
+  // read-only view they can access like any other table) — so the nav link
+  // stays visible, just pointed straight at /pos/history for those roles
+  // instead of the Checkout screen they'd land on and bounce off.
   // Accounting, Payroll, Banking and Purchasing share the same
-  // Manager/Accountant-Auditor-only gate as Reports (each route's own guard
+  // Manager/Accountant/Auditor view gate as Reports (each route's own guard
   // + RLS on its tables is the real enforcement; this just hides the link).
   const visibleNavItems = navItems
     .filter((item) => item.url !== "/reports" || canViewReports)
@@ -72,7 +72,7 @@ export function AppSidebar({
     .filter((item) => item.url !== "/payroll" || canViewReports)
     .filter((item) => item.url !== "/banking" || canViewReports)
     .filter((item) => item.url !== "/purchasing" || canViewReports)
-    .map((item) => (item.url === "/pos" && isAuditor ? { ...item, url: "/pos/history" } : item));
+    .map((item) => (item.url === "/pos" && posReadOnly ? { ...item, url: "/pos/history" } : item));
 
   const isActive = (url: string) =>
     url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(`${url}/`);

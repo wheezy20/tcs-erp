@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { useAccounts } from "@/data/accounts-store";
-import { useAuth } from "@/data/auth-store";
+import { canViewFinancials, useAuth } from "@/data/auth-store";
 import { useExpenses } from "@/data/expenses-store";
 import { useInventory, effectiveThreshold, hasCost } from "@/data/inventory-store";
 import { invoiceTotals, type Invoice } from "@/data/invoices";
@@ -137,12 +137,12 @@ export function useDashboard() {
     // documented when it moved off this exact pattern.
     //
     // Only readable by roles RLS actually grants journal_entries/accounts
-    // select to (Manager, Accountant/Auditor) — Attendant gets empty
+    // select to (Manager, Accountant, Auditor) — Attendant gets empty
     // arrays back, not an error, so canReadLedger is checked explicitly
     // rather than inferred from "the ledger came back empty" (which would
     // be indistinguishable from a real, freshly-provisioned branch with
     // zero transactions ever posted).
-    const canReadLedger = staff?.role === "Manager" || staff?.role === "Accountant/Auditor";
+    const canReadLedger = canViewFinancials(staff?.role);
     const cashAccount = accounts.find((a) => a.code === "1000");
     const cashOnHand =
       canReadLedger && cashAccount
@@ -194,7 +194,7 @@ export function useDashboard() {
         delta: 0,
         hint: canReadLedger
           ? "Live balance of the ledger's Cash on Hand account"
-          : "Visible to Manager and Accountant/Auditor",
+          : "Visible to Manager, Accountant and Auditor",
         invertDelta: false,
         // Only this KPI can ever be role-gated — Attendant genuinely can't
         // read the ledger this figure now comes from, and showing a

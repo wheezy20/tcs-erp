@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Creates three LOCAL-ONLY test staff accounts — one Attendant, one Manager,
-# one Accountant/Auditor — so there's always a known-good login for every
-# role when testing through /login. Deliberately NOT a migration or
+# Creates four LOCAL-ONLY test staff accounts — one per role (Attendant,
+# Manager, Accountant, Auditor) — so there's always a known-good login for
+# every role when testing through /login. Deliberately NOT a migration or
 # supabase/seed.sql: those run automatically (via `supabase db reset`, and
 # migrations can be pushed to a real project via `supabase db push`), and
 # credentials have no business living in a file that could ever go out that
@@ -93,10 +93,15 @@ MGR_ID=$(create_or_get_user_id "dev-manager@tcs.test" "Dev Manager")
 set_role "$MGR_ID" "Manager"
 echo "  id: $MGR_ID"
 
-echo "== dev-auditor@tcs.test (Accountant/Auditor) =="
+echo "== dev-accountant@tcs.test (Accountant) =="
+ACC_ID=$(create_or_get_user_id "dev-accountant@tcs.test" "Dev Accountant")
+set_role "$ACC_ID" "Accountant"
+echo "  id: $ACC_ID"
+
+echo "== dev-auditor@tcs.test (Auditor) =="
 AUD_ID=$(create_or_get_user_id "dev-auditor@tcs.test" "Dev Auditor")
-set_role "$AUD_ID" "Accountant/Auditor"
+set_role "$AUD_ID" "Auditor"
 echo "  id: $AUD_ID"
 
 echo ""
-echo "Done. Sign in at /login with any of the three accounts — credentials are in CLAUDE.md under 'Local dev-only test accounts'."
+echo "Done. Sign in at /login with any of the four accounts — credentials are in CLAUDE.md under 'Local dev-only test accounts'."

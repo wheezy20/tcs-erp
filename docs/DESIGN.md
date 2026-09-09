@@ -27,11 +27,38 @@ depend on them holding true for every new table/function added.
   RLS anyway); withholding a grant from it buys nothing except on tables
   where even service_role shouldn't have update/delete (e.g. append-only
   audit logs, posted journal entries).
-- **RLS is role-based, three tiers**, checked via the `has_role()` and
-  `is_active_staff()` helper functions (never hand-rolled per-table
-  logic). Payroll extends this by restricting to `Manager` and
-  `Accountant/Auditor` only — Attendant has no access to payroll data at
-  all.
+- **RLS is role-based**, checked via `has_role()` / `is_active_staff()`
+  helper functions (never hand-rolled per-table logic). Four roles on
+  `staff.role`, split from the original combined "Accountant/Auditor" by
+  `20260909090000_split_accountant_auditor_roles.sql`:
+  - **Manager** — full read/write/delete everywhere.
+  - **Accountant** — Manager-equivalent write on the *finance modules*
+    (Payroll, Accounting, Expenses); read-only elsewhere (everywhere the
+    old combined role could read).
+  - **Auditor** — read-only everywhere the old combined role could read;
+    no write access anywhere.
+  - **Attendant** — Sales / POS / returns / invoices; no finance access.
+  Three predicate/guard functions carry this:
+  - `can_write()` = active staff AND not (Accountant or Auditor) — the
+    ordinary-table write predicate, i.e. "Manager + Attendant". Used in
+    every ordinary table's insert/update RLS policy.
+  - `require_writable_role()` — RPC guard that rejects **only Auditor**.
+    Accountant passes it; whether it can actually write is then decided by
+    the target table's RLS (ordinary tables keep Accountant out via
+    `can_write()`) or by `require_finance_writer()` (finance RPCs).
+  - `require_finance_writer()` — rejects anyone who isn't Manager or
+    Accountant. The guard at the top of every finance RPC
+    (`create_expense`, `create_account`, `post_journal_entry`,
+    `reverse_journal_entry`, `create_payroll_run`, `create_payslip`, …).
+  Finance-module tables: writes gated `has_role(['Manager','Accountant'])`,
+  selects `has_role(['Manager','Accountant','Auditor'])`. Everywhere else
+  the old combined role could read (Banking, Purchasing, Suppliers, the
+  Audit Log): selects gain Auditor, writes stay Manager-only.
+  - Documented tradeoff: a direct RPC call by an Accountant to an
+    *ordinary* RPC (e.g. `create_invoice()`) fails on RLS deep inside the
+    function rather than with an early friendly message. The security
+    boundary holds; only the error text is worse. Not worth widening 20+
+    RPC guards to fix.
 - **Identity columns are server-forced, never client-supplied.** Columns
   like `recorded_by`, `issued_by`, `performed_by` default to `auth.uid()`
   and a trigger overwrites whatever the client sends whenever
@@ -90,8 +117,9 @@ depend on them holding true for every new table/function added.
   and re-check the role themselves. This keeps the computed figures
   un-forgeable (a client can't hand-insert a payslip row) without needing
   a per-column CHECK. Ordinary *config* tables (`allowance_types`,
-  `staff_pay_config`, statutory rate/band tables) stay on plain three-tier
-  RLS — a Manager edits them directly, same as `accounts`.
+  `staff_pay_config`, statutory rate/band tables) stay on plain
+  role-based RLS — a Manager or Accountant edits them directly, same as
+  `accounts`.
 - **Mutation window on lifecycle records.** Where a record has a
   draft→final lifecycle (`payroll_runs.status`), delete/regenerate is
   allowed only while it's a draft — `delete_payslip()` refuses once the

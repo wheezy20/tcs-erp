@@ -2,7 +2,7 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { BookOpen } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
-import { useAuth } from "@/data/auth-store";
+import { canViewFinancials, useAuth } from "@/data/auth-store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/accounting")({
@@ -32,7 +32,7 @@ const TABS = [
 function AccountingLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { staff: currentStaff } = useAuth();
-  const canView = currentStaff?.role === "Manager" || currentStaff?.role === "Accountant/Auditor";
+  const canView = canViewFinancials(currentStaff?.role);
 
   return (
     <div>
@@ -79,8 +79,8 @@ function AccountingLayout() {
           <BookOpen className="size-8 text-muted-foreground" />
           <h2 className="text-lg font-semibold">Accounting isn't available for this role</h2>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Accounting is restricted to Managers and Accountants/Auditors. Ask a Manager or
-            Accountant/Auditor if you need something from here.
+            Accounting is restricted to Managers, Accountants and Auditors. Ask a Manager or
+            Accountant if you need something from here.
           </p>
         </div>
       )}

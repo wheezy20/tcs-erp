@@ -2,6 +2,20 @@
 
 Things that shape how this gets built, not just what gets built.
 
+## Checklist — must be done before real go-live
+
+- [ ] Verify PAYE bands against the official GRA published schedule
+      (currently placeholder values, see docs/JOURNAL.md)
+- [ ] Confirm the SSNIT / Tier 2 split (0.5% / 13% / 5%) against an
+      official SSNIT source — currently only confirmed verbally against
+      the school's current practice (see "Statutory accuracy" below)
+- [ ] Replace `supabase/seed.sql` (still Wilelik's dummy retail data) with
+      real TCS seed data, or none
+- [ ] Create a dedicated hosted Supabase project for TCS and run
+      `scripts/bootstrap-production-manager.sh` for the first real Manager
+- [ ] Real TCS logo / favicon assets (sidebar + login currently render a
+      text "TCS" placeholder)
+
 ## Data safety
 
 - **This project must never connect to Wilelik's real Supabase project.**
@@ -48,6 +62,18 @@ Things that shape how this gets built, not just what gets built.
   staff) are **exempt from some or all of SSNIT/PAYE/Tier 2**. This is
   handled per-staff via boolean flags on `staff_pay_config`
   (`pays_ssnit`, `pays_tier2`, `pays_paye`), independently toggleable.
+
+## Staff roles (as of 20260909090000)
+
+Four roles on `staff.role`: **Manager** (full write everywhere),
+**Accountant** (Manager-equivalent write on Payroll / Accounting /
+Expenses; read-only elsewhere), **Auditor** (read-only everywhere the
+old combined role could read), **Attendant** (Sales / POS / invoices; no
+finance access). Enforced by RLS + the `can_write()` /
+`require_writable_role()` / `require_finance_writer()` predicates — see
+DESIGN.md. When adding a new table, decide which of these four it's for
+and gate it with the matching predicate; don't invent a fifth role or a
+per-table role check.
 
 ## Architecture
 

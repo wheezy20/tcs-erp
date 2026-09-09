@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/data/auth-store";
+import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { getErrorMessage } from "@/lib/utils";
 import {
   ACCOUNT_CATEGORIES,
@@ -42,7 +42,7 @@ export const Route = createFileRoute("/accounting/")({
 
 function AccountingPage() {
   const { staff: currentStaff } = useAuth();
-  const isManager = currentStaff?.role === "Manager";
+  const canWrite = canWriteFinancials(currentStaff?.role);
   const { accounts, loading } = useAccounts();
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Account | null>(null);
@@ -60,7 +60,7 @@ function AccountingPage() {
 
   return (
     <>
-      <div className="flex justify-end">{isManager && <AddAccountDialog />}</div>
+      <div className="flex justify-end">{canWrite && <AddAccountDialog />}</div>
 
       <div className="mt-4 space-y-6">
         <Input
@@ -78,7 +78,7 @@ function AccountingPage() {
               key={category}
               category={category}
               accounts={rows}
-              isManager={isManager}
+              canWrite={canWrite}
               onEdit={setEditing}
             />
           );
@@ -100,12 +100,12 @@ function AccountingPage() {
 function CategoryTable({
   category,
   accounts,
-  isManager,
+  canWrite,
   onEdit,
 }: {
   category: AccountCategory;
   accounts: Account[];
-  isManager: boolean;
+  canWrite: boolean;
   onEdit: (account: Account) => void;
 }) {
   return (
@@ -121,7 +121,7 @@ function CategoryTable({
                 <th className="px-5 py-3 font-medium">Subtype</th>
                 <th className="px-5 py-3 font-medium">Normal balance</th>
                 <th className="px-5 py-3 font-medium">Status</th>
-                {isManager && <th className="px-5 py-3 font-medium">&nbsp;</th>}
+                {canWrite && <th className="px-5 py-3 font-medium">&nbsp;</th>}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -141,7 +141,7 @@ function CategoryTable({
                       {a.active ? "Active" : "Inactive"}
                     </Badge>
                   </td>
-                  {isManager && (
+                  {canWrite && (
                     <td className="px-5 py-3 text-right">
                       <Button variant="ghost" size="sm" className="gap-1" onClick={() => onEdit(a)}>
                         <Pencil className="size-3.5" /> Edit

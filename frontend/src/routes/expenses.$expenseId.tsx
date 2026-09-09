@@ -3,7 +3,7 @@ import { ArrowLeft, Receipt } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { VoidTransactionDialog } from "@/components/void-transaction-dialog";
-import { useAuth } from "@/data/auth-store";
+import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currencyPrecise } from "@/data/dashboard";
 import { useExpenses, voidExpense } from "@/data/expenses-store";
 import { formatDate, useDocumentSettings } from "@/data/settings-store";
@@ -27,7 +27,7 @@ function ExpenseDetail() {
   const { expenseId } = Route.useParams();
   const { expenses } = useExpenses();
   const { staff } = useAuth();
-  const isManager = staff?.role === "Manager";
+  const canWrite = canWriteFinancials(staff?.role);
   const settings = useDocumentSettings();
   const expense = expenses.find((e) => e.id === expenseId);
 
@@ -53,7 +53,7 @@ function ExpenseDetail() {
         title={expense.description}
         description={`${expense.id} · ${expense.category}`}
         actions={
-          !expense.voidedAt && isManager ? (
+          !expense.voidedAt && canWrite ? (
             <VoidTransactionDialog
               kind="expense"
               id={expense.id}

@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAuth } from "@/data/auth-store";
+import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import {
   createPayrollRun,
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/payroll/")({
 
 function PayrollRunsPage() {
   const { staff } = useAuth();
-  const isManager = staff?.role === "Manager";
+  const canWrite = canWriteFinancials(staff?.role);
   const { runs, payslips, loading } = usePayroll();
 
   const byRun = useMemo(() => {
@@ -64,15 +64,17 @@ function PayrollRunsPage() {
           {runs.length} payroll run{runs.length === 1 ? "" : "s"}. A run is created as a draft; add
           a payslip per staff member, then it locks on posting.
         </p>
-        {isManager && <CreateRunDialog existing={runs} />}
+        {canWrite && <CreateRunDialog existing={runs} />}
       </div>
 
       {runs.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed px-6 py-16 text-center">
           <Coins className="size-8 text-muted-foreground" />
           <p className="text-sm font-medium">No payroll runs yet</p>
-          {!isManager && (
-            <p className="text-sm text-muted-foreground">Only a Manager can create a run.</p>
+          {!canWrite && (
+            <p className="text-sm text-muted-foreground">
+              Only a Manager or Accountant can create a run.
+            </p>
           )}
         </div>
       ) : (
@@ -86,7 +88,7 @@ function PayrollRunsPage() {
                   <th className="px-5 py-3 text-right font-medium">Payslips</th>
                   <th className="px-5 py-3 text-right font-medium">Net pay total</th>
                   <th className="px-5 py-3 font-medium">Created by</th>
-                  {isManager && <th className="px-5 py-3 font-medium">&nbsp;</th>}
+                  {canWrite && <th className="px-5 py-3 font-medium">&nbsp;</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -113,7 +115,7 @@ function PayrollRunsPage() {
                       <td className="px-5 py-3 text-muted-foreground">
                         {run.createdByName ?? "—"}
                       </td>
-                      {isManager && (
+                      {canWrite && (
                         <td className="px-5 py-3 text-right">
                           {run.status === "Draft" && (
                             <DeleteRunButton run={run} payslipCount={agg.count} />

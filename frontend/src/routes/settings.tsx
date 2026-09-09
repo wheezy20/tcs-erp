@@ -203,7 +203,7 @@ function SettingsPage() {
             <ComingSoon
               title="Roles & permissions"
               icon={Lock}
-              note="Attendant, Manager and Accountant/Auditor roles exist and are enforced by database policy (see Staff) — a screen for fine-tuning individual permissions per role isn't built yet."
+              note="Attendant, Manager, Accountant and Auditor roles exist and are enforced by database policy (see Staff) — a screen for fine-tuning individual permissions per role isn't built yet."
             />
           )}
           {section === "branches" && (
@@ -1045,7 +1045,7 @@ function SecuritySection() {
   );
 }
 
-const STAFF_ROLES: StaffRole[] = ["Attendant", "Manager", "Accountant/Auditor"];
+const STAFF_ROLES: StaffRole[] = ["Attendant", "Manager", "Accountant", "Auditor"];
 
 function StaffSection() {
   const { staff: roster, pendingIds, loading } = useStaff();

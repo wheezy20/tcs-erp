@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAuth } from "@/data/auth-store";
+import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import { useStaff } from "@/data/staff-store";
 import {
@@ -43,7 +43,7 @@ export const Route = createFileRoute("/payroll/$runId")({
 function RunDetailPage() {
   const { runId } = Route.useParams();
   const { staff: currentStaff } = useAuth();
-  const isManager = currentStaff?.role === "Manager";
+  const canWrite = canWriteFinancials(currentStaff?.role);
   const { runs, payslips, payConfigs, allowanceTypes, staffAllowances, loading } = usePayroll();
   const { staff: roster } = useStaff();
   const [generateFor, setGenerateFor] = useState<string | null>(null);
@@ -84,7 +84,7 @@ function RunDetailPage() {
     { gross: 0, deductions: 0, net: 0 },
   );
 
-  const canGenerate = isManager && run.status === "Draft";
+  const canGenerate = canWrite && run.status === "Draft";
 
   return (
     <div className="mt-4 space-y-5">
@@ -188,7 +188,7 @@ function RunDetailPage() {
                             View
                           </Link>
                         </Button>
-                        {isManager && run.status === "Draft" && <DeletePayslipButton payslip={p} />}
+                        {canWrite && run.status === "Draft" && <DeletePayslipButton payslip={p} />}
                       </div>
                     </td>
                   </tr>

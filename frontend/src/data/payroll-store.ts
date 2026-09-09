@@ -8,7 +8,7 @@ import type { Database } from "@/lib/database.types";
 // together and consumers pull what they need out of usePayroll().
 //
 // RLS is the real access boundary — payroll_runs / payslips / config
-// tables are all Manager + Accountant/Auditor select only (see
+// tables: Manager + Accountant write; Auditor reads; Attendant none (see
 // 20260908070000_payroll_schema.sql). An Attendant gets empty arrays
 // back, not a load error, same as useAccounts().
 //

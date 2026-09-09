@@ -2,7 +2,7 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { Coins } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
-import { useAuth } from "@/data/auth-store";
+import { canViewFinancials, useAuth } from "@/data/auth-store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/payroll")({
@@ -24,14 +24,14 @@ const TABS = [
   { to: "/payroll/pay-config", label: "Staff Pay Config", exact: false },
 ] as const;
 
-/** Same Manager + Accountant/Auditor gate as Accounting / Reports —
+/** Same Manager + Accountant + Auditor view gate as Accounting / Reports —
  * payroll (individual salaries) is not in an Attendant's granted module
  * list. RLS on every payroll table is the real enforcement; this makes
  * the section itself say so before a sub-page tries to load. */
 function PayrollLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { staff } = useAuth();
-  const canView = staff?.role === "Manager" || staff?.role === "Accountant/Auditor";
+  const canView = canViewFinancials(staff?.role);
 
   return (
     <div>
@@ -70,8 +70,8 @@ function PayrollLayout() {
           <Coins className="size-8 text-muted-foreground" />
           <h2 className="text-lg font-semibold">Payroll isn't available for this role</h2>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Payroll is restricted to Managers and Accountants/Auditors. Ask a Manager if you need
-            something from here.
+            Payroll is restricted to Managers, Accountants and Auditors. Ask a Manager or Accountant
+            if you need something from here.
           </p>
         </div>
       )}

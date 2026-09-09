@@ -4,7 +4,22 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 
-export type StaffRole = "Attendant" | "Manager" | "Accountant/Auditor";
+export type StaffRole = "Attendant" | "Manager" | "Accountant" | "Auditor";
+
+/** Roles that can *view* the finance-adjacent sections (Payroll, Accounting,
+ * Expenses, Reports, Banking, Purchasing, the ledger-derived dashboard KPIs)
+ * — everywhere the old combined "Accountant/Auditor" role had read access.
+ * The DB mirror is each table's `_select` RLS policy. */
+export function canViewFinancials(role: StaffRole | undefined | null): boolean {
+  return role === "Manager" || role === "Accountant" || role === "Auditor";
+}
+
+/** Roles that can *write* the finance modules (Payroll, Accounting, Expenses)
+ * — the same set the DB's require_finance_writer() enforces. Auditor cannot;
+ * Accountant has Manager-equivalent write access on those specific tables. */
+export function canWriteFinancials(role: StaffRole | undefined | null): boolean {
+  return role === "Manager" || role === "Accountant";
+}
 
 export type Staff = {
   id: string;

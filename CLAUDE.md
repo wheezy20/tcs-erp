@@ -142,7 +142,8 @@ to re-run after every `supabase db reset`.
 |---|---|---|
 | `dev-attendant@tcs.test` | `local-dev-2026` | Attendant |
 | `dev-manager@tcs.test` | `local-dev-2026` | Manager |
-| `dev-auditor@tcs.test` | `local-dev-2026` | Accountant/Auditor |
+| `dev-accountant@tcs.test` | `local-dev-2026` | Accountant |
+| `dev-auditor@tcs.test` | `local-dev-2026` | Auditor |
 
 Separately, `supabase/seed.sql` still contains historical dummy staff
 accounts (`*.@tcs.internal`, shared password `password123`) that exist

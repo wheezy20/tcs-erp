@@ -58,11 +58,13 @@ values
 -- Roster: Emmanuel Ansah was already the topbar's hardcoded "Store manager"
 -- placeholder before this session: Manager. Ebenezer Addo was the default
 -- CURRENT_STAFF_NAME across inventory-store.ts/invoice-store.ts/pos-store.ts
--- (purchases, stock adjustments, invoice issuing) — the most finance-adjacent
--- of the four: Accountant/Auditor. Ama Owusu and Kojo Boadu did the bulk of
--- day-to-day POS/counter sales in the dummy data: Attendant.
+-- (purchases, stock adjustments, invoice issuing) — active bookkeeping, so
+-- Accountant (the 20260909090000 split of the old combined Accountant/Auditor
+-- role — Accountant writes Payroll/Accounting/Expenses, Auditor is read-only).
+-- Ama Owusu and Kojo Boadu did the bulk of day-to-day POS/counter sales in
+-- the dummy data: Attendant.
 update public.staff set role = 'Manager' where id = '30000000-0000-0000-0000-000000000004';
-update public.staff set role = 'Accountant/Auditor' where id = '30000000-0000-0000-0000-000000000003';
+update public.staff set role = 'Accountant' where id = '30000000-0000-0000-0000-000000000003';
 update public.staff set role = 'Attendant' where id in (
   '30000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002'
 );

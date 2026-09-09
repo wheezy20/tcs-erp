@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/data/auth-store";
+import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { useAccounts, type Account } from "@/data/accounts-store";
 import { currency } from "@/data/dashboard";
 import {
@@ -43,7 +43,7 @@ function entryTotal(entry: JournalEntry) {
 
 function JournalEntriesPage() {
   const { staff: currentStaff } = useAuth();
-  const isManager = currentStaff?.role === "Manager";
+  const canWrite = canWriteFinancials(currentStaff?.role);
   const { entries, loading } = useJournalEntries();
   const { accounts } = useAccounts();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -59,15 +59,17 @@ function JournalEntriesPage() {
           {entries.length} entr{entries.length === 1 ? "y" : "ies"} posted. Once posted, an entry is
           immutable — corrections are a reversing entry, never an edit.
         </p>
-        {isManager && <NewEntryDialog accounts={accounts} />}
+        {canWrite && <NewEntryDialog accounts={accounts} />}
       </div>
 
       {entries.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed px-6 py-16 text-center">
           <BookText className="size-8 text-muted-foreground" />
           <p className="text-sm font-medium">No journal entries posted yet</p>
-          {!isManager && (
-            <p className="text-sm text-muted-foreground">Only a Manager can post an entry.</p>
+          {!canWrite && (
+            <p className="text-sm text-muted-foreground">
+              Only a Manager or Accountant can post an entry.
+            </p>
           )}
         </div>
       ) : (
@@ -84,7 +86,7 @@ function JournalEntriesPage() {
                   <th className="px-5 py-3 font-medium">Source</th>
                   <th className="px-5 py-3 text-right font-medium">Total</th>
                   <th className="px-5 py-3 font-medium">Created by</th>
-                  {isManager && <th className="px-5 py-3 font-medium">&nbsp;</th>}
+                  {canWrite && <th className="px-5 py-3 font-medium">&nbsp;</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -92,7 +94,7 @@ function JournalEntriesPage() {
                   <EntryRow
                     key={entry.id}
                     entry={entry}
-                    isManager={isManager}
+                    canWrite={canWrite}
                     expanded={expanded === entry.id}
                     onToggle={() => setExpanded(expanded === entry.id ? null : entry.id)}
                   />
@@ -108,12 +110,12 @@ function JournalEntriesPage() {
 
 function EntryRow({
   entry,
-  isManager,
+  canWrite,
   expanded,
   onToggle,
 }: {
   entry: JournalEntry;
-  isManager: boolean;
+  canWrite: boolean;
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -172,7 +174,7 @@ function EntryRow({
           {currency(entryTotal(entry))}
         </td>
         <td className="px-5 py-3 text-muted-foreground">{entry.createdBy}</td>
-        {isManager && (
+        {canWrite && (
           <td className="px-5 py-3 text-right" onClick={(e) => e.stopPropagation()}>
             {!alreadyReversed && (
               <Button
@@ -190,7 +192,7 @@ function EntryRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={isManager ? 9 : 8} className="bg-muted/20 px-5 py-3">
+          <td colSpan={canWrite ? 9 : 8} className="bg-muted/20 px-5 py-3">
             <table className="w-full text-xs">
               <thead className="text-left uppercase tracking-wide text-muted-foreground">
                 <tr>
