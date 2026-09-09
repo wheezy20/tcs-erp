@@ -315,3 +315,80 @@ read-only everywhere, so there were no positive write refs to split).
 - `post_payroll_run()` accounting hook (unchanged from 2026-09-08).
 - The pre-existing prettier error in `components/settings/accent-sync.tsx`
   is still there (not this session's file).
+
+## 2026-09-09 — Staff Overview: directory + editable profiles
+
+Built the "staff overview" piece outstanding from the original scope — a
+directory/profile screen distinct from Payroll's Pay Config.
+
+### What got built
+- **`/staff`** (`routes/staff.tsx` layout + `staff.index.tsx`) — every
+  staff member with role, position, department, phone and active/invite
+  status; search; "show inactive" toggle; three summary cards. Row links
+  to the profile. Same Manager/Accountant/Auditor view gate as the other
+  back-office sections (`canViewFinancials`); Attendant gets an
+  access-denied panel. New sidebar entry ("Staff", `Contact` icon), gated
+  the same way.
+- **`/staff/$staffId`** (`staff.$staffId.tsx`) — profile with an editable
+  Contact & placement form (phone / position / department, Manager-only,
+  dirty-tracked) plus read-only Account (sign-in email, role, status →
+  link to Settings → Staff) and Pay & bank (bank / account no / basic
+  salary → link to Pay Config) panels.
+- `staff-store.ts`: `updateStaffProfile(id, {phone,position,department})`.
+- `auth-store.ts` / `Staff` type gains `phone` / `position` /
+  `department`.
+
+### Schema — `20260909100000_staff_profile_fields.sql`
+- `alter table public.staff add column phone / position / department`.
+- `alter table public.staff_pay_config drop column position / department`
+  — they were added there in the payroll migration (2026-09-08) but are
+  org placement, not pay history: the payslip reads them live, never from
+  a per-payslip snapshot, so moving the source of truth changes no
+  payslip semantics and there was only seed data to migrate.
+- **No new RLS or grants.** `staff` already has `staff_select` =
+  `is_active_staff()` (every active staff member reads — needed for
+  "Recorded by" names everywhere) and `staff_update` =
+  `has_role(['Manager'])` (the policy that already gates role/active), plus
+  `grant select, update on staff to authenticated`. The new columns ride
+  both.
+
+### Design decisions (flagged for review)
+- **Columns on `staff`, not a `staff_profiles` side table.** `staff` is
+  the identity table; phone/position/department are current-state 1:1
+  facts of the same kind as `name`. Effective-dating is for values
+  reconstructed as-of a past date — org placement isn't one. A directory
+  field is no more sensitive than `staff.name`. New DESIGN.md convention:
+  "Staff identity vs pay data".
+- **`bank` / `account_no` stay on `staff_pay_config`** (pay data, pinned
+  to each payslip by FK, effective-dated edit flow already owns them). The
+  profile shows them read-only with a link to Pay Config. A single
+  editable copy on `staff` would let the two diverge.
+- **`email` is display-only** on the profile — it mirrors
+  `auth.users.email`; changing it is a re-invite, not a field edit. No
+  separate contact-email added (out of scope; note if ever wanted).
+- **Edits are Manager-only, not Manager+Accountant.** Staff records are
+  org-admin/HR data; the `20260909090000` split scoped Accountant to
+  Payroll / Accounting / Expenses only. Reusing `staff_update` means zero
+  RLS surface change. A dedicated HR permission can come later
+  (CONSTRAINTS.md: "don't invent a fifth role" for now).
+
+### Verification
+- `supabase db reset` clean (incl. the new migration + seed); `gen types`
+  clean; `tsc` / `eslint src` (0 errors — 2 pre-existing warnings) /
+  `vite build` / `check-duplicate-function-overloads.sh` all pass.
+- **DB RLS matrix** (psql + JWT-claims impersonation): `UPDATE
+  public.staff SET phone/position/department` → Manager `UPDATE 1`;
+  Attendant / Accountant / Auditor all `UPDATE 0`. All 4 roles can
+  `SELECT` from `staff`.
+- **Browser** (headless): Manager — `/staff` list (8 rows), profile
+  opens, Save works (toast + value persists after reload), 0 console
+  errors. Auditor & Accountant — list visible, profile read-only (no Save
+  button, phone input disabled). Attendant — `/staff` shows the
+  access-denied panel. Pay Config page still loads, "Position" column now
+  sourced from `staff`, the pay-config dialog no longer has
+  position/department fields and links out to the staff profile.
+
+### Still outstanding
+- `post_payroll_run()` accounting hook (unchanged from 2026-09-08).
+- If a non-login "contact email" is ever wanted, add `staff.contact_email`
+  (the current `email` stays the sign-in address).

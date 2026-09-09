@@ -140,6 +140,27 @@ depend on them holding true for every new table/function added.
   change → close the open row (`effective_to` = day before) and insert a
   new open-ended one. A dedicated "record a pay change" flow can replace
   the heuristic later.
+- **Staff identity vs pay data — put current-state facts on `staff`, not
+  in an effective-dated or 1:1 side table.** `phone`, `position`,
+  `department` live directly on `staff` (with `name` / `email` / `role` /
+  `active`). The effective-dated pattern is only for values that have to be
+  reconstructed *as-of a past date* — which bank an old payslip paid into
+  matters months later, which department someone sits in does not
+  (`create_payslip()` snapshots amounts, never org placement; the payslip
+  UI reads position/department *live*). A 1:1 `staff_profiles` table was
+  rejected too: `staff` is already the identity table and is already
+  readable by every active staff member (names show on "Recorded by"
+  everywhere), so a directory field is no more sensitive than
+  `staff.name` and rides the existing `staff_select` policy. Split these
+  columns into their own table only if genuinely stricter per-field read
+  control is ever needed. `bank` / `account_no` stay on `staff_pay_config`
+  — they *are* pay data (a payslip's `staff_pay_config_id` FK pins it to
+  the exact details paid against) and the effective-dated edit flow already
+  owns them. Editing `staff` is Manager-only (`staff_update` =
+  `has_role(['Manager'])`, the same policy that gates role/active) — staff
+  records are org-admin/HR data, not one of the finance modules the
+  `20260909090000` split opened to the Accountant; an HR-equivalent role
+  can come later. (`20260909100000_staff_profile_fields.sql`.)
 - **Entity-wide reference data goes in the migration, not `seed.sql`.**
   Rows that must exist in *every* environment and have no branch/staff FK
   — the chart of accounts, statutory rates, PAYE bands — are inserted by

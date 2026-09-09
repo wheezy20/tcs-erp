@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { canViewFinancials, useAuth } from "@/data/auth-store";
 import { useCurrentBranch } from "@/data/branch-store";
 import { currentConfigFor, usePayroll } from "@/data/payroll-store";
+import { useStaff } from "@/data/staff-store";
 import { useDocumentSettings } from "@/data/settings-store";
 import { MONTHS } from "@/data/payroll-format";
 
@@ -22,6 +23,7 @@ function PayslipPage() {
   const { staff } = useAuth();
   const canView = canViewFinancials(staff?.role);
   const { payslips, runs, payConfigs, loading } = usePayroll();
+  const { staff: roster } = useStaff();
   const { name: branchName } = useCurrentBranch();
   const settings = useDocumentSettings();
   const [downloading, setDownloading] = useState(false);
@@ -55,11 +57,12 @@ function PayslipPage() {
 
   const run = runs.find((r) => r.id === payslip.payrollRunId);
   const config = currentConfigFor(payConfigs, payslip.staffId);
+  const staffMember = roster.find((s) => s.id === payslip.staffId);
   const meta: PayslipDocMeta = {
     periodLabel: run ? `${MONTHS[run.month - 1] ?? run.month} ${run.year}` : "—",
     staffName: payslip.staffName,
-    position: config?.position ?? null,
-    department: config?.department ?? null,
+    position: staffMember?.position ?? null,
+    department: staffMember?.department ?? null,
     bank: config?.bank ?? null,
     accountNo: config?.accountNo ?? null,
     branchName: branchName ?? "",

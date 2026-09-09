@@ -69,6 +69,17 @@ update public.staff set role = 'Attendant' where id in (
   '30000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002'
 );
 
+-- Contact / org-placement fields for the Staff Overview screen. position /
+-- department moved off staff_pay_config here (20260909100000).
+update public.staff set position = 'Head Teacher',       department = 'Administration', phone = '+233 24 100 0004'
+  where id = '30000000-0000-0000-0000-000000000004';
+update public.staff set position = 'Accountant',         department = 'Administration', phone = '+233 24 100 0003'
+  where id = '30000000-0000-0000-0000-000000000003';
+update public.staff set position = 'Class Teacher',      department = 'Lower Primary',  phone = '+233 24 100 0001'
+  where id = '30000000-0000-0000-0000-000000000001';
+update public.staff set position = 'Teaching Assistant', department = 'Lower Primary',  phone = '+233 24 100 0002'
+  where id = '30000000-0000-0000-0000-000000000002';
+
 insert into public.products
   (id, branch_id, sku, name, description, category, unit, size, cost, price, stock, low_stock_threshold)
 values
@@ -1688,13 +1699,14 @@ values
 -- One open-ended pay config per seeded staff member. Kojo Boadu is set up
 -- as a National Service person — exempt from all three statutory
 -- deductions — to exercise the pays_ssnit/pays_tier2/pays_paye flags.
+-- position / department are on `staff` now (see the updates above).
 insert into public.staff_pay_config
-  (staff_id, position, department, bank, account_no, basic_salary, pays_ssnit, pays_tier2, pays_paye, effective_from)
+  (staff_id, bank, account_no, basic_salary, pays_ssnit, pays_tier2, pays_paye, effective_from)
 values
-  ('30000000-0000-0000-0000-000000000004', 'Head Teacher',        'Administration', 'GCB Bank', '1234500001', 6500.00, true,  true,  true,  '2026-01-01'),
-  ('30000000-0000-0000-0000-000000000003', 'Accountant',          'Administration', 'Ecobank',  '0201500002', 4200.00, true,  true,  true,  '2026-01-01'),
-  ('30000000-0000-0000-0000-000000000001', 'Class Teacher',       'Lower Primary',  'GCB Bank', '1234500003', 2800.00, true,  true,  true,  '2026-01-01'),
-  ('30000000-0000-0000-0000-000000000002', 'Teaching Assistant',  'Lower Primary',  'Fidelity', '1050000004', 1500.00, false, false, false, '2026-01-01');
+  ('30000000-0000-0000-0000-000000000004', 'GCB Bank', '1234500001', 6500.00, true,  true,  true,  '2026-01-01'),
+  ('30000000-0000-0000-0000-000000000003', 'Ecobank',  '0201500002', 4200.00, true,  true,  true,  '2026-01-01'),
+  ('30000000-0000-0000-0000-000000000001', 'GCB Bank', '1234500003', 2800.00, true,  true,  true,  '2026-01-01'),
+  ('30000000-0000-0000-0000-000000000002', 'Fidelity', '1050000004', 1500.00, false, false, false, '2026-01-01');
 
 -- Standing monthly allowances (pre-filled, editable per payslip).
 insert into public.staff_allowances (staff_id, allowance_type_id, default_amount, effective_from)

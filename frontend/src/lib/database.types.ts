@@ -2585,9 +2585,12 @@ export type Database = {
           active: boolean
           branch_id: string
           created_at: string
+          department: string | null
           email: string
           id: string
           name: string
+          phone: string | null
+          position: string | null
           protected: boolean
           role: string
           updated_at: string
@@ -2596,9 +2599,12 @@ export type Database = {
           active?: boolean
           branch_id: string
           created_at?: string
+          department?: string | null
           email: string
           id: string
           name: string
+          phone?: string | null
+          position?: string | null
           protected?: boolean
           role: string
           updated_at?: string
@@ -2607,9 +2613,12 @@ export type Database = {
           active?: boolean
           branch_id?: string
           created_at?: string
+          department?: string | null
           email?: string
           id?: string
           name?: string
+          phone?: string | null
+          position?: string | null
           protected?: boolean
           role?: string
           updated_at?: string
@@ -2672,14 +2681,12 @@ export type Database = {
           bank: string | null
           basic_salary: number
           created_at: string
-          department: string | null
           effective_from: string
           effective_to: string | null
           id: string
           pays_paye: boolean
           pays_ssnit: boolean
           pays_tier2: boolean
-          position: string | null
           staff_id: string
         }
         Insert: {
@@ -2687,14 +2694,12 @@ export type Database = {
           bank?: string | null
           basic_salary: number
           created_at?: string
-          department?: string | null
           effective_from: string
           effective_to?: string | null
           id?: string
           pays_paye?: boolean
           pays_ssnit?: boolean
           pays_tier2?: boolean
-          position?: string | null
           staff_id: string
         }
         Update: {
@@ -2702,14 +2707,12 @@ export type Database = {
           bank?: string | null
           basic_salary?: number
           created_at?: string
-          department?: string | null
           effective_from?: string
           effective_to?: string | null
           id?: string
           pays_paye?: boolean
           pays_ssnit?: boolean
           pays_tier2?: boolean
-          position?: string | null
           staff_id?: string
         }
         Relationships: [
@@ -4320,9 +4323,12 @@ export type Database = {
           active: boolean
           branch_id: string
           created_at: string
+          department: string | null
           email: string
           id: string
           name: string
+          phone: string | null
+          position: string | null
           protected: boolean
           role: string
           updated_at: string

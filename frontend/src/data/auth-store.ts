@@ -32,6 +32,13 @@ export type Staff = {
    * itself unconditionally unchangeable and the row undeletable — no RPC or
    * UI path can lift this, by design. */
   protected: boolean;
+  /** Contact / org-placement fields — editable on Staff Overview by a
+   * Manager (20260909100000). `position` / `department` used to live on
+   * `staff_pay_config`; they moved here as current-state identity, not pay
+   * history (see docs/DESIGN.md). Bank details stay on `staff_pay_config`. */
+  phone: string | null;
+  position: string | null;
+  department: string | null;
 };
 
 type StaffRow = Database["public"]["Tables"]["staff"]["Row"];
@@ -44,6 +51,9 @@ function mapStaffRow(row: StaffRow): Staff {
     role: row.role as StaffRole,
     active: row.active,
     protected: row.protected,
+    phone: row.phone,
+    position: row.position,
+    department: row.department,
   };
 }
 

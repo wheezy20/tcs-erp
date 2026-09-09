@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -111,8 +111,8 @@ function PayConfigPage() {
                         <div className="text-xs text-muted-foreground">{s.role}</div>
                       </td>
                       <td className="px-5 py-3 text-muted-foreground">
-                        {config?.position ?? "—"}
-                        {config?.department ? ` · ${config.department}` : ""}
+                        {s.position ?? "—"}
+                        {s.department ? ` · ${s.department}` : ""}
                       </td>
                       <td className="px-5 py-3 text-right tabular-nums">
                         {config ? (
@@ -303,8 +303,6 @@ function PayConfigDialog({
   standing: { allowanceTypeId: string; defaultAmount: number }[];
   onClose: () => void;
 }) {
-  const [position, setPosition] = useState(config?.position ?? "");
-  const [department, setDepartment] = useState(config?.department ?? "");
   const [bank, setBank] = useState(config?.bank ?? "");
   const [accountNo, setAccountNo] = useState(config?.accountNo ?? "");
   const [basicSalary, setBasicSalary] = useState(config ? String(config.basicSalary) : "");
@@ -331,8 +329,6 @@ function PayConfigDialog({
       return;
     }
     const fields: PayConfigFields = {
-      position,
-      department,
       bank,
       accountNo,
       basicSalary: Number(basicSalary),
@@ -378,16 +374,17 @@ function PayConfigDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Position</Label>
-              <Input value={position} onChange={(e) => setPosition(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Department</Label>
-              <Input value={department} onChange={(e) => setDepartment(e.target.value)} />
-            </div>
-          </div>
+          <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+            Position and department moved to the{" "}
+            <Link
+              to="/staff/$staffId"
+              params={{ staffId }}
+              className="font-medium text-primary hover:underline"
+            >
+              staff profile
+            </Link>
+            . This screen covers pay only.
+          </p>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

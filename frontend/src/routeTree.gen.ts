@@ -22,6 +22,7 @@ import { Route as PurchasingRouteImport } from './routes/purchasing'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SalesRouteImport } from './routes/sales'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as StaffRouteImport } from './routes/staff'
 import { Route as AccountingIndexRouteImport } from './routes/accounting.index'
 import { Route as AccountingBalanceSheetRouteImport } from './routes/accounting.balance-sheet'
 import { Route as AccountingCashFlowRouteImport } from './routes/accounting.cash-flow'
@@ -57,6 +58,8 @@ import { Route as PurchasingPurchaseOrderIdRouteImport } from './routes/purchasi
 import { Route as PurchasingNewRouteImport } from './routes/purchasing.new'
 import { Route as SalesIndexRouteImport } from './routes/sales.index'
 import { Route as SalesNewRouteImport } from './routes/sales.new'
+import { Route as StaffIndexRouteImport } from './routes/staff.index'
+import { Route as StaffStaffIdRouteImport } from './routes/staff.$staffId'
 import { Route as InventoryProductIdIndexRouteImport } from './routes/inventory.$productId.index'
 import { Route as InventoryProductIdEditRouteImport } from './routes/inventory.$productId.edit'
 import { Route as PurchasingSuppliersIndexRouteImport } from './routes/purchasing.suppliers.index'
@@ -127,6 +130,11 @@ const SalesRoute = SalesRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StaffRoute = StaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountingIndexRoute = AccountingIndexRouteImport.update({
@@ -307,6 +315,16 @@ const SalesNewRoute = SalesNewRouteImport.update({
   path: '/new',
   getParentRoute: () => SalesRoute,
 } as any)
+const StaffIndexRoute = StaffIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => StaffRoute,
+} as any)
+const StaffStaffIdRoute = StaffStaffIdRouteImport.update({
+  id: '/$staffId',
+  path: '/$staffId',
+  getParentRoute: () => StaffRoute,
+} as any)
 const InventoryProductIdIndexRoute = InventoryProductIdIndexRouteImport.update({
   id: '/$productId/',
   path: '/$productId/',
@@ -354,6 +372,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/sales': typeof SalesRouteWithChildren
   '/settings': typeof SettingsRoute
+  '/staff': typeof StaffRouteWithChildren
   '/accounting/balance-sheet': typeof AccountingBalanceSheetRoute
   '/accounting/cash-flow': typeof AccountingCashFlowRoute
   '/accounting/journal-entries': typeof AccountingJournalEntriesRoute
@@ -377,6 +396,7 @@ export interface FileRoutesByFullPath {
   '/purchasing/$purchaseOrderId': typeof PurchasingPurchaseOrderIdRoute
   '/purchasing/new': typeof PurchasingNewRoute
   '/sales/new': typeof SalesNewRoute
+  '/staff/$staffId': typeof StaffStaffIdRoute
   '/accounting/': typeof AccountingIndexRoute
   '/banking/': typeof BankingIndexRoute
   '/customer-deposits/': typeof CustomerDepositsIndexRoute
@@ -389,6 +409,7 @@ export interface FileRoutesByFullPath {
   '/pro-forma/': typeof ProFormaIndexRoute
   '/purchasing/': typeof PurchasingIndexRoute
   '/sales/': typeof SalesIndexRoute
+  '/staff/': typeof StaffIndexRoute
   '/inventory/$productId/edit': typeof InventoryProductIdEditRoute
   '/purchasing/suppliers/$supplierId': typeof PurchasingSuppliersSupplierIdRoute
   '/sales/$invoiceId/edit': typeof SalesInvoiceIdEditRoute
@@ -425,6 +446,7 @@ export interface FileRoutesByTo {
   '/purchasing/$purchaseOrderId': typeof PurchasingPurchaseOrderIdRoute
   '/purchasing/new': typeof PurchasingNewRoute
   '/sales/new': typeof SalesNewRoute
+  '/staff/$staffId': typeof StaffStaffIdRoute
   '/accounting': typeof AccountingIndexRoute
   '/banking': typeof BankingIndexRoute
   '/customer-deposits': typeof CustomerDepositsIndexRoute
@@ -437,6 +459,7 @@ export interface FileRoutesByTo {
   '/pro-forma': typeof ProFormaIndexRoute
   '/purchasing': typeof PurchasingIndexRoute
   '/sales': typeof SalesIndexRoute
+  '/staff': typeof StaffIndexRoute
   '/inventory/$productId/edit': typeof InventoryProductIdEditRoute
   '/purchasing/suppliers/$supplierId': typeof PurchasingSuppliersSupplierIdRoute
   '/sales/$invoiceId/edit': typeof SalesInvoiceIdEditRoute
@@ -459,6 +482,7 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/sales': typeof SalesRouteWithChildren
   '/settings': typeof SettingsRoute
+  '/staff': typeof StaffRouteWithChildren
   '/accounting/balance-sheet': typeof AccountingBalanceSheetRoute
   '/accounting/cash-flow': typeof AccountingCashFlowRoute
   '/accounting/journal-entries': typeof AccountingJournalEntriesRoute
@@ -482,6 +506,7 @@ export interface FileRoutesById {
   '/purchasing/$purchaseOrderId': typeof PurchasingPurchaseOrderIdRoute
   '/purchasing/new': typeof PurchasingNewRoute
   '/sales/new': typeof SalesNewRoute
+  '/staff/$staffId': typeof StaffStaffIdRoute
   '/accounting/': typeof AccountingIndexRoute
   '/banking/': typeof BankingIndexRoute
   '/customer-deposits/': typeof CustomerDepositsIndexRoute
@@ -494,6 +519,7 @@ export interface FileRoutesById {
   '/pro-forma/': typeof ProFormaIndexRoute
   '/purchasing/': typeof PurchasingIndexRoute
   '/sales/': typeof SalesIndexRoute
+  '/staff/': typeof StaffIndexRoute
   '/inventory/$productId/edit': typeof InventoryProductIdEditRoute
   '/purchasing/suppliers/$supplierId': typeof PurchasingSuppliersSupplierIdRoute
   '/sales/$invoiceId/edit': typeof SalesInvoiceIdEditRoute
@@ -517,6 +543,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/sales'
     | '/settings'
+    | '/staff'
     | '/accounting/balance-sheet'
     | '/accounting/cash-flow'
     | '/accounting/journal-entries'
@@ -540,6 +567,7 @@ export interface FileRouteTypes {
     | '/purchasing/$purchaseOrderId'
     | '/purchasing/new'
     | '/sales/new'
+    | '/staff/$staffId'
     | '/accounting/'
     | '/banking/'
     | '/customer-deposits/'
@@ -552,6 +580,7 @@ export interface FileRouteTypes {
     | '/pro-forma/'
     | '/purchasing/'
     | '/sales/'
+    | '/staff/'
     | '/inventory/$productId/edit'
     | '/purchasing/suppliers/$supplierId'
     | '/sales/$invoiceId/edit'
@@ -588,6 +617,7 @@ export interface FileRouteTypes {
     | '/purchasing/$purchaseOrderId'
     | '/purchasing/new'
     | '/sales/new'
+    | '/staff/$staffId'
     | '/accounting'
     | '/banking'
     | '/customer-deposits'
@@ -600,6 +630,7 @@ export interface FileRouteTypes {
     | '/pro-forma'
     | '/purchasing'
     | '/sales'
+    | '/staff'
     | '/inventory/$productId/edit'
     | '/purchasing/suppliers/$supplierId'
     | '/sales/$invoiceId/edit'
@@ -621,6 +652,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/sales'
     | '/settings'
+    | '/staff'
     | '/accounting/balance-sheet'
     | '/accounting/cash-flow'
     | '/accounting/journal-entries'
@@ -644,6 +676,7 @@ export interface FileRouteTypes {
     | '/purchasing/$purchaseOrderId'
     | '/purchasing/new'
     | '/sales/new'
+    | '/staff/$staffId'
     | '/accounting/'
     | '/banking/'
     | '/customer-deposits/'
@@ -656,6 +689,7 @@ export interface FileRouteTypes {
     | '/pro-forma/'
     | '/purchasing/'
     | '/sales/'
+    | '/staff/'
     | '/inventory/$productId/edit'
     | '/purchasing/suppliers/$supplierId'
     | '/sales/$invoiceId/edit'
@@ -678,6 +712,7 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   SalesRoute: typeof SalesRouteWithChildren
   SettingsRoute: typeof SettingsRoute
+  StaffRoute: typeof StaffRouteWithChildren
   CustomerDepositsDepositIdRoute: typeof CustomerDepositsDepositIdRoute
   CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
   ExpensesExpenseIdRoute: typeof ExpensesExpenseIdRoute
@@ -781,6 +816,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/staff': {
+      id: '/staff'
+      path: '/staff'
+      fullPath: '/staff'
+      preLoaderRoute: typeof StaffRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/accounting/': {
@@ -1028,6 +1070,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SalesNewRouteImport
       parentRoute: typeof SalesRoute
     }
+    '/staff/': {
+      id: '/staff/'
+      path: '/'
+      fullPath: '/staff/'
+      preLoaderRoute: typeof StaffIndexRouteImport
+      parentRoute: typeof StaffRoute
+    }
+    '/staff/$staffId': {
+      id: '/staff/$staffId'
+      path: '/$staffId'
+      fullPath: '/staff/$staffId'
+      preLoaderRoute: typeof StaffStaffIdRouteImport
+      parentRoute: typeof StaffRoute
+    }
     '/inventory/$productId/': {
       id: '/inventory/$productId/'
       path: '/$productId'
@@ -1209,6 +1265,18 @@ const SalesRouteChildren: SalesRouteChildren = {
 
 const SalesRouteWithChildren = SalesRoute._addFileChildren(SalesRouteChildren)
 
+interface StaffRouteChildren {
+  StaffStaffIdRoute: typeof StaffStaffIdRoute
+  StaffIndexRoute: typeof StaffIndexRoute
+}
+
+const StaffRouteChildren: StaffRouteChildren = {
+  StaffStaffIdRoute: StaffStaffIdRoute,
+  StaffIndexRoute: StaffIndexRoute,
+}
+
+const StaffRouteWithChildren = StaffRoute._addFileChildren(StaffRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AcceptInviteRoute: AcceptInviteRoute,
@@ -1223,6 +1291,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   SalesRoute: SalesRouteWithChildren,
   SettingsRoute: SettingsRoute,
+  StaffRoute: StaffRouteWithChildren,
   CustomerDepositsDepositIdRoute: CustomerDepositsDepositIdRoute,
   CustomersCustomerIdRoute: CustomersCustomerIdRoute,
   ExpensesExpenseIdRoute: ExpensesExpenseIdRoute,

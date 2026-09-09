@@ -77,8 +77,6 @@ export type AllowanceType = {
 export type StaffPayConfig = {
   id: string;
   staffId: string;
-  position: string | null;
-  department: string | null;
   bank: string | null;
   accountNo: string | null;
   basicSalary: number;
@@ -195,8 +193,6 @@ function mapPayConfig(row: PayConfigRow): StaffPayConfig {
   return {
     id: row.id,
     staffId: row.staff_id,
-    position: row.position,
-    department: row.department,
     bank: row.bank,
     accountNo: row.account_no,
     basicSalary: num(row.basic_salary),
@@ -466,8 +462,6 @@ export async function deleteAllowanceType(id: string): Promise<void> {
 // --- staff pay config
 
 export type PayConfigFields = {
-  position: string;
-  department: string;
   bank: string;
   accountNo: string;
   basicSalary: number;
@@ -491,8 +485,6 @@ export async function savePayConfig(staffId: string, fields: PayConfigFields): P
   const existing = currentConfigFor(state.payConfigs, staffId);
 
   const payload = {
-    position: fields.position.trim() || null,
-    department: fields.department.trim() || null,
     bank: fields.bank.trim() || null,
     account_no: fields.accountNo.trim() || null,
     basic_salary: fields.basicSalary,
