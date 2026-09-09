@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
+import { reloadJournalEntries } from "@/data/journal-store";
 
 // Payroll (Phase 1). One combined store: the data set is small for a
 // school (dozens of staff, ~12 runs a year), so everything is loaded
@@ -391,6 +392,18 @@ export async function deletePayrollRun(id: string): Promise<void> {
   const { error } = await supabase.from("payroll_runs").delete().eq("id", id);
   if (error) throw error;
   await reload();
+}
+
+/** Post a Draft run to the Accounting ledger — creates ONE aggregated
+ * journal entry (gross → 5140, statutory withholdings → 2310/2320/2330,
+ * IOU → 1350, fines → 4910, net → 2300) and flips status to 'Posted',
+ * atomically. Manager/Accountant only (require_finance_writer(),
+ * server-enforced). Reloads the journal store too so the ledger view and
+ * the run page's embedded summary both pick the new entry up. */
+export async function postPayrollRun(id: string): Promise<void> {
+  const { error } = await supabase.rpc("post_payroll_run", { p_run_id: id });
+  if (error) throw error;
+  await Promise.all([reload(), reloadJournalEntries()]);
 }
 
 export type CreatePayslipInput = {

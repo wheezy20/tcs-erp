@@ -392,3 +392,89 @@ directory/profile screen distinct from Payroll's Pay Config.
 - `post_payroll_run()` accounting hook (unchanged from 2026-09-08).
 - If a non-login "contact email" is ever wanted, add `staff.contact_email`
   (the current `email` stays the sign-in address).
+
+## 2026-09-09 — Post payroll run to Accounting
+
+Built the deferred "post to Accounting" step for payroll (the `// TODO` in
+`payroll.$runId.tsx` and `20260908070000`).
+
+### Schema — `20260909110000_post_payroll_run.sql`
+- **4 new chart accounts** (`insert … on conflict (code) do nothing`, the
+  in-migration pattern — `seed.sql` never runs on prod):
+  `2310 SSNIT Payable`, `2320 Provident Fund (Tier 2) Payable`,
+  `2330 PAYE Payable` (Liabilities), `4910 Staff Fines Recovered`
+  (Revenue — deliberately its own line, not lumped into `4900 Other
+  Income`, so fine recovery is visible on its own).
+- **`post_payroll_run(p_run_id)`** — `SECURITY DEFINER`,
+  `require_finance_writer()` (Manager + Accountant), Draft runs only.
+  Aggregates every payslip in the run into **one** journal entry (like
+  `post_day_close_journal_entry` rolls up a day), via
+  `_post_journal_entry_rows()` with `source_table='payroll_runs'` /
+  `source_id=run_id` (the unique constraint blocks a double-post). Atomic:
+  the entry + `status → 'Posted'` + `posted_at` commit together.
+  `entry_date` = last calendar day of the run's month.
+
+  | Line | Dr | Cr |
+  |---|---|---|
+  | 5140 Salaries & Wages Expense | Σ gross | |
+  | 2300 Salaries & Wages Payable | | Σ net (accrued, not disbursed) |
+  | 2310 SSNIT Payable | | Σ ssnit |
+  | 2320 Provident Fund (Tier 2) Payable | | Σ tier2 |
+  | 2330 PAYE Payable | | Σ tax |
+  | 1350 Advances to Staff | | Σ iou (repayment reduces the asset) |
+  | 4910 Staff Fines Recovered | | Σ fines |
+
+  Balanced by construction (credits sum to gross). Zero-aggregate lines
+  (3–7) are omitted — a zero `journal_lines` row violates
+  `journal_lines_has_amount`. Raises if total net ≤ 0.
+
+### Immutability — already in place, verified not added
+`create_payslip()` **already** refuses a non-Draft run (checked against
+the live DB — the guard the task suspected was missing is there),
+`delete_payslip()` already does, `payroll_runs_delete` RLS already
+requires Draft, and `payroll_runs` has no UPDATE grant/policy. So a Posted
+run is fully immutable through every path with no new code; the migration
+just records that it was checked.
+
+### Frontend
+- `payroll-store.ts`: `postPayrollRun(id)` → RPC, then reloads both the
+  payroll and journal stores.
+- `journal-store.ts`: `reloadJournalEntries()` export; `payroll_runs →
+  "Payroll"` source label.
+- `payroll.$runId.tsx`: replaced the TODO with a Post-to-Accounting
+  section. Draft + all-payslips-present → a **"Post to Accounting"** dialog
+  showing the projected entry (debit/credit table), an employer-SSNIT
+  caveat, and a warning listing any active staff with no pay config (they
+  post excluded, not blocked). Not-yet-complete → a "generate the
+  remaining N payslips first" note. Posted → an embedded card with the
+  real entry (`JE-…`, date, line table) and an "Open in ledger" link.
+  "Complete" = every active staff member **who has a pay config** has a
+  payslip.
+
+### Employer SSNIT (13%) gap — flagged in CONSTRAINTS.md, not just a comment
+`create_payslip()` computes employee-side only, so this entry omits the
+employer's 13% SSNIT contribution: the P&L understates staffing cost and
+`2310 SSNIT Payable` is understated. Added to
+`docs/CONSTRAINTS.md`'s go-live checklist with the fix (add an
+employer-contribution figure to the payslip computation, then extend
+`post_payroll_run()`).
+
+### Verification
+- `supabase db reset` / `gen types` clean; `tsc` / `eslint src` /
+  `vite build` / `check-duplicate-function-overloads.sh` pass.
+- **DB end-to-end** (psql, rolled-back txn): 4-payslip run → aggregates
+  G 15200 / SSNIT 67.50 / Tier2 675 / PAYE 2128.68 / fines 50 / IOU 100 /
+  net 12178.82 → posted `JE-26040001`, 7 lines, **15200 Dr = 15200 Cr**,
+  run flipped to Posted. Second `post_payroll_run` rejected ("already
+  posted"); `create_payslip` against the posted run rejected ("already
+  posted and cannot take new payslips").
+- **DB RLS matrix**: Manager posts OK, Accountant posts OK, Auditor
+  blocked ("limited to Manager and Accountant roles"), Attendant blocked.
+- **Browser** (headless): see below in this session's smoke run —
+  Manager posts a run, the embedded entry appears, the generate/delete
+  controls disappear, and a re-post attempt is not offered.
+
+### Still outstanding
+- Employer SSNIT (above).
+- No "unpost"/reverse-from-the-run-page shortcut — a correction goes
+  through the normal `reverse_journal_entry()` in Accounting. Fine for now.

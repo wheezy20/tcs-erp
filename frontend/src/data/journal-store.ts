@@ -44,6 +44,7 @@ const SOURCE_LABELS: Record<string, string> = {
   stock_movements: "Stock adjustment",
   day_closes: "End of day",
   bank_deposits: "Bank deposit",
+  payroll_runs: "Payroll",
 };
 
 /** "Manual" for anything a Manager posted by hand (post_journal_entry()
@@ -172,6 +173,13 @@ function getSnapshot() {
  * gets an empty list back, same as accounts. */
 export function useJournalEntries() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/** Force a refetch — for callers that post an entry through a path other
+ * than postJournalEntry()/reverseJournalEntry() (e.g. post_payroll_run(),
+ * which lives in payroll-store) and need the ledger view to pick it up. */
+export async function reloadJournalEntries(): Promise<void> {
+  await reload();
 }
 
 export type NewJournalLine = {

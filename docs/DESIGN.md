@@ -122,10 +122,31 @@ depend on them holding true for every new table/function added.
   `accounts`.
 - **Mutation window on lifecycle records.** Where a record has a
   draft→final lifecycle (`payroll_runs.status`), delete/regenerate is
-  allowed only while it's a draft — `delete_payslip()` refuses once the
-  run is Posted, and `payroll_runs_delete` RLS requires `status = 'Draft'`.
-  Corrections after that are new offsetting records, never edits (same
-  rule as posted journal entries).
+  allowed only while it's a draft — `delete_payslip()` and
+  `create_payslip()` both refuse once the run is Posted, and
+  `payroll_runs_delete` RLS requires `status = 'Draft'`. `payroll_runs`
+  has no UPDATE grant/policy at all, so `post_payroll_run()` (SECURITY
+  DEFINER) is the only thing that ever flips the status. Corrections after
+  that are new offsetting records, never edits (same rule as posted
+  journal entries).
+- **Posting a batch record to the ledger: one aggregated entry, its own
+  poster, explicit not automatic.** `post_payroll_run(run_id)` follows the
+  Session 14 auto-poster shape (`SECURITY DEFINER`, builds a `jsonb` line
+  array, calls the private `_post_journal_entry_rows()` with
+  `source_table`/`source_id` so the unique constraint blocks a
+  double-post) — but, like `post_day_close_journal_entry()`, it sums the
+  whole batch into **one** journal entry rather than one per payslip, and
+  it's an explicit Manager/Accountant action (`require_finance_writer()`),
+  never fired from inside `create_payslip()`. Atomic: the entry and the
+  `status → 'Posted'` flip commit together. Lines whose aggregate is zero
+  are omitted (a zero-amount `journal_lines` row violates
+  `journal_lines_has_amount`). Payroll's mapping: Dr `5140` gross; Cr
+  `2300` net (payable — accrued, not disbursed); Cr `2310`/`2320`/`2330`
+  SSNIT / Tier 2 / PAYE withheld; Cr `1350` IOU (repayment reduces the
+  advance asset — the counterpart to `post_expense_journal_entry()`
+  debiting `1350` for a "Staff advances" expense); Cr `4910` fines.
+  Employee-side only — see the employer-SSNIT gap in
+  `docs/CONSTRAINTS.md`.
 - **Multi-row RPC input is `jsonb`, not a composite-type array.**
   `create_payslip(p_allowances jsonb)` follows `create_invoice()` /
   `create_sale()`'s `p_lines jsonb` convention — `jsonb_array_elements` in

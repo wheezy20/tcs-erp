@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, FileText, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2, FileText, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,10 +30,12 @@ import {
   createPayslip,
   currentConfigFor,
   deletePayslip,
+  postPayrollRun,
   standingAllowancesFor,
   usePayroll,
   type Payslip,
 } from "@/data/payroll-store";
+import { useJournalEntries, type JournalEntry } from "@/data/journal-store";
 import { periodLabel } from "@/data/payroll-format";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -46,7 +49,9 @@ function RunDetailPage() {
   const canWrite = canWriteFinancials(currentStaff?.role);
   const { runs, payslips, payConfigs, allowanceTypes, staffAllowances, loading } = usePayroll();
   const { staff: roster } = useStaff();
+  const { entries: journalEntries } = useJournalEntries();
   const [generateFor, setGenerateFor] = useState<string | null>(null);
+  const [posting, setPosting] = useState(false);
 
   const run = runs.find((r) => r.id === runId);
   const runPayslips = useMemo(
@@ -85,6 +90,28 @@ function RunDetailPage() {
   );
 
   const canGenerate = canWrite && run.status === "Draft";
+  const runEntry = journalEntries.find(
+    (e) => e.sourceTable === "payroll_runs" && e.sourceId === run.id,
+  );
+  // "Complete" = every active staff member who has a pay config already has
+  // a payslip on this run. Staff with no config can't be paid at all, so
+  // they don't block the post — they're surfaced as a warning instead.
+  const readyToPost =
+    canWrite && run.status === "Draft" && runPayslips.length > 0 && notYetPaid.length === 0;
+
+  async function onPost(): Promise<boolean> {
+    setPosting(true);
+    try {
+      await postPayrollRun(run!.id);
+      toast.success("Payroll run posted to Accounting");
+      return true;
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not post the payroll run."));
+      return false;
+    } finally {
+      setPosting(false);
+    }
+  }
 
   return (
     <div className="mt-4 space-y-5">
@@ -109,11 +136,42 @@ function RunDetailPage() {
         <SummaryCard label="Net pay" value={currency(totals.net)} strong />
       </div>
 
-      {/* TODO (accounting follow-up): a "Post to Accounting" action goes
-          here — it should call a post_payroll_run() RPC that creates the
-          payroll journal entry (salary expense / statutory liabilities /
-          net pay payable) and flips status to Posted. Not built yet;
-          Draft/Posted currently only gates payslip edits. */}
+      {run.status === "Posted" ? (
+        <PostedEntryCard entry={runEntry} />
+      ) : runPayslips.length > 0 && canWrite ? (
+        <div className="card-surface p-4">
+          {readyToPost ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Ready to post to Accounting</p>
+                <p className="text-xs text-muted-foreground">
+                  {runPayslips.length} payslip{runPayslips.length === 1 ? "" : "s"} · net{" "}
+                  {currency(totals.net)}. Posting creates one journal entry and locks the run.
+                </p>
+                {missingConfig.length > 0 && (
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
+                    {missingConfig.length} active staff member
+                    {missingConfig.length === 1 ? " has" : "s have"} no pay config and will be
+                    excluded: {missingConfig.map((s) => s.name).join(", ")}.
+                  </p>
+                )}
+              </div>
+              <PostRunDialog
+                periodLabel={periodLabel(run)}
+                payslips={runPayslips}
+                missingCount={missingConfig.length}
+                posting={posting}
+                onConfirm={onPost}
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Generate the remaining {notYetPaid.length} payslip
+              {notYetPaid.length === 1 ? "" : "s"} before posting this run to Accounting.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {run.status === "Draft" && canGenerate && notYetPaid.length > 0 && (
         <div className="card-surface p-4">
@@ -210,6 +268,180 @@ function RunDetailPage() {
         />
       )}
     </div>
+  );
+}
+
+const POSTING_NOTE =
+  "Employer SSNIT (13%) is not included — it isn't calculated on payslips yet (see the go-live checklist in docs/CONSTRAINTS.md), so this entry understates true staffing cost by that amount.";
+
+function EntryLinesTable({
+  lines,
+}: {
+  lines: { key: string; code: string; name: string; debit: number; credit: number }[];
+}) {
+  const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
+  const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
+  return (
+    <div className="overflow-x-auto rounded-lg border text-sm">
+      <table className="w-full">
+        <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 font-medium">Account</th>
+            <th className="px-3 py-2 text-right font-medium">Debit</th>
+            <th className="px-3 py-2 text-right font-medium">Credit</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {lines.map((l) => (
+            <tr key={l.key}>
+              <td className="px-3 py-2">
+                <span className="font-mono text-xs text-muted-foreground">{l.code}</span> {l.name}
+              </td>
+              <td className="px-3 py-2 text-right tabular-nums">
+                {l.debit ? currency(l.debit) : "—"}
+              </td>
+              <td className="px-3 py-2 text-right tabular-nums">
+                {l.credit ? currency(l.credit) : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="border-t bg-muted/40 font-medium">
+          <tr>
+            <td className="px-3 py-2">Total</td>
+            <td className="px-3 py-2 text-right tabular-nums">{currency(totalDebit)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">{currency(totalCredit)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+function PostedEntryCard({ entry }: { entry: JournalEntry | undefined }) {
+  if (!entry) {
+    return (
+      <div className="card-surface flex items-center gap-2 p-4 text-sm text-muted-foreground">
+        <CheckCircle2 className="size-4 text-primary" />
+        Posted to Accounting — loading the journal entry…
+      </div>
+    );
+  }
+  return (
+    <div className="card-surface space-y-3 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm font-medium">
+          <CheckCircle2 className="size-4 text-primary" />
+          Posted to Accounting · <span className="font-mono">{entry.id}</span>
+        </p>
+        <Button asChild variant="ghost" size="sm" className="gap-1.5">
+          <Link to="/accounting/journal-entries">
+            <BookOpen className="size-3.5" /> Open in ledger
+          </Link>
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {entry.description} · {entry.entryDate}
+      </p>
+      <EntryLinesTable
+        lines={entry.lines.map((l) => ({
+          key: l.id,
+          code: l.accountCode,
+          name: l.accountName,
+          debit: l.debit,
+          credit: l.credit,
+        }))}
+      />
+      <p className="text-xs text-muted-foreground">{POSTING_NOTE}</p>
+    </div>
+  );
+}
+
+function PostRunDialog({
+  periodLabel: period,
+  payslips,
+  missingCount,
+  posting,
+  onConfirm,
+}: {
+  periodLabel: string;
+  payslips: Payslip[];
+  missingCount: number;
+  posting: boolean;
+  onConfirm: () => Promise<boolean>;
+}) {
+  const [open, setOpen] = useState(false);
+  const sums = payslips.reduce(
+    (a, p) => ({
+      gross: a.gross + p.grossSalary,
+      ssnit: a.ssnit + p.ssnit,
+      tier2: a.tier2 + p.tier2,
+      paye: a.paye + p.tax,
+      fines: a.fines + p.fines,
+      iou: a.iou + p.iou,
+      net: a.net + p.netPay,
+    }),
+    { gross: 0, ssnit: 0, tier2: 0, paye: 0, fines: 0, iou: 0, net: 0 },
+  );
+  const lines = [
+    { key: "5140", code: "5140", name: "Salaries & Wages Expense", debit: sums.gross, credit: 0 },
+    { key: "2300", code: "2300", name: "Salaries & Wages Payable", debit: 0, credit: sums.net },
+    { key: "2310", code: "2310", name: "SSNIT Payable", debit: 0, credit: sums.ssnit },
+    {
+      key: "2320",
+      code: "2320",
+      name: "Provident Fund (Tier 2) Payable",
+      debit: 0,
+      credit: sums.tier2,
+    },
+    { key: "2330", code: "2330", name: "PAYE Payable", debit: 0, credit: sums.paye },
+    { key: "1350", code: "1350", name: "Advances to Staff", debit: 0, credit: sums.iou },
+    { key: "4910", code: "4910", name: "Staff Fines Recovered", debit: 0, credit: sums.fines },
+  ].filter((l) => l.debit > 0 || l.credit > 0);
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !posting && setOpen(next)}>
+      <DialogTrigger asChild>
+        <Button className="gap-2">
+          <BookOpen className="size-4" /> Post to Accounting
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Post {period} payroll to Accounting</DialogTitle>
+          <DialogDescription>
+            Creates one journal entry and locks the run — no payslip can be generated, edited or
+            deleted against it afterward. A mistake after posting is corrected with a reversing
+            entry.
+          </DialogDescription>
+        </DialogHeader>
+
+        <EntryLinesTable lines={lines} />
+
+        <p className="text-xs text-muted-foreground">{POSTING_NOTE}</p>
+        {missingCount > 0 && (
+          <p className="text-xs text-amber-600 dark:text-amber-500">
+            {missingCount} active staff member{missingCount === 1 ? "" : "s"} with no pay config
+            {missingCount === 1 ? " is" : " are"} excluded from this run.
+          </p>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={posting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={async () => {
+              const ok = await onConfirm();
+              if (ok) setOpen(false);
+            }}
+            disabled={posting}
+          >
+            {posting ? "Posting…" : "Post to Accounting"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

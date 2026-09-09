@@ -4094,6 +4094,28 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      post_payroll_run: {
+        Args: { p_run_id: string }
+        Returns: {
+          branch_id: string
+          cost_data_incomplete: boolean
+          created_at: string
+          created_by: string
+          description: string
+          entry_date: string
+          id: string
+          reference: string | null
+          reverses_entry_id: string | null
+          source_id: string | null
+          source_table: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "journal_entries"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       post_purchase_receipt_journal_entry: {
         Args: { p_receipt_id: string }
         Returns: {
