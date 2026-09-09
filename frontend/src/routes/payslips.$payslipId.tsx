@@ -63,6 +63,7 @@ function PayslipPage() {
     staffName: payslip.employeeName,
     position: employee?.position ?? null,
     department: employee?.department ?? null,
+    paymentMethod: config?.paymentMethod ?? "Bank",
     bank: config?.bank ?? null,
     accountNo: config?.accountNo ?? null,
     branchName: branchName ?? "",

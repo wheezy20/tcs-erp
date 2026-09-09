@@ -769,3 +769,138 @@ root-level icons.
   **one** Approve button, **no** "Salary / bank changes" entry; one click
   → employee Active with the config attached, no pending banner on the
   profile. Setup tab shows the Banks editor with the seeded banks.
+
+## 2026-09-09 — Payroll run review workflow, per-run exclusions, Mobile Money
+
+Group A. One migration, `20260909150000_payroll_review_exclusions_momo.sql`,
+plus the frontend to drive it. Nothing else changed shape.
+
+### 1. Run review state machine
+
+`payroll_runs.status` was `Draft → Posted`, any finance writer posting.
+Now `Draft → Ready for Review → Posted`:
+
+- `submit_payroll_run_for_review(run_id)` — any finance writer. Draft only.
+  Enforces the completeness check (below); raises with the list of who's
+  missing. Sets `submitted_by/at`, clears `rejection_reason`.
+- `post_payroll_run(run_id)` — **Manager only now** (was
+  `require_finance_writer()`). Requires `Ready for Review`. Approval and
+  posting are one call — the journal-entry construction is byte-for-byte
+  the 20260909120000 version, only the guard + a `reviewed_by/at` stamp
+  changed.
+- `reject_payroll_run(run_id, reason)` — Manager only, reason required.
+  `Ready for Review → Draft`, stamps `rejection_reason` (shown in the
+  Draft banner, cleared on the next submit).
+
+New columns on `payroll_runs`: `submitted_by`, `submitted_at`,
+`reviewed_by`, `reviewed_at`, `rejection_reason`. New `audit_log` actions
+`payroll_run_submitted` / `_approved` / `_rejected`, written by a new
+`audit_payroll_run()` AFTER-UPDATE trigger (the table had no audit trigger
+before). Self-review is allowed — a Manager can approve a run they
+submitted — consistent with the rest of the app; confirmed with the user.
+
+`create_payslip()` / `delete_payslip()` already refuse any non-Draft run,
+so `Ready for Review` locks payslip edits with no new code.
+
+"Email payslips" (a Posted-run bulk action) is **deferred to its own
+task** — no email provider is wired in this repo (`invite-staff` rides
+Supabase Auth's built-in mail) and `employees` has no email column. The
+run page shows a disabled "Email payslips" button with a `title`
+explaining why.
+
+### 2. "Exclude from this run"
+
+New `payroll_run_exclusions` (`payroll_run_id` `on delete cascade`,
+`employee_id` `on delete restrict`, optional `reason`, `excluded_by`,
+unique on `(run, employee)`). Select for M/Acc/Aud; RPC-only writes like
+`payslips`.
+
+- `exclude_employee_from_run(run, employee, reason?)` / `include_employee_in_run(run, employee)`
+  — finance writers, Draft only. Exclude refuses an employee who already
+  has a payslip on the run.
+- `_payroll_run_unaccounted(run_id)` — the shared "who's missing"
+  definition: `Active` employees with a current approved
+  `employee_pay_config` that have neither a payslip nor an exclusion on
+  the run. `submit_payroll_run_for_review()` calls it; the run page
+  computes the same set client-side for the "Ready to submit" gate.
+  Employees with no approved config still don't block — non-blocking
+  warning, as before.
+- Audit: `payroll_run_exclusion_added` / `_removed` via
+  `audit_payroll_run_exclusion()` (AFTER INSERT OR DELETE).
+
+Run page: each not-yet-accounted employee gets **Generate payslip** and
+**Exclude** (a dialog with an optional reason); an "Excluded this cycle"
+section lists them with an **Include** undo (Draft only).
+
+### 3. Mobile Money
+
+`banks` → **`payment_providers`** (table, PK/unique/index/policies all
+renamed) + a `kind` column (`'Bank' | 'Mobile Money'`, default `'Bank'`,
+so the 23 existing rows are unchanged). Renamed rather than kept as
+`banks` because the table is one session old, uncommitted, and would
+otherwise be a table called `banks` that also holds MTN. Seeded three
+networks — `MTN Mobile Money`, `Telecel Cash` (the post-2023 name for
+Vodafone Cash), `AirtelTigo Money`.
+
+`employee_pay_config.payment_method` (`'Bank' | 'Mobile Money'`, default
+`'Bank'` — existing rows *are* banks, no data migration). The existing
+`bank` / `account_no` columns double as the destination pair: for mobile
+money they hold the network name + wallet phone. No `momo_*` columns —
+they'd always be half-null and the journal entry never reads either
+column. Considered and rejected in favour of the two-column reuse
+(documented in DESIGN.md).
+
+`propose_employee()` and `propose_pay_config_change()` gained a trailing
+`p_payment_method text default 'Bank'` (drop + recreate per the
+overload-check rule; grants re-issued). Same approval gate as a
+bank/account change — it's the same columns, same path. The
+`pay_config_proposed` / `pay_config_approved` audit payloads carry
+`payment_method`; no new action. `create_payslip()` untouched — the
+method changes where net pay goes, not how it's computed or posted.
+
+Frontend: `banks-store.ts` → `payment-providers-store.ts`
+(`usePaymentProviders`, `activeProviders(list, kind?)`);
+`bank-select.tsx` → `payment-fields.tsx` (`PaymentProviderSelect` +
+`PaymentDestinationFields`, a method toggle + kind-filtered provider
+dropdown + a number field whose label switches). Wired into the
+propose-employee and propose-change dialogs, the employee profile
+display, the payslip PDF/print ("Bank" vs "Mobile money" line), and the
+Setup tab (the "Banks" editor became "Payment providers" with Banks /
+Mobile money groups and a kind toggle when adding).
+
+### Verification
+
+- `db reset` + seed clean; `gen types` current; `tsc` / `vite build` /
+  `check-duplicate-function-overloads.sh` pass; `eslint src` — only the
+  pre-existing `accent-sync.tsx:32` error, no new ones.
+- **DB matrix**: submit with no payslips → blocked; submit with an
+  unaccounted employee → blocked, name listed; exclude that employee →
+  submit succeeds (`Ready for Review`, `submitted_by` set); exclude an
+  employee who has a payslip → blocked; `create_payslip` / exclusion RPCs
+  on a non-Draft run → blocked; `post_payroll_run` as Accountant →
+  blocked ("Only a Manager"); `reject_payroll_run` as Accountant →
+  blocked; reject as Manager with reason → `Draft` + `rejection_reason` +
+  `reviewed_by`; re-submit → reason cleared; approve+post as Manager →
+  `Posted`, journal entry **balanced (16755.00 = 16755.00)**,
+  `reviewed_by` set. Audit trail: submitted → rejected(reason) →
+  submitted → approved, plus `exclusion_added` / `_removed`.
+- **MoMo**: `payment_providers` = 23 Bank + 3 Mobile Money; a MoMo
+  `propose_employee` → bundled config `payment_method = 'Mobile Money'`,
+  survives `approve_employee` cascade; `propose_pay_config_change` with a
+  method carries it onto the pending row; audit payloads carry it.
+- **RLS**: `payroll_run_exclusions` select — Auditor sees rows, Attendant
+  sees none; `payment_providers` insert — Accountant OK, Auditor blocked
+  (RLS), Attendant blocked; Auditor `submit_payroll_run_for_review` →
+  blocked (`require_finance_writer`).
+- **Browser** (headless, zero console errors): Manager creates a run →
+  "Generate or exclude the remaining N" hint, no Submit button; generate
+  one payslip + exclude the rest → "Ready to submit for review" +
+  "Excluded this cycle"; Submit → "Ready for Review" badge + "Awaiting
+  Manager review" panel with **Approve & post** + **Reject**; Reject with
+  a reason → Draft + "Returned for revision" banner showing the reason;
+  re-submit → Approve & post → "Posted to Accounting" card + a **disabled**
+  "Email payslips" button. Setup tab shows "Payment providers" with Banks
+  / Mobile money groups and MTN listed. Propose-employee dialog: switching
+  the method to Mobile Money relabels to "Network" / "Mobile money
+  number" and the provider dropdown offers exactly the 3 networks (24
+  banks in Bank mode).

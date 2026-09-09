@@ -442,30 +442,6 @@ export type Database = {
           },
         ]
       }
-      banks: {
-        Row: {
-          created_at: string
-          id: string
-          is_active: boolean
-          name: string
-          position: number
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          name: string
-          position?: number
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          name?: string
-          position?: number
-        }
-        Relationships: []
-      }
       branches: {
         Row: {
           created_at: string
@@ -945,6 +921,7 @@ export type Database = {
           effective_to: string | null
           employee_id: string
           id: string
+          payment_method: string
           pays_paye: boolean
           pays_ssnit: boolean
           pays_tier2: boolean
@@ -963,6 +940,7 @@ export type Database = {
           effective_to?: string | null
           employee_id: string
           id?: string
+          payment_method?: string
           pays_paye?: boolean
           pays_ssnit?: boolean
           pays_tier2?: boolean
@@ -981,6 +959,7 @@ export type Database = {
           effective_to?: string | null
           employee_id?: string
           id?: string
+          payment_method?: string
           pays_paye?: boolean
           pays_ssnit?: boolean
           pays_tier2?: boolean
@@ -1796,6 +1775,82 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_providers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          kind: string
+          name: string
+          position: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name: string
+          position?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name?: string
+          position?: number
+        }
+        Relationships: []
+      }
+      payroll_run_exclusions: {
+        Row: {
+          employee_id: string
+          excluded_at: string
+          excluded_by: string | null
+          id: string
+          payroll_run_id: string
+          reason: string | null
+        }
+        Insert: {
+          employee_id: string
+          excluded_at?: string
+          excluded_by?: string | null
+          id?: string
+          payroll_run_id: string
+          reason?: string | null
+        }
+        Update: {
+          employee_id?: string
+          excluded_at?: string
+          excluded_by?: string | null
+          id?: string
+          payroll_run_id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_run_exclusions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_run_exclusions_excluded_by_fkey"
+            columns: ["excluded_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_run_exclusions_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_runs: {
         Row: {
           branch_id: string
@@ -1804,7 +1859,12 @@ export type Database = {
           id: string
           month: number
           posted_at: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: string
+          submitted_at: string | null
+          submitted_by: string | null
           year: number
         }
         Insert: {
@@ -1814,7 +1874,12 @@ export type Database = {
           id?: string
           month: number
           posted_at?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
           year: number
         }
         Update: {
@@ -1824,7 +1889,12 @@ export type Database = {
           id?: string
           month?: number
           posted_at?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
           year?: number
         }
         Relationships: [
@@ -1838,6 +1908,20 @@ export type Database = {
           {
             foreignKeyName: "payroll_runs_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_runs_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_runs_submitted_by_fkey"
+            columns: ["submitted_by"]
             isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
@@ -3076,6 +3160,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _payroll_run_unaccounted: {
+        Args: { p_run_id: string }
+        Returns: {
+          employee_id: string
+          name: string
+        }[]
+      }
       _post_journal_entry_rows: {
         Args: {
           p_branch_id: string
@@ -3168,6 +3259,7 @@ export type Database = {
           effective_to: string | null
           employee_id: string
           id: string
+          payment_method: string
           pays_paye: boolean
           pays_ssnit: boolean
           pays_tier2: boolean
@@ -3661,7 +3753,12 @@ export type Database = {
           id: string
           month: number
           posted_at: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: string
+          submitted_at: string | null
+          submitted_by: string | null
           year: number
         }
         SetofOptions: {
@@ -3942,6 +4039,23 @@ export type Database = {
       }
       delete_payslip: { Args: { p_payslip_id: string }; Returns: undefined }
       delete_product: { Args: { p_id: string }; Returns: undefined }
+      exclude_employee_from_run: {
+        Args: { p_employee_id: string; p_reason?: string; p_run_id: string }
+        Returns: {
+          employee_id: string
+          excluded_at: string
+          excluded_by: string | null
+          id: string
+          payroll_run_id: string
+          reason: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payroll_run_exclusions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       expense_category_account: {
         Args: { p_branch_id: string; p_category: string }
         Returns: string
@@ -3971,6 +4085,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      include_employee_in_run: {
+        Args: { p_employee_id: string; p_run_id: string }
+        Returns: undefined
       }
       is_active_staff: { Args: never; Returns: boolean }
       match_statement_line: {
@@ -4414,6 +4532,7 @@ export type Database = {
           p_department?: string
           p_effective_from?: string
           p_name: string
+          p_payment_method?: string
           p_pays_paye?: boolean
           p_pays_ssnit?: boolean
           p_pays_tier2?: boolean
@@ -4450,6 +4569,7 @@ export type Database = {
           p_basic_salary: number
           p_effective_from: string
           p_employee_id: string
+          p_payment_method?: string
           p_pays_paye: boolean
           p_pays_ssnit: boolean
           p_pays_tier2: boolean
@@ -4464,6 +4584,7 @@ export type Database = {
           effective_to: string | null
           employee_id: string
           id: string
+          payment_method: string
           pays_paye: boolean
           pays_ssnit: boolean
           pays_tier2: boolean
@@ -4627,6 +4748,7 @@ export type Database = {
           effective_to: string | null
           employee_id: string
           id: string
+          payment_method: string
           pays_paye: boolean
           pays_ssnit: boolean
           pays_tier2: boolean
@@ -4638,6 +4760,30 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "employee_pay_config"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reject_payroll_run: {
+        Args: { p_reason: string; p_run_id: string }
+        Returns: {
+          branch_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          month: number
+          posted_at: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          year: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payroll_runs"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4743,6 +4889,7 @@ export type Database = {
           effective_to: string | null
           employee_id: string
           id: string
+          payment_method: string
           pays_paye: boolean
           pays_ssnit: boolean
           pays_tier2: boolean
@@ -4792,6 +4939,30 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "bank_reconciliations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      submit_payroll_run_for_review: {
+        Args: { p_run_id: string }
+        Returns: {
+          branch_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          month: number
+          posted_at: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          year: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payroll_runs"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4990,6 +5161,7 @@ export type Database = {
           effective_to: string | null
           employee_id: string
           id: string
+          payment_method: string
           pays_paye: boolean
           pays_ssnit: boolean
           pays_tier2: boolean

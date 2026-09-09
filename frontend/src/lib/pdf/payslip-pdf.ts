@@ -66,7 +66,9 @@ export async function downloadPayslipPdf(
     y + 5,
   );
   doc.text(
-    `Bank: ${meta.bank ? `${meta.bank}${meta.accountNo ? ` · ${meta.accountNo}` : ""}` : "—"}`,
+    `${meta.paymentMethod === "Mobile Money" ? "Mobile money" : "Bank"}: ${
+      meta.bank ? `${meta.bank}${meta.accountNo ? ` · ${meta.accountNo}` : ""}` : "—"
+    }`,
     margin,
     y + 10,
   );

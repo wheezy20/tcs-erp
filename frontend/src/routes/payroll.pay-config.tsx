@@ -15,7 +15,15 @@ import {
   usePayroll,
   type AllowanceType,
 } from "@/data/payroll-store";
-import { createBank, deleteBank, updateBank, useBanks, type Bank } from "@/data/banks-store";
+import {
+  activeProviders,
+  createProvider,
+  deleteProvider,
+  updateProvider,
+  usePaymentProviders,
+  type PaymentKind,
+  type PaymentProvider,
+} from "@/data/payment-providers-store";
 import { getErrorMessage } from "@/lib/utils";
 
 export const Route = createFileRoute("/payroll/pay-config")({
@@ -29,7 +37,7 @@ function PayrollSetupPage() {
   const { staff: currentStaff } = useAuth();
   const canWrite = canWriteFinancials(currentStaff?.role);
   const { allowanceTypes, rates, bands, loading } = usePayroll();
-  const { banks } = useBanks();
+  const { providers } = usePaymentProviders();
 
   const activeRates = rates[0];
 
@@ -58,48 +66,72 @@ function PayrollSetupPage() {
       </div>
 
       <AllowanceTypesSection types={allowanceTypes} canWrite={canWrite} />
-      <BanksSection banks={banks} canWrite={canWrite} />
+      <PaymentProvidersSection providers={providers} canWrite={canWrite} />
     </div>
   );
 }
 
-function BanksSection({ banks, canWrite }: { banks: Bank[]; canWrite: boolean }) {
+function PaymentProvidersSection({
+  providers,
+  canWrite,
+}: {
+  providers: PaymentProvider[];
+  canWrite: boolean;
+}) {
   const [name, setName] = useState("");
+  const [kind, setKind] = useState<PaymentKind>("Bank");
   const [busy, setBusy] = useState(false);
 
   async function add() {
     if (!name.trim()) return;
     setBusy(true);
     try {
-      await createBank(name);
+      await createProvider(name, kind);
       setName("");
-      toast.success("Bank added");
+      toast.success(`${kind === "Mobile Money" ? "Network" : "Bank"} added`);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Could not add the bank."));
+      toast.error(getErrorMessage(error, "Could not add the provider."));
     } finally {
       setBusy(false);
     }
   }
 
+  const banks = providers.filter((p) => p.kind === "Bank");
+  const networks = providers.filter((p) => p.kind === "Mobile Money");
+
   return (
     <section>
-      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Banks</h3>
+      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Payment providers</h3>
       <p className="mb-2 text-xs text-muted-foreground">
-        Drives the bank picker when proposing an employee or a bank / account change. Deactivate a
-        bank to hide it from the picker without losing configs that already reference it.
+        Drives the bank / mobile-money picker when proposing an employee or a pay-config change.
+        Deactivate one to hide it from the picker without losing configs that already reference it.
       </p>
-      <div className="card-surface p-4">
-        <div className="flex flex-wrap gap-2">
-          {banks.length === 0 && <p className="text-sm text-muted-foreground">No banks yet.</p>}
-          {banks.map((b) => (
-            <BankChip key={b.id} bank={b} canWrite={canWrite} />
-          ))}
+      <div className="card-surface space-y-4 p-4">
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Banks</p>
+          <div className="flex flex-wrap gap-2">
+            {banks.length === 0 && <p className="text-sm text-muted-foreground">No banks yet.</p>}
+            {banks.map((p) => (
+              <ProviderChip key={p.id} provider={p} canWrite={canWrite} />
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Mobile money</p>
+          <div className="flex flex-wrap gap-2">
+            {networks.length === 0 && (
+              <p className="text-sm text-muted-foreground">No networks yet.</p>
+            )}
+            {networks.map((p) => (
+              <ProviderChip key={p.id} provider={p} canWrite={canWrite} />
+            ))}
+          </div>
         </div>
 
         {canWrite && (
-          <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-4">
+          <div className="flex flex-wrap items-end gap-2 border-t pt-4">
             <div className="space-y-1.5">
-              <Label className="text-xs">New bank</Label>
+              <Label className="text-xs">New provider</Label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -107,6 +139,13 @@ function BanksSection({ banks, canWrite }: { banks: Bank[]; canWrite: boolean })
                 className="w-56"
               />
             </div>
+            <label className="flex items-center gap-2 pb-2 text-sm">
+              <Switch
+                checked={kind === "Mobile Money"}
+                onCheckedChange={(v) => setKind(v ? "Mobile Money" : "Bank")}
+              />
+              Mobile money
+            </label>
             <Button size="sm" className="gap-1.5" disabled={busy || !name.trim()} onClick={add}>
               <Plus className="size-3.5" /> Add
             </Button>
@@ -117,26 +156,26 @@ function BanksSection({ banks, canWrite }: { banks: Bank[]; canWrite: boolean })
   );
 }
 
-function BankChip({ bank, canWrite }: { bank: Bank; canWrite: boolean }) {
+function ProviderChip({ provider, canWrite }: { provider: PaymentProvider; canWrite: boolean }) {
   const [busy, setBusy] = useState(false);
   async function toggleActive() {
     setBusy(true);
     try {
-      await updateBank(bank.id, { isActive: !bank.isActive });
+      await updateProvider(provider.id, { isActive: !provider.isActive });
     } catch (error) {
-      toast.error(getErrorMessage(error, "Could not update the bank."));
+      toast.error(getErrorMessage(error, "Could not update the provider."));
     } finally {
       setBusy(false);
     }
   }
   async function remove() {
-    if (!window.confirm(`Delete "${bank.name}"?`)) return;
+    if (!window.confirm(`Delete "${provider.name}"?`)) return;
     setBusy(true);
     try {
-      await deleteBank(bank.id);
-      toast.success("Bank deleted");
+      await deleteProvider(provider.id);
+      toast.success("Provider deleted");
     } catch (error) {
-      toast.error(getErrorMessage(error, "Could not delete the bank."));
+      toast.error(getErrorMessage(error, "Could not delete the provider."));
     } finally {
       setBusy(false);
     }
@@ -144,10 +183,10 @@ function BankChip({ bank, canWrite }: { bank: Bank; canWrite: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${
-        bank.isActive ? "" : "opacity-50"
+        provider.isActive ? "" : "opacity-50"
       }`}
     >
-      {bank.name}
+      {provider.name}
       {canWrite && (
         <>
           <button
@@ -156,7 +195,7 @@ function BankChip({ bank, canWrite }: { bank: Bank; canWrite: boolean }) {
             onClick={toggleActive}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
-            {bank.isActive ? "active" : "inactive"}
+            {provider.isActive ? "active" : "inactive"}
           </button>
           <button type="button" disabled={busy} onClick={remove} className="text-destructive">
             <Trash2 className="size-3" />

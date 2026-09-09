@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { BankSelect } from "@/components/employees/bank-select";
+import { PaymentDestinationFields } from "@/components/employees/payment-fields";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import {
@@ -45,6 +45,7 @@ import {
   withdrawPayConfigProposal,
   type Employee,
   type PayConfig,
+  type PaymentMethod,
 } from "@/data/employees-store";
 import { usePayroll, type AllowanceType } from "@/data/payroll-store";
 import { useStaff } from "@/data/staff-store";
@@ -317,8 +318,15 @@ function PayConfigSection({
                 Basic salary: <strong>{currency(pending.basicSalary)}</strong>
               </span>
               <span>Effective from: {pending.effectiveFrom}</span>
-              <span>Bank: {pending.bank ?? "—"}</span>
-              <span>Account: {pending.accountNo ?? "—"}</span>
+              <span>Payment method: {pending.paymentMethod}</span>
+              <span>
+                {pending.paymentMethod === "Mobile Money" ? "Network" : "Bank"}:{" "}
+                {pending.bank ?? "—"}
+              </span>
+              <span>
+                {pending.paymentMethod === "Mobile Money" ? "Wallet number" : "Account"}:{" "}
+                {pending.accountNo ?? "—"}
+              </span>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
               Approved together with the employee record — one Approve / Reject, on the status card.
@@ -336,8 +344,16 @@ function PayConfigSection({
         <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
           <Field label="Basic salary" value={currency(current.basicSalary)} />
           <Field label="Effective from" value={current.effectiveFrom} />
-          <Field label="Bank" value={current.bank ?? "—"} />
-          <Field label="Account number" value={current.accountNo ?? "—"} />
+          <Field label="Payment method" value={current.paymentMethod} />
+          <div />
+          <Field
+            label={current.paymentMethod === "Mobile Money" ? "Mobile money network" : "Bank"}
+            value={current.bank ?? "—"}
+          />
+          <Field
+            label={current.paymentMethod === "Mobile Money" ? "Wallet number" : "Account number"}
+            value={current.accountNo ?? "—"}
+          />
         </dl>
       )}
 
@@ -389,8 +405,12 @@ function PayConfigSection({
               {current ? ` (was ${currency(current.basicSalary)})` : ""}
             </span>
             <span>
-              Bank: <strong>{pending.bank ?? "—"}</strong>
+              {pending.paymentMethod === "Mobile Money" ? "Mobile Money" : "Bank"}:{" "}
+              <strong>{pending.bank ?? "—"}</strong>
               {pending.accountNo ? ` · ${pending.accountNo}` : ""}
+              {current && current.paymentMethod !== pending.paymentMethod
+                ? ` (was ${current.paymentMethod})`
+                : ""}
             </span>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -474,6 +494,7 @@ function ProposeChangeDialog({
   onClose: () => void;
 }) {
   const [basicSalary, setBasicSalary] = useState(String(current.basicSalary));
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(current.paymentMethod);
   const [bank, setBank] = useState(current.bank ?? "");
   const [accountNo, setAccountNo] = useState(current.accountNo ?? "");
   const [effectiveFrom, setEffectiveFrom] = useState(firstOfNextMonth());
@@ -492,6 +513,7 @@ function ProposeChangeDialog({
         employeeId,
         effectiveFrom,
         basicSalary: Number(basicSalary),
+        paymentMethod,
         bank,
         accountNo,
         paysSsnit: current.paysSsnit,
@@ -537,14 +559,18 @@ function ProposeChangeDialog({
                 onChange={(e) => setEffectiveFrom(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Bank</Label>
-              <BankSelect value={bank} onChange={setBank} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Account number</Label>
-              <Input value={accountNo} onChange={(e) => setAccountNo(e.target.value)} />
-            </div>
+            <PaymentDestinationFields
+              method={paymentMethod}
+              provider={bank}
+              number={accountNo}
+              onMethod={(m) => {
+                setPaymentMethod(m);
+                if (m !== current.paymentMethod) setBank("");
+                else setBank(current.bank ?? "");
+              }}
+              onProvider={setBank}
+              onNumber={setAccountNo}
+            />
           </div>
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
         </div>
@@ -690,7 +716,7 @@ function HistoryTable({ rows }: { rows: PayConfig[] }) {
             <tr>
               <th className="px-5 py-2 font-medium">Effective</th>
               <th className="px-5 py-2 text-right font-medium">Basic salary</th>
-              <th className="px-5 py-2 font-medium">Bank</th>
+              <th className="px-5 py-2 font-medium">Paid to</th>
             </tr>
           </thead>
           <tbody className="divide-y">

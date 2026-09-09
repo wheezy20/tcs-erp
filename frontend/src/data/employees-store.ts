@@ -22,6 +22,7 @@ import type { Database } from "@/lib/database.types";
 
 export type EmploymentStatus = "Pending Approval" | "Active" | "Suspended" | "Rejected";
 export type PayApprovalStatus = "Pending Approval" | "Active" | "Rejected";
+export type PaymentMethod = "Bank" | "Mobile Money";
 
 export type Employee = {
   id: string;
@@ -41,6 +42,10 @@ export type Employee = {
 export type PayConfig = {
   id: string;
   employeeId: string;
+  /** "Bank": `bank` is the bank name, `accountNo` the account number.
+   * "Mobile Money": `bank` is the network name, `accountNo` the wallet
+   * phone. The column names are shared; only the labels differ. */
+  paymentMethod: PaymentMethod;
   bank: string | null;
   accountNo: string | null;
   basicSalary: number;
@@ -95,6 +100,7 @@ function mapConfig(row: PayConfigRow): PayConfig {
   return {
     id: row.id,
     employeeId: row.employee_id,
+    paymentMethod: (row.payment_method as PaymentMethod) ?? "Bank",
     bank: row.bank,
     accountNo: row.account_no,
     basicSalary: num(row.basic_salary),
@@ -262,6 +268,7 @@ export type ProposeEmployeeInput = {
   staffId?: string;
   /** Optional bundled initial pay config (one proposal, one approval). */
   basicSalary?: number;
+  paymentMethod?: PaymentMethod;
   bank?: string;
   accountNo?: string;
   paysSsnit?: boolean;
@@ -280,6 +287,7 @@ export async function proposeEmployee(input: ProposeEmployeeInput): Promise<void
     p_department: input.department ?? "",
     p_staff_id: input.staffId ?? undefined,
     p_basic_salary: input.basicSalary ?? undefined,
+    p_payment_method: input.paymentMethod ?? "Bank",
     p_bank: input.bank ?? "",
     p_account_no: input.accountNo ?? "",
     p_pays_ssnit: input.paysSsnit ?? true,
@@ -330,6 +338,7 @@ export type ProposePayConfigInput = {
   employeeId: string;
   effectiveFrom: string;
   basicSalary: number;
+  paymentMethod: PaymentMethod;
   bank: string;
   accountNo: string;
   paysSsnit: boolean;
@@ -342,6 +351,7 @@ export async function proposePayConfigChange(input: ProposePayConfigInput): Prom
     p_employee_id: input.employeeId,
     p_effective_from: input.effectiveFrom,
     p_basic_salary: input.basicSalary,
+    p_payment_method: input.paymentMethod,
     p_bank: input.bank,
     p_account_no: input.accountNo,
     p_pays_ssnit: input.paysSsnit,

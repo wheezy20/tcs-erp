@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { BankSelect } from "@/components/employees/bank-select";
+import { PaymentDestinationFields } from "@/components/employees/payment-fields";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import {
@@ -40,6 +40,7 @@ import {
   type Employee,
   type EmploymentStatus,
   type PayConfig,
+  type PaymentMethod,
 } from "@/data/employees-store";
 import { useStaff } from "@/data/staff-store";
 import { getErrorMessage } from "@/lib/utils";
@@ -157,7 +158,7 @@ function EmployeesListPage() {
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium">Position</th>
                   <th className="px-5 py-3 text-right font-medium">Basic salary</th>
-                  <th className="px-5 py-3 font-medium">Bank</th>
+                  <th className="px-5 py-3 font-medium">Paid to</th>
                   <th className="px-5 py-3 font-medium">Phone</th>
                 </tr>
               </thead>
@@ -273,7 +274,9 @@ function ApprovalsPanel({
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {pay
-                        ? `Pay: ${currency(pay.basicSalary)}${pay.bank ? ` · ${pay.bank}` : ""}${
+                        ? `Pay: ${currency(pay.basicSalary)}${
+                            pay.paymentMethod === "Mobile Money" ? " · MoMo" : ""
+                          }${pay.bank ? ` · ${pay.bank}` : ""}${
                             pay.accountNo ? ` · ${pay.accountNo}` : ""
                           } · from ${pay.effectiveFrom}`
                         : "No initial pay config proposed"}
@@ -369,6 +372,7 @@ function ProposeEmployeeDialog() {
   const [staffId, setStaffId] = useState<string>("none");
   const [withPay, setWithPay] = useState(true);
   const [basicSalary, setBasicSalary] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Bank");
   const [bank, setBank] = useState("");
   const [accountNo, setAccountNo] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState(firstOfThisMonth());
@@ -396,6 +400,7 @@ function ProposeEmployeeDialog() {
         department,
         staffId: staffId === "none" ? undefined : staffId,
         basicSalary: withPay ? Number(basicSalary) : undefined,
+        paymentMethod: withPay ? paymentMethod : undefined,
         bank: withPay ? bank : undefined,
         accountNo: withPay ? accountNo : undefined,
         effectiveFrom: withPay ? effectiveFrom : undefined,
@@ -408,6 +413,7 @@ function ProposeEmployeeDialog() {
       setDepartment("");
       setStaffId("none");
       setBasicSalary("");
+      setPaymentMethod("Bank");
       setBank("");
       setAccountNo("");
     } catch (err) {
@@ -503,14 +509,17 @@ function ProposeEmployeeDialog() {
                     onChange={(e) => setEffectiveFrom(e.target.value)}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Bank</Label>
-                  <BankSelect value={bank} onChange={setBank} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Account number</Label>
-                  <Input value={accountNo} onChange={(e) => setAccountNo(e.target.value)} />
-                </div>
+                <PaymentDestinationFields
+                  method={paymentMethod}
+                  provider={bank}
+                  number={accountNo}
+                  onMethod={(m) => {
+                    setPaymentMethod(m);
+                    setBank("");
+                  }}
+                  onProvider={setBank}
+                  onNumber={setAccountNo}
+                />
               </div>
             )}
           </div>

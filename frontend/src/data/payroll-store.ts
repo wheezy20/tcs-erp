@@ -11,12 +11,14 @@ import { reloadJournalEntries } from "@/data/journal-store";
 // RLS is the real access boundary: Manager + Accountant write; Auditor
 // reads; Attendant gets empty arrays. Writes go through
 // create_payroll_run() / create_payslip() / delete_payslip() /
-// post_payroll_run() (Manager+Accountant RPCs); allowance_types is a plain
-// RLS-gated table.
+// submit_payroll_run_for_review() / exclude_employee_from_run() (finance
+// writers), and reject_payroll_run() / post_payroll_run() (Manager only —
+// approval and posting are one step, 20260909150000); allowance_types is a
+// plain RLS-gated table.
 
 // ------------------------------------------------------------------ types
 
-export type PayrollRunStatus = "Draft" | "Posted";
+export type PayrollRunStatus = "Draft" | "Ready for Review" | "Posted";
 
 export type PayrollRun = {
   id: string;
@@ -25,8 +27,22 @@ export type PayrollRun = {
   year: number;
   status: PayrollRunStatus;
   createdByName: string | null;
+  submittedById: string | null;
+  submittedAt: string | null;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
   postedAt: string | null;
   createdAt: string;
+};
+
+export type PayrollRunExclusion = {
+  id: string;
+  payrollRunId: string;
+  employeeId: string;
+  employeeName: string;
+  reason: string | null;
+  excludedAt: string;
 };
 
 export type Payslip = {
@@ -97,6 +113,9 @@ export type PayeBand = {
 type RunRow = Database["public"]["Tables"]["payroll_runs"]["Row"] & {
   staff: { name: string } | null;
 };
+type ExclusionRow = Database["public"]["Tables"]["payroll_run_exclusions"]["Row"] & {
+  employees: { name: string } | null;
+};
 type PayslipRow = Database["public"]["Tables"]["payslips"]["Row"] & {
   employees: { name: string } | null;
   payslip_allowances: (Database["public"]["Tables"]["payslip_allowances"]["Row"] & {
@@ -117,8 +136,24 @@ function mapRun(row: RunRow): PayrollRun {
     year: row.year,
     status: row.status as PayrollRunStatus,
     createdByName: row.staff?.name ?? null,
+    submittedById: row.submitted_by,
+    submittedAt: row.submitted_at,
+    reviewedById: row.reviewed_by,
+    reviewedAt: row.reviewed_at,
+    rejectionReason: row.rejection_reason,
     postedAt: row.posted_at,
     createdAt: row.created_at,
+  };
+}
+
+function mapExclusion(row: ExclusionRow): PayrollRunExclusion {
+  return {
+    id: row.id,
+    payrollRunId: row.payroll_run_id,
+    employeeId: row.employee_id,
+    employeeName: row.employees?.name ?? "Unknown",
+    reason: row.reason,
+    excludedAt: row.excluded_at,
   };
 }
 
@@ -193,6 +228,7 @@ function mapBand(row: BandRow): PayeBand {
 type PayrollState = {
   runs: PayrollRun[];
   payslips: Payslip[];
+  exclusions: PayrollRunExclusion[];
   allowanceTypes: AllowanceType[];
   rates: StatutoryRates[];
   bands: PayeBand[];
@@ -203,6 +239,7 @@ type PayrollState = {
 let state: PayrollState = {
   runs: [],
   payslips: [],
+  exclusions: [],
   allowanceTypes: [],
   rates: [],
   bands: [],
@@ -220,23 +257,28 @@ function setState(next: PayrollState) {
 let loadPromise: Promise<void> | null = null;
 
 async function loadPayroll() {
-  const [runs, payslips, allowanceTypes, rates, bands] = await Promise.all([
-    supabase.from("payroll_runs").select("*, staff(name)").order("year", { ascending: false }),
+  const [runs, payslips, exclusions, allowanceTypes, rates, bands] = await Promise.all([
+    supabase
+      .from("payroll_runs")
+      .select("*, staff!payroll_runs_created_by_fkey(name)")
+      .order("year", { ascending: false }),
     supabase
       .from("payslips")
       .select("*, employees(name), payslip_allowances(*, allowance_types(name))"),
+    supabase.from("payroll_run_exclusions").select("*, employees(name)"),
     supabase.from("allowance_types").select("*").order("position"),
     supabase.from("statutory_rates").select("*").order("effective_from", { ascending: false }),
     supabase.from("paye_bands").select("*").order("band_order"),
   ]);
 
-  for (const r of [runs, payslips, allowanceTypes, rates, bands]) {
+  for (const r of [runs, payslips, exclusions, allowanceTypes, rates, bands]) {
     if (r.error) throw r.error;
   }
 
   setState({
     runs: (runs.data as RunRow[]).map(mapRun),
     payslips: (payslips.data as PayslipRow[]).map(mapPayslip),
+    exclusions: (exclusions.data as ExclusionRow[]).map(mapExclusion),
     allowanceTypes: (allowanceTypes.data as AllowanceTypeRow[]).map(mapAllowanceType),
     rates: (rates.data as RatesRow[]).map(mapRates),
     bands: (bands.data as BandRow[]).map(mapBand),
@@ -312,13 +354,57 @@ export async function deletePayrollRun(id: string): Promise<void> {
   await reload();
 }
 
-/** Post a Draft run to the Accounting ledger — creates ONE aggregated
- * journal entry and flips status to 'Posted', atomically. Manager/Accountant
- * only. Reloads the journal store too. */
+/** Draft -> Ready for Review. Any finance writer. Server-side rejects a
+ * run that isn't complete (an active employee with a config but no payslip
+ * and no exclusion). */
+export async function submitPayrollRunForReview(id: string): Promise<void> {
+  const { error } = await supabase.rpc("submit_payroll_run_for_review", { p_run_id: id });
+  if (error) throw error;
+  await reload();
+}
+
+/** Ready for Review -> Draft, with a required reason. Manager only. */
+export async function rejectPayrollRun(id: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc("reject_payroll_run", {
+    p_run_id: id,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  await reload();
+}
+
+/** The Manager "approve" step: posts a Ready-for-Review run to the ledger —
+ * creates ONE aggregated journal entry and flips status to 'Posted',
+ * atomically. Manager only. Reloads the journal store too. */
 export async function postPayrollRun(id: string): Promise<void> {
   const { error } = await supabase.rpc("post_payroll_run", { p_run_id: id });
   if (error) throw error;
   await Promise.all([reload(), reloadJournalEntries()]);
+}
+
+/** Mark an active employee as deliberately not paid on this Draft run. */
+export async function excludeEmployeeFromRun(
+  runId: string,
+  employeeId: string,
+  reason: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("exclude_employee_from_run", {
+    p_run_id: runId,
+    p_employee_id: employeeId,
+    p_reason: reason || undefined,
+  });
+  if (error) throw error;
+  await reload();
+}
+
+/** Undo an exclusion (Draft runs only). */
+export async function includeEmployeeInRun(runId: string, employeeId: string): Promise<void> {
+  const { error } = await supabase.rpc("include_employee_in_run", {
+    p_run_id: runId,
+    p_employee_id: employeeId,
+  });
+  if (error) throw error;
+  await reload();
 }
 
 export type CreatePayslipInput = {

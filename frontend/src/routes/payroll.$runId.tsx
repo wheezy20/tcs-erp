@@ -1,6 +1,17 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, BookOpen, CheckCircle2, FileText, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Ban,
+  BookOpen,
+  CheckCircle2,
+  FileText,
+  Mail,
+  Plus,
+  RotateCcw,
+  Send,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -23,17 +34,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import { currentConfigFor, standingAllowancesFor, useEmployees } from "@/data/employees-store";
 import {
   createPayslip,
   deletePayslip,
+  excludeEmployeeFromRun,
+  includeEmployeeInRun,
   postPayrollRun,
+  rejectPayrollRun,
+  submitPayrollRunForReview,
   usePayroll,
   type Payslip,
+  type PayrollRunExclusion,
 } from "@/data/payroll-store";
 import { useJournalEntries, type JournalEntry } from "@/data/journal-store";
+import { useStaff } from "@/data/staff-store";
 import { periodLabel } from "@/data/payroll-format";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -41,20 +59,29 @@ export const Route = createFileRoute("/payroll/$runId")({
   component: RunDetailPage,
 });
 
+const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : "—");
+
 function RunDetailPage() {
   const { runId } = Route.useParams();
   const { staff: currentStaff } = useAuth();
   const canWrite = canWriteFinancials(currentStaff?.role);
-  const { runs, payslips, allowanceTypes, loading } = usePayroll();
+  const isManager = currentStaff?.role === "Manager";
+  const { runs, payslips, exclusions, allowanceTypes, loading } = usePayroll();
   const { employees, configs, allowances } = useEmployees();
   const { entries: journalEntries } = useJournalEntries();
+  const { staff: roster } = useStaff();
   const [generateFor, setGenerateFor] = useState<string | null>(null);
-  const [posting, setPosting] = useState(false);
+  const [excludeFor, setExcludeFor] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const run = runs.find((r) => r.id === runId);
   const runPayslips = useMemo(
     () => payslips.filter((p) => p.payrollRunId === runId),
     [payslips, runId],
+  );
+  const runExclusions = useMemo(
+    () => exclusions.filter((x) => x.payrollRunId === runId),
+    [exclusions, runId],
   );
 
   if (loading) {
@@ -72,10 +99,16 @@ function RunDetailPage() {
     );
   }
 
+  const staffName = (id: string | null) =>
+    id ? (roster.find((s) => s.id === id)?.name ?? "someone") : "someone";
+
   const paidEmployeeIds = new Set(runPayslips.map((p) => p.employeeId));
+  const excludedEmployeeIds = new Set(runExclusions.map((x) => x.employeeId));
   const activeRoster = employees.filter((e) => e.status === "Active");
   const withConfig = activeRoster.filter((e) => currentConfigFor(configs, e.id));
-  const notYetPaid = withConfig.filter((e) => !paidEmployeeIds.has(e.id));
+  const notAccountedFor = withConfig.filter(
+    (e) => !paidEmployeeIds.has(e.id) && !excludedEmployeeIds.has(e.id),
+  );
   const missingConfig = activeRoster.filter((e) => !currentConfigFor(configs, e.id));
 
   const totals = runPayslips.reduce(
@@ -87,27 +120,26 @@ function RunDetailPage() {
     { gross: 0, deductions: 0, net: 0 },
   );
 
-  const canGenerate = canWrite && run.status === "Draft";
+  const isDraft = run.status === "Draft";
+  const isReview = run.status === "Ready for Review";
+  const isPosted = run.status === "Posted";
+  const canGenerate = canWrite && isDraft;
+  const isComplete = canWrite && runPayslips.length > 0 && notAccountedFor.length === 0;
   const runEntry = journalEntries.find(
     (e) => e.sourceTable === "payroll_runs" && e.sourceId === run.id,
   );
-  // "Complete" = every active employee who has an approved pay config already
-  // has a payslip on this run. Employees with no config can't be paid at
-  // all, so they don't block the post — they're surfaced as a warning.
-  const readyToPost =
-    canWrite && run.status === "Draft" && runPayslips.length > 0 && notYetPaid.length === 0;
 
-  async function onPost(): Promise<boolean> {
-    setPosting(true);
+  async function withBusy(fn: () => Promise<void>, ok: string): Promise<boolean> {
+    setBusy(true);
     try {
-      await postPayrollRun(run!.id);
-      toast.success("Payroll run posted to Accounting");
+      await fn();
+      toast.success(ok);
       return true;
     } catch (error) {
-      toast.error(getErrorMessage(error, "Could not post the payroll run."));
+      toast.error(getErrorMessage(error, "Could not complete that."));
       return false;
     } finally {
-      setPosting(false);
+      setBusy(false);
     }
   }
 
@@ -123,7 +155,9 @@ function RunDetailPage() {
           </Link>
           <div className="mt-1 flex items-center gap-3">
             <h2 className="text-xl font-semibold tracking-tight">{periodLabel(run)}</h2>
-            <Badge variant={run.status === "Posted" ? "default" : "secondary"}>{run.status}</Badge>
+            <Badge variant={isPosted ? "default" : isReview ? "outline" : "secondary"}>
+              {run.status}
+            </Badge>
           </div>
         </div>
       </div>
@@ -134,17 +168,46 @@ function RunDetailPage() {
         <SummaryCard label="Net pay" value={currency(totals.net)} strong />
       </div>
 
-      {run.status === "Posted" ? (
-        <PostedEntryCard entry={runEntry} />
-      ) : runPayslips.length > 0 && canWrite ? (
+      {isDraft && run.rejectionReason && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+          <span className="font-semibold text-destructive">Returned for revision</span> by{" "}
+          {staffName(run.reviewedById)} on {fmtDate(run.reviewedAt)} — {run.rejectionReason}
+        </div>
+      )}
+
+      {isPosted ? (
+        <>
+          <PostedEntryCard entry={runEntry} />
+          <div className="flex justify-end">
+            <EmailPayslipsButton />
+          </div>
+        </>
+      ) : isReview ? (
+        <ReviewPanel
+          period={periodLabel(run)}
+          isManager={isManager}
+          submittedByName={staffName(run.submittedById)}
+          submittedAt={run.submittedAt}
+          payslips={runPayslips}
+          missingCount={missingConfig.length}
+          busy={busy}
+          onApprove={() =>
+            withBusy(() => postPayrollRun(run.id), "Payroll run approved and posted to Accounting")
+          }
+          onReject={(reason) =>
+            withBusy(() => rejectPayrollRun(run.id, reason), "Run returned to Draft")
+          }
+        />
+      ) : isDraft && canWrite ? (
         <div className="card-surface p-4">
-          {readyToPost ? (
+          {isComplete ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm font-medium">Ready to post to Accounting</p>
+                <p className="text-sm font-medium">Ready to submit for review</p>
                 <p className="text-xs text-muted-foreground">
-                  {runPayslips.length} payslip{runPayslips.length === 1 ? "" : "s"} · net{" "}
-                  {currency(totals.net)}. Posting creates one journal entry and locks the run.
+                  {runPayslips.length} payslip{runPayslips.length === 1 ? "" : "s"}
+                  {runExclusions.length > 0 ? ` · ${runExclusions.length} excluded` : ""} · net{" "}
+                  {currency(totals.net)}. A Manager approves it, which posts the run.
                 </p>
                 {missingConfig.length > 0 && (
                   <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
@@ -154,39 +217,90 @@ function RunDetailPage() {
                   </p>
                 )}
               </div>
-              <PostRunDialog
-                periodLabel={periodLabel(run)}
-                payslips={runPayslips}
-                missingCount={missingConfig.length}
-                posting={posting}
-                onConfirm={onPost}
-              />
+              <Button
+                className="gap-2"
+                disabled={busy}
+                onClick={() =>
+                  withBusy(() => submitPayrollRunForReview(run.id), "Submitted for Manager review")
+                }
+              >
+                <Send className="size-4" /> Submit for review
+              </Button>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Generate the remaining {notYetPaid.length} payslip
-              {notYetPaid.length === 1 ? "" : "s"} before posting this run to Accounting.
+              {runPayslips.length === 0
+                ? "Generate at least one payslip before submitting this run for review."
+                : `Generate or exclude the remaining ${notAccountedFor.length} employee${
+                    notAccountedFor.length === 1 ? "" : "s"
+                  } before submitting this run for review.`}
             </p>
           )}
         </div>
       ) : null}
 
-      {run.status === "Draft" && canGenerate && notYetPaid.length > 0 && (
+      {isDraft && canGenerate && notAccountedFor.length > 0 && (
         <div className="card-surface p-4">
-          <p className="mb-2 text-sm font-medium">Generate a payslip</p>
-          <div className="flex flex-wrap gap-2">
-            {notYetPaid.map((e) => (
-              <Button
-                key={e.id}
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => setGenerateFor(e.id)}
-              >
-                <Plus className="size-3.5" /> {e.name}
-              </Button>
+          <p className="mb-2 text-sm font-medium">Not yet on this run</p>
+          <div className="flex flex-col gap-2">
+            {notAccountedFor.map((e) => (
+              <div key={e.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm">{e.name}</span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setGenerateFor(e.id)}
+                  >
+                    <Plus className="size-3.5" /> Generate payslip
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-muted-foreground"
+                    onClick={() => setExcludeFor(e.id)}
+                  >
+                    <Ban className="size-3.5" /> Exclude
+                  </Button>
+                </div>
+              </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {runExclusions.length > 0 && (
+        <div className="card-surface p-4">
+          <p className="mb-2 text-sm font-medium">Excluded this cycle</p>
+          <ul className="divide-y">
+            {runExclusions.map((x) => (
+              <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <div className="text-sm">
+                  <span className="font-medium">{x.employeeName}</span>
+                  <span className="text-muted-foreground">
+                    {x.reason ? ` · ${x.reason}` : " · no reason given"}
+                  </span>
+                </div>
+                {canWrite && isDraft && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={busy}
+                    onClick={() =>
+                      withBusy(
+                        () => includeEmployeeInRun(run.id, x.employeeId),
+                        `${x.employeeName} back on this run`,
+                      )
+                    }
+                  >
+                    <RotateCcw className="size-3.5" /> Include
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -245,7 +359,7 @@ function RunDetailPage() {
                             View
                           </Link>
                         </Button>
-                        {canWrite && run.status === "Draft" && <DeletePayslipButton payslip={p} />}
+                        {canWrite && isDraft && <DeletePayslipButton payslip={p} />}
                       </div>
                     </td>
                   </tr>
@@ -266,12 +380,196 @@ function RunDetailPage() {
           onClose={() => setGenerateFor(null)}
         />
       )}
+
+      {excludeFor && (
+        <ExcludeDialog
+          employeeName={employees.find((e) => e.id === excludeFor)?.name ?? "Employee"}
+          onClose={() => setExcludeFor(null)}
+          onConfirm={async (reason) => {
+            const ok = await withBusy(
+              () => excludeEmployeeFromRun(run.id, excludeFor, reason),
+              "Employee excluded from this run",
+            );
+            if (ok) setExcludeFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 const POSTING_NOTE =
   "Includes the employer's 13% SSNIT contribution (Dr 5145 Employer SSNIT Contribution / Cr 2310 SSNIT Payable) on top of the amounts withheld from staff, so total staffing cost is 5140 + 5145.";
+
+function EmailPayslipsButton() {
+  return (
+    <span title="Coming soon — needs an email provider and staff email addresses.">
+      <Button variant="outline" className="gap-2" disabled>
+        <Mail className="size-4" /> Email payslips
+      </Button>
+    </span>
+  );
+}
+
+function ReviewPanel({
+  period,
+  isManager,
+  submittedByName,
+  submittedAt,
+  payslips,
+  missingCount,
+  busy,
+  onApprove,
+  onReject,
+}: {
+  period: string;
+  isManager: boolean;
+  submittedByName: string;
+  submittedAt: string | null;
+  payslips: Payslip[];
+  missingCount: number;
+  busy: boolean;
+  onApprove: () => Promise<boolean>;
+  onReject: (reason: string) => Promise<boolean>;
+}) {
+  return (
+    <div className="card-surface space-y-3 p-4">
+      <div>
+        <p className="text-sm font-medium">Awaiting Manager review</p>
+        <p className="text-xs text-muted-foreground">
+          Submitted by {submittedByName} on {fmtDate(submittedAt)}. Payslips are locked while the
+          run is in review.
+        </p>
+      </div>
+      {isManager ? (
+        <div className="flex flex-wrap gap-2">
+          <PostRunDialog
+            periodLabel={period}
+            payslips={payslips}
+            missingCount={missingCount}
+            posting={busy}
+            onConfirm={onApprove}
+          />
+          <RejectRunDialog busy={busy} onReject={onReject} />
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          A Manager approves it from here — approval posts the run to Accounting.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function RejectRunDialog({
+  busy,
+  onReject,
+}: {
+  busy: boolean;
+  onReject: (reason: string) => Promise<boolean>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !busy && setOpen(next)}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="text-destructive">
+          Reject
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Return this run for revision</DialogTitle>
+          <DialogDescription>
+            It goes back to Draft and the submitter sees your reason. Payslips become editable
+            again.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label>Reason</Label>
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="What needs to change before this can be approved?"
+            rows={3}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={busy || !reason.trim()}
+            onClick={async () => {
+              const ok = await onReject(reason.trim());
+              if (ok) {
+                setOpen(false);
+                setReason("");
+              }
+            }}
+          >
+            {busy ? "Returning…" : "Return to Draft"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ExcludeDialog({
+  employeeName,
+  onClose,
+  onConfirm,
+}: {
+  employeeName: string;
+  onClose: () => void;
+  onConfirm: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <Dialog open onOpenChange={(next) => !next && !busy && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Exclude {employeeName} from this run</DialogTitle>
+          <DialogDescription>
+            Marks this person as deliberately not paid this cycle, so the run can be submitted
+            without a payslip for them. Reversible while the run is a Draft.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label>Reason (optional)</Label>
+          <Input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. joined mid-month, paid next cycle"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onConfirm(reason.trim());
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? "Excluding…" : "Exclude"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function EntryLinesTable({
   lines,
@@ -417,16 +715,16 @@ function PostRunDialog({
     <Dialog open={open} onOpenChange={(next) => !posting && setOpen(next)}>
       <DialogTrigger asChild>
         <Button className="gap-2">
-          <BookOpen className="size-4" /> Post to Accounting
+          <BookOpen className="size-4" /> Approve &amp; post
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Post {period} payroll to Accounting</DialogTitle>
+          <DialogTitle>Approve {period} payroll &amp; post to Accounting</DialogTitle>
           <DialogDescription>
-            Creates one journal entry and locks the run — no payslip can be generated, edited or
-            deleted against it afterward. A mistake after posting is corrected with a reversing
-            entry.
+            Approving posts the run: one journal entry is created and the run locks — no payslip can
+            be generated, edited or deleted against it afterward. A mistake after posting is
+            corrected with a reversing entry.
           </DialogDescription>
         </DialogHeader>
 
@@ -451,7 +749,7 @@ function PostRunDialog({
             }}
             disabled={posting}
           >
-            {posting ? "Posting…" : "Post to Accounting"}
+            {posting ? "Posting…" : "Approve & post"}
           </Button>
         </DialogFooter>
       </DialogContent>

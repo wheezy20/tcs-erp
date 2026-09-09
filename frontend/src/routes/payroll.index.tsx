@@ -106,7 +106,15 @@ function PayrollRunsPage() {
                         </Link>
                       </td>
                       <td className="px-5 py-3">
-                        <Badge variant={run.status === "Posted" ? "default" : "secondary"}>
+                        <Badge
+                          variant={
+                            run.status === "Posted"
+                              ? "default"
+                              : run.status === "Ready for Review"
+                                ? "outline"
+                                : "secondary"
+                          }
+                        >
                           {run.status}
                         </Badge>
                       </td>

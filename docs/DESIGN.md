@@ -103,11 +103,25 @@ depend on them holding true for every new table/function added.
   `payslip_allowances` (the actual amount applied on one month's
   payslip). Mirrors the same instinct as Wilelik's `expense_categories`
   — a configurable list beats hardcoded columns whenever the set of
-  values is something the school itself will want to edit. `banks`
-  (`20260909140000`) is the same shape: a school-editable list that drives
-  the bank picker on the employee flow, seeded in the migration (it's
-  entity-wide reference data, not branch-scoped). `employee_pay_config.bank`
-  stays plain `text` — the list constrains the picker, it isn't an FK.
+  values is something the school itself will want to edit.
+  `payment_providers` (`20260909140000` as `banks`; renamed + given a
+  `kind` column — `'Bank' | 'Mobile Money'` — in `20260909150000`) is the
+  same shape: a school-editable list, seeded in the migration (it's
+  entity-wide reference data, not branch-scoped), that drives the
+  bank / mobile-money picker on the employee flow.
+  `employee_pay_config.bank` stays plain `text` — the list constrains the
+  picker, it isn't an FK.
+- **Payment destination reuses two columns for both methods.**
+  `employee_pay_config.payment_method` (`'Bank' | 'Mobile Money'`,
+  `20260909150000`) decides how to read `bank` / `account_no`: for a bank
+  it's the bank name + account number; for mobile money it's the network
+  name + wallet phone. No dedicated `momo_*` columns — they would always
+  be half-null, and nothing downstream (the payroll journal entry least of
+  all) cares *how* net pay is disbursed. Changing the method rides the
+  same approve gate as changing the bank/account (it's the same columns
+  and the same `propose_pay_config_change` → `approve_pay_config` path).
+  Recording the destination is the whole scope; actually disbursing a run
+  (bank file, MoMo bulk push) is not built.
 - **Overtime is deliberately NOT part of the flexible allowance system.**
   It's structurally different (an hours × rate calculation, not a flat
   named amount), so it stays as its own `overtime_hours` /
@@ -136,13 +150,37 @@ depend on them holding true for every new table/function added.
   `allowance_types` likewise.
 - **Mutation window on lifecycle records.** Where a record has a
   draft→final lifecycle (`payroll_runs.status`), delete/regenerate is
-  allowed only while it's a draft — `delete_payslip()` and
-  `create_payslip()` both refuse once the run is Posted, and
+  allowed only while it's a draft — `delete_payslip()`, `create_payslip()`
+  and the exclusion RPCs all refuse once the run leaves `'Draft'`, and
   `payroll_runs_delete` RLS requires `status = 'Draft'`. `payroll_runs`
-  has no UPDATE grant/policy at all, so `post_payroll_run()` (SECURITY
-  DEFINER) is the only thing that ever flips the status. Corrections after
-  that are new offsetting records, never edits (same rule as posted
-  journal entries).
+  has no UPDATE grant/policy at all, so the four status RPCs
+  (`submit_payroll_run_for_review()` / `reject_payroll_run()` /
+  `post_payroll_run()`, all SECURITY DEFINER) are the only things that
+  ever flip it. Corrections after posting are new offsetting records,
+  never edits (same rule as posted journal entries).
+- **Payroll run review state machine (`20260909150000`).**
+  `Draft → Ready for Review → Posted`, with reject as the one way back:
+  `submit_payroll_run_for_review()` (any finance writer) moves a complete
+  Draft to review; `post_payroll_run()` (Manager only now — approval and
+  posting are the *same* step) approves it and posts the ledger entry;
+  `reject_payroll_run(reason)` (Manager, reason required) sends it back to
+  Draft with `rejection_reason` set (cleared on the next submit). Payslip
+  edits are already blocked on any non-Draft run, so `'Ready for Review'`
+  locks them for free. "Complete" (enforced by submit, mirrored in the
+  UI) = every `Active` employee with a current approved `employee_pay_config`
+  either has a payslip on the run **or** a `payroll_run_exclusions` row —
+  `_payroll_run_unaccounted()` is the shared definition. Employees with no
+  approved config still can't be paid and don't block; they're a
+  non-blocking warning. `payroll_run_exclusions` (per-run, `on delete
+  cascade`, optional reason, RPC-only writes like `payslips`) is the
+  "deliberately not paid this cycle" marker; `exclude_employee_from_run()`
+  refuses an employee who already has a payslip. Every status transition
+  and every exclusion add/remove lands in `audit_log` via `AFTER`
+  triggers (`audit_payroll_run()` / `audit_payroll_run_exclusion()`), new
+  action values `payroll_run_submitted` / `_approved` / `_rejected` /
+  `payroll_run_exclusion_added` / `_removed`. A Manager may approve a run
+  they submitted themselves — no self-review block, consistent with the
+  rest of this app.
 - **Posting a batch record to the ledger: one aggregated entry, its own
   poster, explicit not automatic.** `post_payroll_run(run_id)` follows the
   Session 14 auto-poster shape (`SECURITY DEFINER`, builds a `jsonb` line
@@ -150,9 +188,10 @@ depend on them holding true for every new table/function added.
   `source_table`/`source_id` so the unique constraint blocks a
   double-post) — but, like `post_day_close_journal_entry()`, it sums the
   whole batch into **one** journal entry rather than one per payslip, and
-  it's an explicit Manager/Accountant action (`require_finance_writer()`),
-  never fired from inside `create_payslip()`. Atomic: the entry and the
-  `status → 'Posted'` flip commit together. Lines whose aggregate is zero
+  it's an explicit action — the Manager "approve" step of the review state
+  machine above (Manager only since `20260909150000`; was
+  `require_finance_writer()`), never fired from inside `create_payslip()`.
+  Atomic: the entry and the `status → 'Posted'` flip commit together. Lines whose aggregate is zero
   are omitted (a zero-amount `journal_lines` row violates
   `journal_lines_has_amount`). Payroll's mapping: Dr `5140` gross; Cr
   `2300` net (payable — accrued, not disbursed); Cr `2310`/`2320`/`2330`

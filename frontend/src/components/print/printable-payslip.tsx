@@ -7,6 +7,7 @@ export type PayslipDocMeta = {
   staffName: string;
   position: string | null;
   department: string | null;
+  paymentMethod: "Bank" | "Mobile Money";
   bank: string | null;
   accountNo: string | null;
   branchName: string;
@@ -90,7 +91,7 @@ export function PrintablePayslip({
             value={[meta.position, meta.department].filter(Boolean).join(" · ") || "—"}
           />
           <Row
-            label="Bank"
+            label={meta.paymentMethod === "Mobile Money" ? "Mobile money" : "Bank"}
             value={meta.bank ? `${meta.bank}${meta.accountNo ? ` · ${meta.accountNo}` : ""}` : "—"}
           />
         </tbody>
