@@ -15,6 +15,7 @@ import {
   usePayroll,
   type AllowanceType,
 } from "@/data/payroll-store";
+import { createBank, deleteBank, updateBank, useBanks, type Bank } from "@/data/banks-store";
 import { getErrorMessage } from "@/lib/utils";
 
 export const Route = createFileRoute("/payroll/pay-config")({
@@ -28,6 +29,7 @@ function PayrollSetupPage() {
   const { staff: currentStaff } = useAuth();
   const canWrite = canWriteFinancials(currentStaff?.role);
   const { allowanceTypes, rates, bands, loading } = usePayroll();
+  const { banks } = useBanks();
 
   const activeRates = rates[0];
 
@@ -56,7 +58,112 @@ function PayrollSetupPage() {
       </div>
 
       <AllowanceTypesSection types={allowanceTypes} canWrite={canWrite} />
+      <BanksSection banks={banks} canWrite={canWrite} />
     </div>
+  );
+}
+
+function BanksSection({ banks, canWrite }: { banks: Bank[]; canWrite: boolean }) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function add() {
+    if (!name.trim()) return;
+    setBusy(true);
+    try {
+      await createBank(name);
+      setName("");
+      toast.success("Bank added");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not add the bank."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Banks</h3>
+      <p className="mb-2 text-xs text-muted-foreground">
+        Drives the bank picker when proposing an employee or a bank / account change. Deactivate a
+        bank to hide it from the picker without losing configs that already reference it.
+      </p>
+      <div className="card-surface p-4">
+        <div className="flex flex-wrap gap-2">
+          {banks.length === 0 && <p className="text-sm text-muted-foreground">No banks yet.</p>}
+          {banks.map((b) => (
+            <BankChip key={b.id} bank={b} canWrite={canWrite} />
+          ))}
+        </div>
+
+        {canWrite && (
+          <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">New bank</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Bank of Ghana"
+                className="w-56"
+              />
+            </div>
+            <Button size="sm" className="gap-1.5" disabled={busy || !name.trim()} onClick={add}>
+              <Plus className="size-3.5" /> Add
+            </Button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function BankChip({ bank, canWrite }: { bank: Bank; canWrite: boolean }) {
+  const [busy, setBusy] = useState(false);
+  async function toggleActive() {
+    setBusy(true);
+    try {
+      await updateBank(bank.id, { isActive: !bank.isActive });
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not update the bank."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove() {
+    if (!window.confirm(`Delete "${bank.name}"?`)) return;
+    setBusy(true);
+    try {
+      await deleteBank(bank.id);
+      toast.success("Bank deleted");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not delete the bank."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${
+        bank.isActive ? "" : "opacity-50"
+      }`}
+    >
+      {bank.name}
+      {canWrite && (
+        <>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={toggleActive}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {bank.isActive ? "active" : "inactive"}
+          </button>
+          <button type="button" disabled={busy} onClick={remove} className="text-destructive">
+            <Trash2 className="size-3" />
+          </button>
+        </>
+      )}
+    </span>
   );
 }
 

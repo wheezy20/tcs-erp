@@ -93,13 +93,11 @@ export function AppSidebar({
       )}
     >
       <div className="flex h-16 items-center gap-3 px-4">
-        {/* TODO: replace with the real TCS logo once a brand asset exists. */}
-        <div
-          className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground"
-          aria-hidden="true"
-        >
-          TCS
-        </div>
+        <img
+          src="/tcs-logomark.png"
+          alt="TCS"
+          className="size-9 shrink-0 rounded-md bg-white object-contain p-1"
+        />
         {!collapsed && (
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold leading-tight">TCS</p>

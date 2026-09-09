@@ -16,8 +16,10 @@ Things that shape how this gets built, not just what gets built.
       real TCS seed data, or none
 - [ ] Create a dedicated hosted Supabase project for TCS and run
       `scripts/bootstrap-production-manager.sh` for the first real Manager
-- [ ] Real TCS logo / favicon assets (sidebar + login currently render a
-      text "TCS" placeholder)
+- [x] Real TCS logo / favicon assets — done (favicons + manifest in
+      `frontend/public/`, logomark in the sidebar + login). Remaining: a
+      true 48×48 favicon (currently downscaled), a dark-mode logomark
+      variant, and re-theming `--primary` from indigo to the brand teal.
 
 ## Data safety
 

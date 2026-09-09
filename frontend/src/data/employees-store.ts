@@ -221,6 +221,23 @@ export function configHistoryFor(configs: PayConfig[], employeeId: string): PayC
     .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1));
 }
 
+/** Split pending pay configs into *bundled* (proposed together with a
+ * still-pending employee record — approved/rejected via that record) and
+ * *standalone* salary/bank changes on an already-active employee. The
+ * Manager approval UI uses this so a bundled new hire shows one
+ * Approve/Reject, not two competing pairs. */
+export function splitPendingConfigs(employees: Employee[], pendingConfigs: PayConfig[]) {
+  const isPendingEmp = (id: string) =>
+    employees.find((e) => e.id === id)?.status === "Pending Approval";
+  const bundledByEmployee = new Map<string, PayConfig>();
+  const standalone: PayConfig[] = [];
+  for (const c of pendingConfigs) {
+    if (isPendingEmp(c.employeeId)) bundledByEmployee.set(c.employeeId, c);
+    else standalone.push(c);
+  }
+  return { bundledByEmployee, standalone };
+}
+
 /** Standing allowances currently in effect for an employee. */
 export function standingAllowancesFor(
   all: EmployeeAllowance[],

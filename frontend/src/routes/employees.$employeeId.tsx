@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { BankSelect } from "@/components/employees/bank-select";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import {
@@ -308,10 +309,29 @@ function PayConfigSection({
       </div>
 
       {!current ? (
-        <p className="mt-4 text-sm text-muted-foreground">
-          No approved pay config yet.
-          {emp.status === "Pending Approval" ? " It will be set when this record is approved." : ""}
-        </p>
+        emp.status === "Pending Approval" && pending ? (
+          <div className="mt-4 rounded-lg border p-3 text-sm">
+            <p className="font-medium">Proposed pay (part of this record)</p>
+            <div className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+              <span>
+                Basic salary: <strong>{currency(pending.basicSalary)}</strong>
+              </span>
+              <span>Effective from: {pending.effectiveFrom}</span>
+              <span>Bank: {pending.bank ?? "—"}</span>
+              <span>Account: {pending.accountNo ?? "—"}</span>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Approved together with the employee record — one Approve / Reject, on the status card.
+            </p>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">
+            No approved pay config yet.
+            {emp.status === "Pending Approval"
+              ? " It will be set when this record is approved."
+              : ""}
+          </p>
+        )
       ) : (
         <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
           <Field label="Basic salary" value={currency(current.basicSalary)} />
@@ -354,7 +374,7 @@ function PayConfigSection({
         </div>
       )}
 
-      {pending && (
+      {pending && emp.status === "Active" && (
         <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-50/50 p-3 dark:bg-amber-950/20">
           <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
             Pending salary / bank change
@@ -519,7 +539,7 @@ function ProposeChangeDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Bank</Label>
-              <Input value={bank} onChange={(e) => setBank(e.target.value)} />
+              <BankSelect value={bank} onChange={setBank} />
             </div>
             <div className="space-y-1.5">
               <Label>Account number</Label>

@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { BankSelect } from "@/components/employees/bank-select";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import {
@@ -34,6 +35,7 @@ import {
   proposeEmployee,
   rejectEmployee,
   rejectPayConfig,
+  splitPendingConfigs,
   useEmployees,
   type Employee,
   type EmploymentStatus,
@@ -80,6 +82,10 @@ function EmployeesListPage() {
 
   const pendingEmployees = employees.filter((e) => e.status === "Pending Approval");
   const pendingConfigs = configs.filter((c) => c.approvalStatus === "Pending Approval");
+  // A bundled config (pending config on a still-pending employee) is not a
+  // separate item — it's approved with the employee record.
+  const { standalone: standalonePendingConfigs } = splitPendingConfigs(employees, pendingConfigs);
+  const pendingCount = pendingEmployees.length + standalonePendingConfigs.length;
   const activeCount = employees.filter((e) => e.status === "Active").length;
 
   return (
@@ -90,7 +96,7 @@ function EmployeesListPage() {
         actions={canWrite ? <ProposeEmployeeDialog /> : undefined}
       />
 
-      {isManager && (pendingEmployees.length > 0 || pendingConfigs.length > 0) && (
+      {isManager && pendingCount > 0 && (
         <ApprovalsPanel
           employees={employees}
           pendingEmployees={pendingEmployees}
@@ -102,8 +108,8 @@ function EmployeesListPage() {
         <SummaryCard label="Active employees" value={String(activeCount)} hint="Payable" />
         <SummaryCard
           label="Pending approval"
-          value={String(pendingEmployees.length + pendingConfigs.length)}
-          hint={`${pendingEmployees.length} new · ${pendingConfigs.length} pay changes`}
+          value={String(pendingCount)}
+          hint={`${pendingEmployees.length} new · ${standalonePendingConfigs.length} pay changes`}
         />
         <SummaryCard
           label="All records"
@@ -223,6 +229,7 @@ function ApprovalsPanel({
   pendingConfigs: PayConfig[];
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
+  const { bundledByEmployee, standalone } = splitPendingConfigs(employees, pendingConfigs);
 
   async function run(id: string, fn: () => Promise<void>, ok: string) {
     setBusyId(id);
@@ -254,49 +261,62 @@ function ApprovalsPanel({
             New employee records
           </p>
           <ul className="divide-y">
-            {pendingEmployees.map((e) => (
-              <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
-                <div className="text-sm">
-                  <span className="font-medium">{e.name}</span>
-                  <span className="text-muted-foreground">
-                    {" "}
-                    · {[e.position, e.department].filter(Boolean).join(" · ") || "no placement"}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={busyId === e.id}
-                    onClick={() => run(e.id, () => approveEmployee(e.id), `${e.name} approved`)}
-                  >
-                    <Check className="size-3.5" /> Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-destructive"
-                    disabled={busyId === e.id}
-                    onClick={() =>
-                      reject(e.id, (r) => rejectEmployee(e.id, r), `${e.name} rejected`)
-                    }
-                  >
-                    <X className="size-3.5" /> Reject
-                  </Button>
-                </div>
-              </li>
-            ))}
+            {pendingEmployees.map((e) => {
+              const pay = bundledByEmployee.get(e.id);
+              return (
+                <li key={e.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                  <div className="min-w-0 text-sm">
+                    <p className="font-medium">{e.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[e.position, e.department].filter(Boolean).join(" · ") || "no placement"}
+                      {e.phone ? ` · ${e.phone}` : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {pay
+                        ? `Pay: ${currency(pay.basicSalary)}${pay.bank ? ` · ${pay.bank}` : ""}${
+                            pay.accountNo ? ` · ${pay.accountNo}` : ""
+                          } · from ${pay.effectiveFrom}`
+                        : "No initial pay config proposed"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={busyId === e.id}
+                      onClick={() => run(e.id, () => approveEmployee(e.id), `${e.name} approved`)}
+                    >
+                      <Check className="size-3.5" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-destructive"
+                      disabled={busyId === e.id}
+                      onClick={() =>
+                        reject(e.id, (r) => rejectEmployee(e.id, r), `${e.name} rejected`)
+                      }
+                    >
+                      <X className="size-3.5" /> Reject
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Approving a new record also approves its bundled pay config, in one step.
+          </p>
         </div>
       )}
 
-      {pendingConfigs.length > 0 && (
+      {standalone.length > 0 && (
         <div className="mt-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Salary / bank changes
           </p>
           <ul className="divide-y">
-            {pendingConfigs.map((c) => (
+            {standalone.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
                 <div className="text-sm">
                   <span className="font-medium">{empName(c.employeeId)}</span>
@@ -485,7 +505,7 @@ function ProposeEmployeeDialog() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Bank</Label>
-                  <Input value={bank} onChange={(e) => setBank(e.target.value)} />
+                  <BankSelect value={bank} onChange={setBank} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Account number</Label>

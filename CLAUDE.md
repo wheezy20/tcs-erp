@@ -190,8 +190,10 @@ their own credentials, against their own project.
 - Cross-cutting utilities live in `frontend/src/lib/`: `lib/export/`
   (data export), `lib/import/parse.ts` (spreadsheet import parsing),
   `lib/pdf/invoice-pdf.ts` (PDF generation via jsPDF).
-- Real TCS logo/icon assets are still pending — the sidebar and login
-  render a plain text "TCS" badge as a placeholder (see `docs/JOURNAL.md`).
+- Real TCS brand assets are in place: favicons + `site.webmanifest` under
+  `frontend/public/`, `public/tcs-logomark.png` in the sidebar + login.
+  Master logo library is `frontend/brand/` (not web-served). The app theme
+  is still indigo, not the brand teal — see `docs/JOURNAL.md`.
 
 ## SSR error handling
 

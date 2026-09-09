@@ -40,15 +40,13 @@ function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <div className="w-full max-w-sm space-y-6">
-        <div className="flex flex-col items-center gap-2 text-center">
-          {/* TODO: replace with the real TCS logo once a brand asset exists. */}
-          <div
-            className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-2xl font-bold tracking-tight text-primary-foreground"
-            aria-hidden="true"
-          >
-            TCS
-          </div>
-          <h1 className="text-xl font-semibold tracking-tight">TCS</h1>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <img
+            src="/tcs-logomark.png"
+            alt="Treasures Christian School"
+            className="h-20 w-20 rounded-2xl bg-white object-contain p-2 shadow-sm"
+          />
+          <h1 className="text-xl font-semibold tracking-tight">Treasures Christian School</h1>
           <p className="text-sm text-muted-foreground">Sign in to your staff account</p>
         </div>
 

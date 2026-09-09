@@ -103,7 +103,11 @@ depend on them holding true for every new table/function added.
   `payslip_allowances` (the actual amount applied on one month's
   payslip). Mirrors the same instinct as Wilelik's `expense_categories`
   — a configurable list beats hardcoded columns whenever the set of
-  values is something the school itself will want to edit.
+  values is something the school itself will want to edit. `banks`
+  (`20260909140000`) is the same shape: a school-editable list that drives
+  the bank picker on the employee flow, seeded in the migration (it's
+  entity-wide reference data, not branch-scoped). `employee_pay_config.bank`
+  stays plain `text` — the list constrains the picker, it isn't an FK.
 - **Overtime is deliberately NOT part of the flexible allowance system.**
   It's structurally different (an hours × rate calculation, not a flat
   named amount), so it stays as its own `overtime_hours` /
@@ -189,7 +193,13 @@ depend on them holding true for every new table/function added.
   with `effective_to = proposal.effective_from - 1`, then flips the
   pending row to `Active`); reject/withdraw tombstones it
   (`approval_status = 'Rejected'`, `effective_to` stays null, filtered out
-  everywhere). Partial unique indexes enforce *one current approved row*
+  everywhere). `propose_employee()` can *bundle* an initial pay config —
+  the pending config for a still-pending employee is approved/rejected
+  **with the employee record** (`approve_employee()` cascades), not on its
+  own: `approve_pay_config()` refuses a config whose employee isn't
+  `Active`, and the approval UI shows a bundled new hire as one
+  proposal with one Approve/Reject (`splitPendingConfigs()` in
+  `employees-store.ts` draws the bundled-vs-standalone line). Partial unique indexes enforce *one current approved row*
   (`where effective_to is null and approval_status = 'Active'`) and *one
   outstanding proposal* (`where approval_status = 'Pending Approval'`) per
   employee. **No same-period corrections** — a proposal's effective date
@@ -215,7 +225,9 @@ depend on them holding true for every new table/function added.
 
 TCS naming has been applied throughout the fork (sidebar, login page,
 document/report titles, exported filenames, localStorage keys, Supabase
-`project_id`). Real TCS logo/icon assets are still pending — the sidebar
-and login currently render a plain text "TCS" badge as a placeholder.
-See JOURNAL.md for the specific rebrand pass and what's still
-outstanding.
+`project_id`). Real TCS brand assets are in place (`20260909140000`
+walkthrough follow-up): the favicon set + `site.webmanifest` under
+`frontend/public/`, and `public/tcs-logomark.png` in the sidebar + login.
+The master logo library lives in `frontend/brand/` (out of the web dir).
+Still open: the app theme's `--primary` is indigo, not the brand teal —
+re-theming wasn't done. See JOURNAL.md.

@@ -669,3 +669,103 @@ orphans, `staff.phone/position/department` gone.
   Suspend / Propose-change controls. DB check after the run confirmed the
   Jan payslip at 2000, the Feb-effective 2500 row current, and the full
   audit trail.
+
+## 2026-09-09 — Approval-UI fix, banks reference list, real brand assets
+
+Walkthrough follow-ups to the employees/approval work.
+
+### 1. Bundled-proposal approval — rendering bug, data model was fine
+`propose_employee()` with an initial pay config creates **one** employee
+row + **one** `employee_pay_config` row (both `Pending Approval`, one
+txn); `approve_employee()` flips both. Diagnosed **Caleb Gaba**
+(`dee76086-…`): `employment_status = 'Active'`, exactly one pay config
+(`81269c07-…`, basic 10000, Calbank, `Active`), audit trail
+`employee_created` + `pay_config_proposed` (accountant, same instant) then
+`employee_approved` + `pay_config_approved` (manager, same instant). **No
+corruption, no duplicate records** — the data model did the right thing.
+
+The bug was purely `ApprovalsPanel` (`employees.index.tsx`): it rendered
+the pending employee and its bundled pending config as two independent
+rows with two Approve/Reject pairs, and approving the employee row
+cascaded (server-side) so the config row silently vanished.
+
+**Fix** — `splitPendingConfigs()` (now in `employees-store.ts`): a pending
+config on a still-`Pending Approval` employee is *bundled* (approved via
+the record); one on an `Active` employee is a *standalone* change. The
+panel now shows a bundled new hire as **one row** — identity + a pay
+preview line — with **one Approve / one Reject** (`approveEmployee` /
+`rejectEmployee`); the "Salary / bank changes" section lists standalone
+changes only. Same split on the profile page: `PayConfigSection`'s pending
+banner (with its own approve/reject) renders only for `emp.status ===
+'Active'`; for a pending record the bundled pay shows as a read-only
+preview and approval routes through the status card. Summary-card
+"Pending approval" count no longer double-counts a bundled pair.
+
+**Defensive server guard** (`20260909140000`): `approve_pay_config()` now
+refuses a config whose employee isn't `Active` — "Approve the employee
+record instead." The UI no longer offers that path anyway; this closes it
+at the RPC.
+
+### 2. Banks reference list (`20260909140000`)
+New `banks` table — `name` (unique), `position`, `is_active`. Same
+"school-editable list beats hardcoded" pattern as `allowance_types` /
+`expense_categories` (the codebase's own precedent, quoted in
+docs/DESIGN.md). **Not branch-scoped** — the licensed-bank list is
+entity-wide, like the chart of accounts, so it's seeded **in the
+migration** (`on conflict (name) do nothing`, ~23 BoG-licensed banks),
+not `seed.sql`. RLS: select M/Acc/Aud, write M/Acc, not approval-gated.
+`employee_pay_config.bank` stays plain `text` (the bank *name*) — no FK,
+no data migration; the reference list only drives the picker.
+- `banks-store.ts` + `BankSelect` component (a value not in the active
+  list stays selectable, so a legacy free-text config round-trips).
+- Bank `<Input>` → `<BankSelect>` in the propose-employee and
+  propose-change dialogs; a Banks editor added to the payroll "Setup" tab
+  beside Allowance types.
+
+### 3. Brand assets
+The user dropped `frontend/public/PNGS/` (logo library) and
+`frontend/public/WEB/` (favicon set + manifest) and deleted the old
+root-level icons.
+- `WEB/*` favicons (`favicon.ico`, `-16/-32`, `apple-touch-icon`,
+  `android-chrome-192/512`) → `public/` root. `site.webmanifest` rewritten
+  (real name "Treasures Christian School", the five icon sizes,
+  `theme_color`/`background_color` `#ffffff`).
+- **`favicon-48x48.png` was not provided** — machine-downscaled from
+  `android-chrome-192x192.png` (LANCZOS). Referenced from `__root.tsx`
+  head + the manifest. Regenerate from a real 48px source if you have one.
+- `public/tcs-logomark.png` ← the "logomark – white bg" glyph (deep-teal
+  `#005e61` / green `#11b87a` / orange `#f15e00`). The placeholder "TCS"
+  text badge in the sidebar and login page is now this image on a white
+  chip (legible in light *and* dark themes). `__root.tsx` gains a
+  `theme-color` meta + the 48px icon link.
+- Logo library moved to `frontend/brand/` (out of the web-served dir);
+  `public/PNGS` + `public/WEB` removed; `public/robots.txt` restored (its
+  deletion was collateral of the folder swap).
+- **Flag**: the artwork's brand palette is deep teal / green / orange, but
+  the app's `--primary` is still indigo (`oklch(0.313 0.215 264.1)`) — the
+  "Sign in" button, active nav, etc. stay indigo. Re-theming to the brand
+  teal wasn't in scope; do it as a separate pass if wanted.
+- **Missing / to provide if wanted**: a real 48×48 favicon; a dark-mode
+  logomark variant (the "logomark – deap teal bg" light-glyph version is
+  in `brand/logomark-light.png` if you want a theme-switched `<img>`
+  later); a horizontal wordmark lockup for wide headers (in
+  `brand/full-logo-horizontal-*.png`).
+
+### Verification
+- `db reset` (migration + seed) clean; `gen types` current; `tsc` /
+  `eslint src` (0 new errors) / `vite build` /
+  `check-duplicate-function-overloads.sh` pass.
+- **DB**: banks table 23 rows; `approve_pay_config` on a bundled
+  (Pending-employee) config → rejected with the guard message;
+  `approve_employee` still cascades (emp + cfg → Active in one call);
+  standalone change on an Active employee still approves; banks RLS —
+  Attendant/Auditor insert blocked, Auditor sees all 23, Accountant insert
+  OK.
+- **Browser** (headless, zero console errors): login + sidebar render
+  `/tcs-logomark.png` (old text badge gone); favicon/manifest served
+  (200). Accountant proposes a bundled hire — bank field is a dropdown
+  populated from the seeded list. Manager's Approvals panel shows it as
+  **one** "New employee records" row with the pay preview and exactly
+  **one** Approve button, **no** "Salary / bank changes" entry; one click
+  → employee Active with the config attached, no pending banner on the
+  profile. Setup tab shows the Banks editor with the seeded banks.
