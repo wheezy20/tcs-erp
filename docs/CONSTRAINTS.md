@@ -8,16 +8,10 @@ Things that shape how this gets built, not just what gets built.
       (currently placeholder values, see docs/JOURNAL.md)
 - [ ] Confirm the SSNIT / Tier 2 split (0.5% / 13% / 5%) against an
       official SSNIT source — currently only confirmed verbally against
-      the school's current practice (see "Statutory accuracy" below)
-- [ ] **Employer SSNIT (13%) is not in the books.** `create_payslip()`
-      computes only the employee side, so `post_payroll_run()`'s journal
-      entry omits the employer's 13% SSNIT contribution entirely — the
-      P&L understates true staffing cost by that amount and the SSNIT
-      Payable liability is understated. Fix: add an employer-contribution
-      figure to the payslip computation (Dr an employer-pension expense,
-      Cr 2310 SSNIT Payable) and extend `post_payroll_run()`. Until then,
-      do not trust payroll-inclusive cost or margin figures for real
-      decisions. (See docs/JOURNAL.md 2026-09-09 "Post payroll run".)
+      the school's current practice (see "Statutory accuracy" below).
+      Note the employer's 13% is now computed, snapshotted
+      (`payslips.ssnit_employer`) and posted (Dr 5145 / Cr 2310) as of
+      `20260909120000` — only the *rate* still needs the official check.
 - [ ] Replace `supabase/seed.sql` (still Wilelik's dummy retail data) with
       real TCS seed data, or none
 - [ ] Create a dedicated hosted Supabase project for TCS and run

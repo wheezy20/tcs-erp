@@ -128,6 +128,42 @@ export function PrintablePayslip({
         <span>{money(payslip.netPay)}</span>
       </div>
 
+      {payslip.ssnitEmployer > 0 && (
+        <div
+          style={{
+            marginTop: "12px",
+            paddingTop: "8px",
+            borderTop: "1px dashed #ccc",
+            color: "#555",
+            fontSize: "9.5px",
+          }}
+        >
+          <p style={{ margin: "0 0 2px", fontWeight: 600 }}>
+            Employer contributions (paid by {company.name || "the employer"}, not deducted from your
+            pay)
+          </p>
+          <div style={{ display: "flex", justifyContent: "space-between", maxWidth: "300px" }}>
+            <span>SSNIT (13%)</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {money(payslip.ssnitEmployer)}
+            </span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              maxWidth: "300px",
+              fontWeight: 600,
+            }}
+          >
+            <span>Total cost of employment this month</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {money(payslip.grossSalary + payslip.ssnitEmployer)}
+            </span>
+          </div>
+        </div>
+      )}
+
       <p style={{ marginTop: "18px", color: "#888", fontSize: "9.5px" }}>
         Generated {new Date(payslip.generatedAt).toLocaleString()}. Figures are computed and frozen
         at generation. This payslip is system-generated and does not require a signature.

@@ -51,6 +51,11 @@ export type Payslip = {
   tax: number;
   tier2: number;
   ssnit: number;
+  /** Employer's 13% SSNIT contribution — snapshot at generation, gated on
+   * the same pays_ssnit flag as the employee side. NOT part of net-pay
+   * math; it never touches the employee. 0 for exempt staff and for
+   * payslips generated before 20260909120000. */
+  ssnitEmployer: number;
   fines: number;
   iou: number;
   totalDeductions: number;
@@ -165,6 +170,7 @@ function mapPayslip(row: PayslipRow): Payslip {
     tax: num(row.tax),
     tier2: num(row.tier2),
     ssnit: num(row.ssnit),
+    ssnitEmployer: num(row.ssnit_employer),
     fines: num(row.fines),
     iou: num(row.iou),
     totalDeductions: num(row.total_deductions),

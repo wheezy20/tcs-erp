@@ -272,7 +272,7 @@ function RunDetailPage() {
 }
 
 const POSTING_NOTE =
-  "Employer SSNIT (13%) is not included — it isn't calculated on payslips yet (see the go-live checklist in docs/CONSTRAINTS.md), so this entry understates true staffing cost by that amount.";
+  "Includes the employer's 13% SSNIT contribution (Dr 5145 Employer SSNIT Contribution / Cr 2310 SSNIT Payable) on top of the amounts withheld from staff, so total staffing cost is 5140 + 5145.";
 
 function EntryLinesTable({
   lines,
@@ -375,18 +375,33 @@ function PostRunDialog({
     (a, p) => ({
       gross: a.gross + p.grossSalary,
       ssnit: a.ssnit + p.ssnit,
+      ssnitEmployer: a.ssnitEmployer + p.ssnitEmployer,
       tier2: a.tier2 + p.tier2,
       paye: a.paye + p.tax,
       fines: a.fines + p.fines,
       iou: a.iou + p.iou,
       net: a.net + p.netPay,
     }),
-    { gross: 0, ssnit: 0, tier2: 0, paye: 0, fines: 0, iou: 0, net: 0 },
+    { gross: 0, ssnit: 0, ssnitEmployer: 0, tier2: 0, paye: 0, fines: 0, iou: 0, net: 0 },
   );
   const lines = [
     { key: "5140", code: "5140", name: "Salaries & Wages Expense", debit: sums.gross, credit: 0 },
+    {
+      key: "5145",
+      code: "5145",
+      name: "Employer SSNIT Contribution",
+      debit: sums.ssnitEmployer,
+      credit: 0,
+    },
     { key: "2300", code: "2300", name: "Salaries & Wages Payable", debit: 0, credit: sums.net },
-    { key: "2310", code: "2310", name: "SSNIT Payable", debit: 0, credit: sums.ssnit },
+    { key: "2310e", code: "2310", name: "SSNIT Payable (employee)", debit: 0, credit: sums.ssnit },
+    {
+      key: "2310r",
+      code: "2310",
+      name: "SSNIT Payable (employer)",
+      debit: 0,
+      credit: sums.ssnitEmployer,
+    },
     {
       key: "2320",
       code: "2320",

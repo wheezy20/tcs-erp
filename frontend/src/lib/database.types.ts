@@ -1683,6 +1683,7 @@ export type Database = {
           payroll_run_id: string
           pdf_path: string | null
           ssnit: number
+          ssnit_employer: number
           staff_id: string
           staff_pay_config_id: string
           tax: number
@@ -1706,6 +1707,7 @@ export type Database = {
           payroll_run_id: string
           pdf_path?: string | null
           ssnit?: number
+          ssnit_employer?: number
           staff_id: string
           staff_pay_config_id: string
           tax?: number
@@ -1729,6 +1731,7 @@ export type Database = {
           payroll_run_id?: string
           pdf_path?: string | null
           ssnit?: number
+          ssnit_employer?: number
           staff_id?: string
           staff_pay_config_id?: string
           tax?: number
@@ -3517,6 +3520,7 @@ export type Database = {
           payroll_run_id: string
           pdf_path: string | null
           ssnit: number
+          ssnit_employer: number
           staff_id: string
           staff_pay_config_id: string
           tax: number

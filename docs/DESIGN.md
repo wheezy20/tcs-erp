@@ -144,9 +144,13 @@ depend on them holding true for every new table/function added.
   `2300` net (payable — accrued, not disbursed); Cr `2310`/`2320`/`2330`
   SSNIT / Tier 2 / PAYE withheld; Cr `1350` IOU (repayment reduces the
   advance asset — the counterpart to `post_expense_journal_entry()`
-  debiting `1350` for a "Staff advances" expense); Cr `4910` fines.
-  Employee-side only — see the employer-SSNIT gap in
-  `docs/CONSTRAINTS.md`.
+  debiting `1350` for a "Staff advances" expense); Cr `4910` fines. The
+  employer's 13% SSNIT contribution (`payslips.ssnit_employer`,
+  snapshotted by `create_payslip()` on the same `pays_ssnit` flag) posts
+  as a self-balancing pair on top — Dr `5145` Employer SSNIT Contribution
+  / Cr `2310` SSNIT Payable — so `2310` carries both the withheld employee
+  portion and the employer portion, and total staffing cost reads as
+  `5140 + 5145` (`20260909120000`).
 - **Multi-row RPC input is `jsonb`, not a composite-type array.**
   `create_payslip(p_allowances jsonb)` follows `create_invoice()` /
   `create_sale()`'s `p_lines jsonb` convention — `jsonb_array_elements` in

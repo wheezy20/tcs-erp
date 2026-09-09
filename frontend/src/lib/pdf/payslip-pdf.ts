@@ -142,6 +142,36 @@ export async function downloadPayslipPdf(
   doc.setTextColor(20);
   doc.text("NET PAY", margin + 3, ty + 6.7);
   doc.text(money(payslip.netPay), right - 3, ty + 6.7, { align: "right" });
+  ty += 10;
+
+  // Employer contributions — shown for information only, never part of the
+  // employee's net-pay math. Skipped for exempt staff / pre-20260909120000
+  // payslips (ssnit_employer = 0).
+  if (payslip.ssnitEmployer > 0) {
+    ty += 6;
+    doc.setDrawColor(200);
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, ty, right, ty);
+    doc.setLineDashPattern([], 0);
+    ty += 5;
+    doc.setFont("Inter", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(90);
+    doc.text(
+      `Employer contributions (paid by ${company.name || "the employer"}, not deducted from your pay)`,
+      margin,
+      ty,
+    );
+    doc.setFont("Inter", "normal");
+    doc.text("SSNIT (13%)", margin, ty + 5);
+    doc.text(money(payslip.ssnitEmployer), right, ty + 5, { align: "right" });
+    doc.setFont("Inter", "bold");
+    doc.text("Total cost of employment this month", margin, ty + 10);
+    doc.text(money(payslip.grossSalary + payslip.ssnitEmployer), right, ty + 10, {
+      align: "right",
+    });
+    ty += 10;
+  }
 
   doc.setFont("Inter", "normal");
   doc.setFontSize(7.5);
@@ -149,7 +179,7 @@ export async function downloadPayslipPdf(
   doc.text(
     `Generated ${new Date(payslip.generatedAt).toLocaleString()} · system-generated, no signature required`,
     margin,
-    ty + 18,
+    ty + 8,
   );
 
   doc.save(

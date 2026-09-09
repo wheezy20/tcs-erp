@@ -478,3 +478,69 @@ employer-contribution figure to the payslip computation, then extend
 - Employer SSNIT (above).
 - No "unpost"/reverse-from-the-run-page shortcut — a correction goes
   through the normal `reverse_journal_entry()` in Accounting. Fine for now.
+
+## 2026-09-09 — Employer SSNIT contribution (closes the go-live gap)
+
+Closed the employer-SSNIT gap flagged in `docs/CONSTRAINTS.md` the same
+day it was opened.
+
+### Schema — `20260909120000_payslip_employer_ssnit.sql`
+- `payslips.ssnit_employer numeric(12,2) not null default 0` — a plain
+  snapshot column (not a Postgres generated column: it reads
+  `statutory_rates`), filled once by `create_payslip()`, never
+  recomputed. Same discipline as `ssnit` / `tax` / `tier2`.
+- New account **`5145 Employer SSNIT Contribution`** (Expenses / Operating
+  Expense) — kept separate from `5140` so total staff cost reads as
+  `5140 + 5145` rather than being hidden inside gross pay.
+- `create_payslip()` (unchanged signature, plain `create or replace`):
+  `v_ssnit_employer := round(basic × ssnit_employer_pct / 100, 2)` gated
+  on the **same `pays_ssnit` flag** as the employee side — an exempt
+  staff member generates neither side. Stored on the new column; **not**
+  added to taxable income or net pay (it never touches the employee).
+- `post_payroll_run()`: sums `ssnit_employer`, and when non-zero adds a
+  self-balancing pair — `Dr 5145` / `Cr 2310` — on top of the existing
+  employee-side `Cr 2310`. Both portions owe to the same payable. New
+  balance: `Dr (gross + ssnit_employer) = Cr (net + ssnit_emp + ssnit_er
+  + tier2 + paye + iou + fines)`.
+
+Existing payslips keep `ssnit_employer = 0` (snapshot discipline — no
+backfill); regenerate a Draft-run payslip to pick up the figure. Posted
+runs are immutable and stay as posted.
+
+### Frontend
+- `payroll-store.ts`: `Payslip.ssnitEmployer` + `mapPayslip`.
+- `payroll.$runId.tsx`: the post-preview dialog now shows `5145` and two
+  `2310` lines (employee / employer); the posting note reflects that the
+  employer contribution is included.
+- **Payslip footnote** (screen + PDF) — my call, flagged in the proposal:
+  shown on the payslip itself, in a separated block **below NET PAY**,
+  labelled "Employer contributions (paid by <company>, not deducted from
+  your pay)", with the SSNIT 13% amount and a "Total cost of employment
+  this month" = `gross + ssnit_employer` line. Only rendered when
+  `ssnitEmployer > 0`. Never enters the earnings/deductions/net math. The
+  payslip is the per-staff-per-month artifact an auditor already reaches
+  for; a separate cost report stays an easy follow-up (it can read the
+  same snapshot column) but wasn't worth building for one number now.
+
+### Verification
+- `supabase db reset` / `gen types` clean; `tsc` / `eslint src` /
+  `vite build` / `check-duplicate-function-overloads.sh` pass.
+- **DB end-to-end** (rolled-back txn, 4 payslips incl. one `pays_ssnit =
+  false`): employer SSNIT per payslip `845 / 546 / 364 / 0` (13% of
+  basic, exempt staff = 0); employee SSNIT `32.50 / 21 / 14 / 0`.
+  Posted entry has 9 lines including `Dr 5145 1755.00` and `Cr 2310
+  1755.00` (employer) alongside `Cr 2310 67.50` (employee). **Balance:
+  16955.00 Dr = 16955.00 Cr, diff 0.00** (was 15200 before the employer
+  pair). `2310` total credited = `1822.50` across 2 lines; `5145` debited
+  = `1755.00`.
+- **DB RLS matrix** for the changed RPCs: unchanged — `post_payroll_run`
+  / `create_payslip` still Manager+Accountant, Auditor/Attendant blocked.
+- **Browser**: see this session's smoke run — Manager posts a run, the
+  embedded entry shows the `5145` debit and both `2310` credits, the
+  payslip view + PDF footnote renders for non-exempt staff and is absent
+  for the exempt one.
+
+### `docs/CONSTRAINTS.md`
+Removed the "Employer SSNIT (13%) is not in the books" checklist item.
+The SSNIT/Tier-2 item now notes only the *rate* still needs an official
+source check — the mechanism is done.
