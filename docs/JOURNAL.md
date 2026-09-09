@@ -994,3 +994,92 @@ ok/failed) and reloads once.
   (select-all + 4), per-row Adjust/Exclude retained, select-all →
   "Generate 4 payslips" → 4 payslip rows created, section gone,
   "Ready to submit for review" shown.
+
+## 2026-09-09 — Cloudflare Workers deploy target; production seed split
+
+Moved the frontend's deploy target from Vercel (inherited from Wilelik) to
+**Cloudflare Workers**, TanStack Start's current supported path.
+
+### Vite / Worker config
+
+- `frontend/vite.config.ts`: added `@cloudflare/vite-plugin`
+  (`cloudflare({ viteEnvironment: { name: "ssr" } })`, injected via the
+  Lovable wrapper's `plugins` option) and set `nitro: false` — the CF
+  plugin builds TanStack Start's `ssr` Vite environment into a Worker, and
+  Nitro would produce a competing server build. `tanstackStart.server.entry`
+  stays `"server"` (`src/server.ts`, already a Workers-shaped
+  `export default { fetch(request, env, ctx) }`).
+- `frontend/wrangler.jsonc` (new): `name: "tcs-erp"`,
+  `compatibility_date: "2026-09-01"`, `compatibility_flags: ["nodejs_compat"]`
+  (supabase-js / jspdf / xlsx / SSR entry pull in Node built-ins),
+  `main: "src/server.ts"`, `assets.directory: "dist/client"`,
+  `observability.enabled: true`.
+- `npm i -D @cloudflare/vite-plugin@^1.54.6 wrangler@^4.130.0`; removed the
+  `nitro` devDependency. **wrangler 4 requires Node ≥ 22** — the build
+  (`vite build`) still runs on Node 20, but `wrangler` (dev/deploy/dry-run)
+  needs 22, so CI must use Node 22.
+- Deleted `frontend/vercel.json`.
+
+Build output: `vite build` → `dist/client/` (static assets) +
+`dist/server/` (`index.js` Worker bundle + a generated `wrangler.json`
+with resolved paths). `wrangler deploy` from `frontend/` auto-detects that
+output — no `-c` flag needed.
+
+### Seed split
+
+- `supabase/seed.sql` — unchanged, still the full local-dev seed.
+- `supabase/seed.production.sql` (new) — idempotent, run **once by hand**
+  against a hosted DB after `supabase db push`
+  (`psql "$PROD_DB_URL" -f supabase/seed.production.sql`). Contains only
+  the branch-scoped reference rows the migrations can't seed on a fresh
+  project: the `branches` row ("Treasures Christian School"), then
+  `expense_categories` (9), `expense_category_accounts` (9), and
+  `allowance_types` (4 starter types). **Zero** demo people, logins,
+  employees, pay configs, payslips, payroll runs, products, customers,
+  invoices, sales, expenses, suppliers, bank accounts.
+- Everything the request listed as "reference data" that is *entity-wide*
+  — chart of accounts, `statutory_rates`, `paye_bands`,
+  `payment_providers`, `positions`, `departments` — is **already seeded by
+  its own migration** (`on conflict do nothing`) and lands on any
+  `supabase db push`. `seed.production.sql` deliberately does not duplicate
+  it (that would be two sources of truth and drift). The one wrinkle:
+  `20260819090000` seeds `expense_categories` / `_accounts` only *if a
+  branch already exists* when it runs — which it doesn't on a brand-new
+  project — so `seed.production.sql` re-does those for the branch it
+  creates.
+- **Which file runs when**: `config.toml` `[db.seed] sql_paths =
+  ["./seed.sql"]` controls `supabase db reset` (local) *only*. Nothing
+  seeds automatically on `db push`. `seed.production.sql` is never in
+  `sql_paths` — it is a manual deploy step. Added a comment block in
+  `config.toml` saying so.
+
+### Build-time env vars
+
+Documented in CONSTRAINTS.md + DESIGN.md: `VITE_SUPABASE_URL` /
+`VITE_SUPABASE_ANON_KEY` are inlined by Vite at **build** time (the Lovable
+wrapper's `envDefine` runs `loadEnv` and rewrites `import.meta.env.VITE_*`
+to string literals). They must exist as env vars in the Cloudflare
+**build** step; a Worker runtime secret set afterward is invisible to the
+client bundle. The code reads `VITE_SUPABASE_ANON_KEY` (not
+`VITE_SUPABASE_KEY` — the root `.env` currently has the wrong name). Anon
+key is a public credential; never inline `service_role`.
+
+### Verification
+
+- `npm run build` (Node 20) → exit 0; `dist/client/` + `dist/server/`
+  (`index.js` + `wrangler.json`) produced.
+- `wrangler deploy --dry-run` in a `node:22` container (no CF credentials)
+  → exit 0, 225 modules bundled, 175 assets read from `dist/client`,
+  "No bindings found", "--dry-run: exiting now." Also passes without `-c`.
+- `npm run dev` → CF plugin active ("The Cloudflare Vite plugin detected
+  this dev session…"), SSR through workerd, `/` and `/login` render 200
+  with the right `<title>`, no errors.
+- `tsc` / dup-overload-check pass; `eslint src` only the pre-existing
+  `accent-sync.tsx:32` error.
+- `seed.production.sql` replayed against a fresh migrations-only DB (temp
+  `sql_paths` swap + `db reset`): 1 branch, 47 accounts, 9
+  expense_categories, 9 expense_category_accounts (correct GL mappings), 4
+  allowance_types, 26 payment_providers, 16 positions, 10 departments, 1
+  statutory_rates row, 7 paye_bands — and **0** staff / employees /
+  payslips / products / auth.users. `config.toml` + local DB restored
+  afterward.

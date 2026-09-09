@@ -1,0 +1,22 @@
+{
+  // Cloudflare Workers deployment config for TCS ERP.
+  // Built by `vite build` (via @cloudflare/vite-plugin); deployed with
+  // `wrangler deploy` from this directory. Requires wrangler >= 4 and
+  // Node >= 22 in the build/deploy environment.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tcs-erp",
+  "compatibility_date": "2026-09-01",
+  // supabase-js, jspdf, xlsx and the SSR entry pull in Node built-ins.
+  "compatibility_flags": ["nodejs_compat"],
+  // TanStack Start's server entry (frontend/src/server.ts). The
+  // @cloudflare/vite-plugin resolves this through the "ssr" Vite
+  // environment at build time.
+  "main": "src/server.ts",
+  // Client build output — hashed static assets, served from the edge.
+  "assets": {
+    "directory": "dist/client"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

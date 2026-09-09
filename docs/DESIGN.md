@@ -274,13 +274,38 @@ depend on them holding true for every new table/function added.
   (seed/migration).
 - **Entity-wide reference data goes in the migration, not `seed.sql`.**
   Rows that must exist in *every* environment and have no branch/staff FK
-  — the chart of accounts, statutory rates, PAYE bands — are inserted by
-  the migration itself with `on conflict do nothing`. `seed.sql` never
-  runs on a real deployment, so seed-only reference data silently ends up
-  missing in production (the lesson of
-  `20260819090000_seed_gap_accounts_expense_categories.sql`). Branch-
-  scoped demo data (sample pay configs, allowance types) still goes in
-  `seed.sql`.
+  — the chart of accounts, statutory rates, PAYE bands, `payment_providers`,
+  `positions`, `departments` — are inserted by the migration itself with
+  `on conflict do nothing`. `seed.sql` never runs on a real deployment, so
+  seed-only reference data silently ends up missing in production (the
+  lesson of `20260819090000_seed_gap_accounts_expense_categories.sql`).
+- **Two seed files, split by trust, not by content.**
+  `supabase/seed.sql` is **local-dev only** — it is the only file in
+  `config.toml`'s `[db.seed] sql_paths`, and that list drives `supabase db
+  reset` and nothing else (no seed runs on `db push`). It carries demo
+  people, dev-adjacent records, and Wilelik's leftover retail data.
+  `supabase/seed.production.sql` is run **once by hand** against a hosted
+  DB after `db push`; it is idempotent and carries **only** the
+  branch-scoped reference rows the migrations structurally cannot seed on
+  a brand-new project — the `branches` row itself, and then
+  `expense_categories` / `expense_category_accounts` / `allowance_types`,
+  which `20260819090000` skips when no branch exists yet. Everything
+  entity-wide is already in via the migrations; `seed.production.sql` does
+  not duplicate it. Zero demo people / logins / transactions in that file,
+  ever.
+- **`VITE_*` env vars are build-time, inlined — not runtime config.**
+  Vite (via the Lovable config wrapper's `envDefine`, which runs
+  `loadEnv` at config time) statically replaces every `import.meta.env.VITE_*`
+  reference with a string literal during `vite build`. So
+  `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (read in
+  `lib/supabase.ts`) are frozen into the JS bundle at build time and there
+  is **no** runtime lookup — a Cloudflare Worker secret set after the
+  build is invisible to the client code. They must be in the environment
+  of the *build* step. The anon key is a public client credential (RLS is
+  the boundary); a `service_role` key must never be inlined. Anything that
+  genuinely needs to vary per-deploy without a rebuild would have to be
+  read from the Worker `env` in `src/server.ts` and passed down — nothing
+  does today.
 
 ## Branding
 

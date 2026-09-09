@@ -49,8 +49,27 @@
 
 ## Hosting
 
-Not yet decided for production. A `vercel.json` exists in
-`frontend/`, inherited from Wilelik's own deployment — whether TCS ERP
-actually deploys to Vercel, or gets folded into TCS OS's existing Google
-Cloud Run setup once merged, is an open question (see PLANNING.md /
-CONSTRAINTS.md).
+**Frontend → Cloudflare Workers**, via `@cloudflare/vite-plugin` (TanStack
+Start's current supported deploy path). `frontend/vite.config.ts` runs
+`cloudflare({ viteEnvironment: { name: "ssr" } })` and disables Nitro;
+`frontend/wrangler.jsonc` holds the Worker settings (name `tcs-erp`,
+`nodejs_compat`, `main: src/server.ts`, assets from `dist/client`).
+
+- Build: `cd frontend && npm ci && npm run build` → emits `dist/client/`
+  (static assets) + `dist/server/` (`index.js` Worker bundle +
+  `wrangler.json`).
+- Deploy: `npx wrangler deploy` from `frontend/` (auto-detects the build
+  output). Needs **Node ≥ 22** and a Cloudflare API token in CI.
+- `wrangler deploy --dry-run` validates the config/bundle with no
+  Cloudflare account.
+- The old Vercel setup (`frontend/vercel.json`, `nitro` dep, Nitro
+  `preset: "vercel"`) has been removed.
+
+`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are **build-time**
+variables (Vite inlines them into the bundle) — they must be set in the
+environment of the Cloudflare build step, not as Worker runtime secrets.
+See CONSTRAINTS.md / DESIGN.md.
+
+Backend stays on hosted Supabase (its own dedicated TCS project — see
+CONSTRAINTS.md). The eventual fold-in to TCS OS's Cloud Run setup is still
+a known future event (PLANNING.md), not affected by this.

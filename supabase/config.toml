@@ -68,6 +68,13 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
+#
+# This list controls LOCAL `supabase db reset` only. `seed.sql` is the
+# full local-dev seed (demo people, dev-adjacent records). It is deliberately
+# NOT in this list on a hosted project — no seed file runs automatically on
+# `supabase db push`. Production reference/config data is applied by the
+# migrations plus a one-time manual run of `supabase/seed.production.sql`
+# (see that file's header). Keep `seed.production.sql` out of `sql_paths`.
 sql_paths = ["./seed.sql"]
 
 [db.network_restrictions]

@@ -12,10 +12,16 @@ Things that shape how this gets built, not just what gets built.
       Note the employer's 13% is now computed, snapshotted
       (`payslips.ssnit_employer`) and posted (Dr 5145 / Cr 2310) as of
       `20260909120000` — only the *rate* still needs the official check.
-- [ ] Replace `supabase/seed.sql` (still Wilelik's dummy retail data) with
-      real TCS seed data, or none
+- [ ] `supabase/seed.sql` is still local-dev-only (Wilelik retail demo +
+      TCS demo people). Production uses `supabase/seed.production.sql`
+      instead — reference/config only, zero demo people. Before go-live,
+      run it once against the hosted DB (`psql "$PROD_DB_URL" -f
+      supabase/seed.production.sql`) after `supabase db push`.
 - [ ] Create a dedicated hosted Supabase project for TCS and run
       `scripts/bootstrap-production-manager.sh` for the first real Manager
+- [ ] Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the
+      **Cloudflare Workers build environment** (build-time — see below),
+      then `wrangler deploy` from a Node ≥ 22 runner with a CF API token.
 - [x] Real TCS logo / favicon assets — done (favicons + manifest in
       `frontend/public/`, logomark in the sidebar + login). Remaining: a
       true 48×48 favicon (currently downscaled), a dark-mode logomark
@@ -31,9 +37,38 @@ Things that shape how this gets built, not just what gets built.
   only sets a local Docker container name — but this needs to stay true
   as deployment gets set up.
 - `supabase/seed.sql` currently contains **Wilelik's dummy retail data**
-  (building-materials products, Ghanaian customer/supplier names, a
-  retailer's chart of accounts). Do not run `supabase db reset` expecting
-  TCS-appropriate seed data until this file is replaced.
+  (building-materials products, Ghanaian customer/supplier names) plus TCS
+  demo people. It is **local-dev only** — `config.toml`'s `[db.seed]
+  sql_paths` lists only `./seed.sql`, and that list drives `supabase db
+  reset` only; no seed file runs on `supabase db push`. Production
+  reference/config data comes from the migrations (chart of accounts,
+  statutory rates, PAYE bands, `payment_providers`, `positions`,
+  `departments` — all seeded idempotently by their own migration) plus
+  **`supabase/seed.production.sql`**, run once by hand against the hosted
+  DB. That file adds only the branch-scoped rows the migrations cannot
+  seed before a branch exists (the branch itself, `expense_categories`,
+  `expense_category_accounts`, `allowance_types`) and contains zero demo
+  people, logins, or transactions.
+
+## Deployment (Cloudflare Workers)
+
+- The frontend deploys to **Cloudflare Workers** via
+  `@cloudflare/vite-plugin` (`frontend/vite.config.ts` +
+  `frontend/wrangler.jsonc`). Build with `npm run build`, deploy with
+  `wrangler deploy` (Node ≥ 22, CF API token). See STACK.md.
+- **`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are build-time, not
+  runtime.** Vite statically replaces `import.meta.env.VITE_*` at build
+  time (the Lovable config wrapper's `envDefine` step does this from
+  `loadEnv`), so the Supabase URL and anon key are **baked into the
+  JS bundle** during `npm run build`. They must be present as environment
+  variables in the Cloudflare **build** step. Setting them only as Worker
+  runtime secrets (`wrangler secret put`) does nothing — the code never
+  reads `env` for them, and by deploy time the bundle is already frozen.
+  The var name the code reads is `VITE_SUPABASE_ANON_KEY` (see
+  `frontend/src/lib/supabase.ts`); a variable named `VITE_SUPABASE_KEY` is
+  ignored. The anon key is a public client credential (RLS is the real
+  boundary), so baking it in is expected; never bake in a `service_role`
+  key.
 
 ## Solo development
 
