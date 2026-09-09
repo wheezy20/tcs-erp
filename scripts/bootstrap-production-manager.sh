@@ -23,21 +23,30 @@
 #      (supabase.auth.admin.inviteUserByEmail() calls under the hood) with
 #      role: "Manager" in the invite's own metadata — handle_new_staff_signup()
 #      (Session 20 migration) reads that and creates the linked staff row
-#      immediately, exactly like any other invite.
+#      immediately, exactly like any other invite. The invite carries a
+#      redirect_to of "$APP_URL/accept-invite", matching what the
+#      invite-staff Edge Function passes (window.location.origin +
+#      "/accept-invite") so the invited Manager lands on the set-password
+#      screen, not the bare app root. GoTrue only honors a redirect_to that
+#      is on the hosted project's site_url / additional_redirect_urls
+#      allow-list, so APP_URL must match one of those.
 #   2. Flips protected = true on that one row directly — the one thing an
 #      ordinary invite (via the Edge Function) can never do, and the only
 #      reason this script exists instead of just using the Settings UI once
 #      a Manager exists.
 #
 # Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY for the real, hosted
-# project (from the Supabase dashboard — Project Settings > API), and the
-# new Manager's email/name. Never hardcode a hosted project's credentials
-# into this file or pass them on a shared shell history; export them in
-# your own terminal first.
+# project (from the Supabase dashboard — Project Settings > API), the
+# deployed app's base URL APP_URL (e.g. https://erp.school.example — the
+# invite link's redirect target, must be allow-listed in the project's
+# auth URL config), and the new Manager's email/name. Never hardcode a
+# hosted project's credentials into this file or pass them on a shared
+# shell history; export them in your own terminal first.
 #
 # Usage:
 #   SUPABASE_URL="https://<ref>.supabase.co" \
 #   SUPABASE_SERVICE_ROLE_KEY="<service_role key>" \
+#   APP_URL="https://erp.school.example" \
 #   MANAGER_EMAIL="owner@realbusiness.com" \
 #   MANAGER_NAME="Real Owner Name" \
 #   ./scripts/bootstrap-production-manager.sh
@@ -60,10 +69,23 @@ if [[ -z "${MANAGER_EMAIL:-}" || -z "${MANAGER_NAME:-}" ]]; then
   exit 1
 fi
 
+if [[ -z "${APP_URL:-}" ]]; then
+  echo "Set APP_URL to the deployed app's base URL (e.g. https://erp.school.example)." >&2
+  echo "The invite link redirects there + '/accept-invite'; it must be on the project's auth redirect allow-list." >&2
+  exit 1
+fi
+if [[ ! "$APP_URL" =~ ^https?:// ]]; then
+  echo "APP_URL ('$APP_URL') must be an absolute http(s) URL." >&2
+  exit 1
+fi
+APP_URL="${APP_URL%/}"
+REDIRECT_TO="$APP_URL/accept-invite"
+
 echo "About to send a REAL invite email to: $MANAGER_EMAIL"
-echo "  Name:    $MANAGER_NAME"
-echo "  Role:    Manager (protected — cannot be demoted, deactivated, or deleted by anyone afterward)"
-echo "  Project: $SUPABASE_URL"
+echo "  Name:     $MANAGER_NAME"
+echo "  Role:     Manager (protected — cannot be demoted, deactivated, or deleted by anyone afterward)"
+echo "  Project:  $SUPABASE_URL"
+echo "  Redirect: $REDIRECT_TO"
 echo
 read -r -p "Type BOOTSTRAP to confirm and proceed: " CONFIRM
 if [[ "$CONFIRM" != "BOOTSTRAP" ]]; then
@@ -73,7 +95,13 @@ fi
 
 echo
 echo "== Sending invite =="
-INVITE_RESP=$(curl -s -X POST "$SUPABASE_URL/auth/v1/invite" \
+# redirect_to is a query param on /auth/v1/invite (this is what
+# supabase.auth.admin.inviteUserByEmail(email, { redirectTo }) sends under
+# the hood, and what supabase/functions/invite-staff/index.ts forwards from
+# the browser). Without it the invite link lands on the project's site_url
+# root instead of the set-password screen. URL-encoded via jq's @uri.
+REDIRECT_TO_ENC=$(jq -rn --arg u "$REDIRECT_TO" '$u|@uri')
+INVITE_RESP=$(curl -s -X POST "$SUPABASE_URL/auth/v1/invite?redirect_to=$REDIRECT_TO_ENC" \
   -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
   -d "$(jq -n --arg email "$MANAGER_EMAIL" --arg name "$MANAGER_NAME" \

@@ -1083,3 +1083,17 @@ key is a public credential; never inline `service_role`.
   statutory_rates row, 7 paye_bands — and **0** staff / employees /
   payslips / products / auth.users. `config.toml` + local DB restored
   afterward.
+
+## 2026-09-09 — bootstrap script: invite redirect_to
+
+`scripts/bootstrap-production-manager.sh` was hitting `/auth/v1/invite`
+with no `redirect_to`, so the first Manager's invite link landed on the
+project's `site_url` root instead of `/accept-invite` (the
+`invite-staff` Edge Function was already fixed for this — it forwards
+`window.location.origin + "/accept-invite"` from the browser). The script
+now requires an `APP_URL` env var, validates it's absolute http(s),
+strips a trailing slash, and appends `?redirect_to=<jq @uri-encoded
+$APP_URL/accept-invite>` to the invite call. Same allow-list caveat as the
+Edge Function: GoTrue only honors a `redirect_to` on the project's
+`site_url` / `additional_redirect_urls` list. CLAUDE.md's bootstrap
+command updated with the new var.

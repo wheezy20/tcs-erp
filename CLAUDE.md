@@ -163,18 +163,23 @@ with the real project's `service_role` key:
 ```sh
 SUPABASE_URL="https://<project-ref>.supabase.co" \
 SUPABASE_SERVICE_ROLE_KEY="<the real project's service_role key>" \
+APP_URL="https://<deployed-app-origin>" \
 MANAGER_EMAIL="owner@example.com" \
 MANAGER_NAME="Real Owner Name" \
 ./scripts/bootstrap-production-manager.sh
 ```
 
-It sends a real invite (role `Manager`) and then flips `staff.protected =
-true` on the resulting row, after which a trigger makes that row's role,
-active status, and protected flag unchangeable and the row undeletable for
-every role including Manager. Requires typing `BOOTSTRAP` at the prompt;
-refuses to run against a `127.0.0.1`/`localhost` URL. The hosted project's
-own Dashboard signup toggle (Authentication → Sign In / Providers) must
-also be off — `config.toml`'s `enable_signup = false` only controls local
+It sends a real invite (role `Manager`), with the invite link's
+`redirect_to` set to `$APP_URL/accept-invite` (same target the
+`invite-staff` Edge Function uses — `APP_URL` must be on the hosted
+project's auth redirect allow-list or GoTrue drops it), and then flips
+`staff.protected = true` on the resulting row, after which a trigger makes
+that row's role, active status, and protected flag unchangeable and the
+row undeletable for every role including Manager. Requires typing
+`BOOTSTRAP` at the prompt; refuses to run against a `127.0.0.1`/`localhost`
+URL, or an `APP_URL` that isn't an absolute http(s) URL. The hosted
+project's own Dashboard signup toggle (Authentication → Sign In /
+Providers) must also be off — `config.toml`'s `enable_signup = false` only controls local
 dev. **Never run this script for the user** — it's their own step, with
 their own credentials, against their own project.
 
