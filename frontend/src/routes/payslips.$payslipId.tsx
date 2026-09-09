@@ -8,8 +8,8 @@ import { PrintablePayslip, type PayslipDocMeta } from "@/components/print/printa
 import { Button } from "@/components/ui/button";
 import { canViewFinancials, useAuth } from "@/data/auth-store";
 import { useCurrentBranch } from "@/data/branch-store";
-import { currentConfigFor, usePayroll } from "@/data/payroll-store";
-import { useStaff } from "@/data/staff-store";
+import { usePayroll } from "@/data/payroll-store";
+import { currentConfigFor, useEmployees } from "@/data/employees-store";
 import { useDocumentSettings } from "@/data/settings-store";
 import { MONTHS } from "@/data/payroll-format";
 
@@ -22,8 +22,8 @@ function PayslipPage() {
   const { payslipId } = Route.useParams();
   const { staff } = useAuth();
   const canView = canViewFinancials(staff?.role);
-  const { payslips, runs, payConfigs, loading } = usePayroll();
-  const { staff: roster } = useStaff();
+  const { payslips, runs, loading } = usePayroll();
+  const { employees, configs } = useEmployees();
   const { name: branchName } = useCurrentBranch();
   const settings = useDocumentSettings();
   const [downloading, setDownloading] = useState(false);
@@ -56,13 +56,13 @@ function PayslipPage() {
   }
 
   const run = runs.find((r) => r.id === payslip.payrollRunId);
-  const config = currentConfigFor(payConfigs, payslip.staffId);
-  const staffMember = roster.find((s) => s.id === payslip.staffId);
+  const config = currentConfigFor(configs, payslip.employeeId);
+  const employee = employees.find((e) => e.id === payslip.employeeId);
   const meta: PayslipDocMeta = {
     periodLabel: run ? `${MONTHS[run.month - 1] ?? run.month} ${run.year}` : "—",
-    staffName: payslip.staffName,
-    position: staffMember?.position ?? null,
-    department: staffMember?.department ?? null,
+    staffName: payslip.employeeName,
+    position: employee?.position ?? null,
+    department: employee?.department ?? null,
     bank: config?.bank ?? null,
     accountNo: config?.accountNo ?? null,
     branchName: branchName ?? "",
@@ -102,7 +102,7 @@ function PayslipPage() {
             </Link>
           )}
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-            {payslip.staffName} — {meta.periodLabel}
+            {payslip.employeeName} — {meta.periodLabel}
           </h1>
         </div>
         <div className="flex items-center gap-2">

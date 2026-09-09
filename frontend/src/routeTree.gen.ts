@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as AccountingRouteImport } from './routes/accounting'
 import { Route as BankingRouteImport } from './routes/banking'
+import { Route as EmployeesRouteImport } from './routes/employees'
 import { Route as EndOfDayRouteImport } from './routes/end-of-day'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as LoginRouteImport } from './routes/login'
@@ -37,6 +38,8 @@ import { Route as CustomerDepositsIndexRouteImport } from './routes/customer-dep
 import { Route as CustomerDepositsDepositIdRouteImport } from './routes/customer-deposits.$depositId'
 import { Route as CustomersIndexRouteImport } from './routes/customers.index'
 import { Route as CustomersCustomerIdRouteImport } from './routes/customers.$customerId'
+import { Route as EmployeesIndexRouteImport } from './routes/employees.index'
+import { Route as EmployeesEmployeeIdRouteImport } from './routes/employees.$employeeId'
 import { Route as EndOfDayIndexRouteImport } from './routes/end-of-day.index'
 import { Route as EndOfDayDepositsRouteImport } from './routes/end-of-day.deposits'
 import { Route as EndOfDayHistoryRouteImport } from './routes/end-of-day.history'
@@ -85,6 +88,11 @@ const AccountingRoute = AccountingRouteImport.update({
 const BankingRoute = BankingRouteImport.update({
   id: '/banking',
   path: '/banking',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmployeesRoute = EmployeesRouteImport.update({
+  id: '/employees',
+  path: '/employees',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EndOfDayRoute = EndOfDayRouteImport.update({
@@ -208,6 +216,16 @@ const CustomersCustomerIdRoute = CustomersCustomerIdRouteImport.update({
   id: '/customers/$customerId',
   path: '/customers/$customerId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const EmployeesIndexRoute = EmployeesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => EmployeesRoute,
+} as any)
+const EmployeesEmployeeIdRoute = EmployeesEmployeeIdRouteImport.update({
+  id: '/$employeeId',
+  path: '/$employeeId',
+  getParentRoute: () => EmployeesRoute,
 } as any)
 const EndOfDayIndexRoute = EndOfDayIndexRouteImport.update({
   id: '/',
@@ -363,6 +381,7 @@ export interface FileRoutesByFullPath {
   '/accept-invite': typeof AcceptInviteRoute
   '/accounting': typeof AccountingRouteWithChildren
   '/banking': typeof BankingRouteWithChildren
+  '/employees': typeof EmployeesRouteWithChildren
   '/end-of-day': typeof EndOfDayRouteWithChildren
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
@@ -383,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/banking/reconcile': typeof BankingReconcileRoute
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
+  '/employees/$employeeId': typeof EmployeesEmployeeIdRoute
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
@@ -401,6 +421,7 @@ export interface FileRoutesByFullPath {
   '/banking/': typeof BankingIndexRoute
   '/customer-deposits/': typeof CustomerDepositsIndexRoute
   '/customers/': typeof CustomersIndexRoute
+  '/employees/': typeof EmployeesIndexRoute
   '/end-of-day/': typeof EndOfDayIndexRoute
   '/expenses/': typeof ExpensesIndexRoute
   '/inventory/': typeof InventoryIndexRoute
@@ -433,6 +454,7 @@ export interface FileRoutesByTo {
   '/banking/reconcile': typeof BankingReconcileRoute
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
+  '/employees/$employeeId': typeof EmployeesEmployeeIdRoute
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
@@ -451,6 +473,7 @@ export interface FileRoutesByTo {
   '/banking': typeof BankingIndexRoute
   '/customer-deposits': typeof CustomerDepositsIndexRoute
   '/customers': typeof CustomersIndexRoute
+  '/employees': typeof EmployeesIndexRoute
   '/end-of-day': typeof EndOfDayIndexRoute
   '/expenses': typeof ExpensesIndexRoute
   '/inventory': typeof InventoryIndexRoute
@@ -473,6 +496,7 @@ export interface FileRoutesById {
   '/accept-invite': typeof AcceptInviteRoute
   '/accounting': typeof AccountingRouteWithChildren
   '/banking': typeof BankingRouteWithChildren
+  '/employees': typeof EmployeesRouteWithChildren
   '/end-of-day': typeof EndOfDayRouteWithChildren
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
@@ -493,6 +517,7 @@ export interface FileRoutesById {
   '/banking/reconcile': typeof BankingReconcileRoute
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
+  '/employees/$employeeId': typeof EmployeesEmployeeIdRoute
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
@@ -511,6 +536,7 @@ export interface FileRoutesById {
   '/banking/': typeof BankingIndexRoute
   '/customer-deposits/': typeof CustomerDepositsIndexRoute
   '/customers/': typeof CustomersIndexRoute
+  '/employees/': typeof EmployeesIndexRoute
   '/end-of-day/': typeof EndOfDayIndexRoute
   '/expenses/': typeof ExpensesIndexRoute
   '/inventory/': typeof InventoryIndexRoute
@@ -534,6 +560,7 @@ export interface FileRouteTypes {
     | '/accept-invite'
     | '/accounting'
     | '/banking'
+    | '/employees'
     | '/end-of-day'
     | '/inventory'
     | '/login'
@@ -554,6 +581,7 @@ export interface FileRouteTypes {
     | '/banking/reconcile'
     | '/customer-deposits/$depositId'
     | '/customers/$customerId'
+    | '/employees/$employeeId'
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
@@ -572,6 +600,7 @@ export interface FileRouteTypes {
     | '/banking/'
     | '/customer-deposits/'
     | '/customers/'
+    | '/employees/'
     | '/end-of-day/'
     | '/expenses/'
     | '/inventory/'
@@ -604,6 +633,7 @@ export interface FileRouteTypes {
     | '/banking/reconcile'
     | '/customer-deposits/$depositId'
     | '/customers/$customerId'
+    | '/employees/$employeeId'
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
@@ -622,6 +652,7 @@ export interface FileRouteTypes {
     | '/banking'
     | '/customer-deposits'
     | '/customers'
+    | '/employees'
     | '/end-of-day'
     | '/expenses'
     | '/inventory'
@@ -643,6 +674,7 @@ export interface FileRouteTypes {
     | '/accept-invite'
     | '/accounting'
     | '/banking'
+    | '/employees'
     | '/end-of-day'
     | '/inventory'
     | '/login'
@@ -663,6 +695,7 @@ export interface FileRouteTypes {
     | '/banking/reconcile'
     | '/customer-deposits/$depositId'
     | '/customers/$customerId'
+    | '/employees/$employeeId'
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
@@ -681,6 +714,7 @@ export interface FileRouteTypes {
     | '/banking/'
     | '/customer-deposits/'
     | '/customers/'
+    | '/employees/'
     | '/end-of-day/'
     | '/expenses/'
     | '/inventory/'
@@ -703,6 +737,7 @@ export interface RootRouteChildren {
   AcceptInviteRoute: typeof AcceptInviteRoute
   AccountingRoute: typeof AccountingRouteWithChildren
   BankingRoute: typeof BankingRouteWithChildren
+  EmployeesRoute: typeof EmployeesRouteWithChildren
   EndOfDayRoute: typeof EndOfDayRouteWithChildren
   InventoryRoute: typeof InventoryRouteWithChildren
   LoginRoute: typeof LoginRoute
@@ -753,6 +788,13 @@ declare module '@tanstack/react-router' {
       path: '/banking'
       fullPath: '/banking'
       preLoaderRoute: typeof BankingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/employees': {
+      id: '/employees'
+      path: '/employees'
+      fullPath: '/employees'
+      preLoaderRoute: typeof EmployeesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/end-of-day': {
@@ -922,6 +964,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/customers/$customerId'
       preLoaderRoute: typeof CustomersCustomerIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/employees/': {
+      id: '/employees/'
+      path: '/'
+      fullPath: '/employees/'
+      preLoaderRoute: typeof EmployeesIndexRouteImport
+      parentRoute: typeof EmployeesRoute
+    }
+    '/employees/$employeeId': {
+      id: '/employees/$employeeId'
+      path: '/$employeeId'
+      fullPath: '/employees/$employeeId'
+      preLoaderRoute: typeof EmployeesEmployeeIdRouteImport
+      parentRoute: typeof EmployeesRoute
     }
     '/end-of-day/': {
       id: '/end-of-day/'
@@ -1168,6 +1224,20 @@ const BankingRouteChildren: BankingRouteChildren = {
 const BankingRouteWithChildren =
   BankingRoute._addFileChildren(BankingRouteChildren)
 
+interface EmployeesRouteChildren {
+  EmployeesEmployeeIdRoute: typeof EmployeesEmployeeIdRoute
+  EmployeesIndexRoute: typeof EmployeesIndexRoute
+}
+
+const EmployeesRouteChildren: EmployeesRouteChildren = {
+  EmployeesEmployeeIdRoute: EmployeesEmployeeIdRoute,
+  EmployeesIndexRoute: EmployeesIndexRoute,
+}
+
+const EmployeesRouteWithChildren = EmployeesRoute._addFileChildren(
+  EmployeesRouteChildren,
+)
+
 interface EndOfDayRouteChildren {
   EndOfDayDepositsRoute: typeof EndOfDayDepositsRoute
   EndOfDayHistoryRoute: typeof EndOfDayHistoryRoute
@@ -1282,6 +1352,7 @@ const rootRouteChildren: RootRouteChildren = {
   AcceptInviteRoute: AcceptInviteRoute,
   AccountingRoute: AccountingRouteWithChildren,
   BankingRoute: BankingRouteWithChildren,
+  EmployeesRoute: EmployeesRouteWithChildren,
   EndOfDayRoute: EndOfDayRouteWithChildren,
   InventoryRoute: InventoryRouteWithChildren,
   LoginRoute: LoginRoute,

@@ -25,13 +25,11 @@ import {
 } from "@/components/ui/select";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
-import { useStaff } from "@/data/staff-store";
+import { currentConfigFor, standingAllowancesFor, useEmployees } from "@/data/employees-store";
 import {
   createPayslip,
-  currentConfigFor,
   deletePayslip,
   postPayrollRun,
-  standingAllowancesFor,
   usePayroll,
   type Payslip,
 } from "@/data/payroll-store";
@@ -47,8 +45,8 @@ function RunDetailPage() {
   const { runId } = Route.useParams();
   const { staff: currentStaff } = useAuth();
   const canWrite = canWriteFinancials(currentStaff?.role);
-  const { runs, payslips, payConfigs, allowanceTypes, staffAllowances, loading } = usePayroll();
-  const { staff: roster } = useStaff();
+  const { runs, payslips, allowanceTypes, loading } = usePayroll();
+  const { employees, configs, allowances } = useEmployees();
   const { entries: journalEntries } = useJournalEntries();
   const [generateFor, setGenerateFor] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
@@ -74,11 +72,11 @@ function RunDetailPage() {
     );
   }
 
-  const paidStaffIds = new Set(runPayslips.map((p) => p.staffId));
-  const activeRoster = roster.filter((s) => s.active);
-  const withConfig = activeRoster.filter((s) => currentConfigFor(payConfigs, s.id));
-  const notYetPaid = withConfig.filter((s) => !paidStaffIds.has(s.id));
-  const missingConfig = activeRoster.filter((s) => !currentConfigFor(payConfigs, s.id));
+  const paidEmployeeIds = new Set(runPayslips.map((p) => p.employeeId));
+  const activeRoster = employees.filter((e) => e.status === "Active");
+  const withConfig = activeRoster.filter((e) => currentConfigFor(configs, e.id));
+  const notYetPaid = withConfig.filter((e) => !paidEmployeeIds.has(e.id));
+  const missingConfig = activeRoster.filter((e) => !currentConfigFor(configs, e.id));
 
   const totals = runPayslips.reduce(
     (acc, p) => ({
@@ -93,9 +91,9 @@ function RunDetailPage() {
   const runEntry = journalEntries.find(
     (e) => e.sourceTable === "payroll_runs" && e.sourceId === run.id,
   );
-  // "Complete" = every active staff member who has a pay config already has
-  // a payslip on this run. Staff with no config can't be paid at all, so
-  // they don't block the post — they're surfaced as a warning instead.
+  // "Complete" = every active employee who has an approved pay config already
+  // has a payslip on this run. Employees with no config can't be paid at
+  // all, so they don't block the post — they're surfaced as a warning.
   const readyToPost =
     canWrite && run.status === "Draft" && runPayslips.length > 0 && notYetPaid.length === 0;
 
@@ -150,9 +148,9 @@ function RunDetailPage() {
                 </p>
                 {missingConfig.length > 0 && (
                   <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
-                    {missingConfig.length} active staff member
-                    {missingConfig.length === 1 ? " has" : "s have"} no pay config and will be
-                    excluded: {missingConfig.map((s) => s.name).join(", ")}.
+                    {missingConfig.length} active employee
+                    {missingConfig.length === 1 ? " has" : "s have"} no approved pay config and will
+                    be excluded: {missingConfig.map((e) => e.name).join(", ")}.
                   </p>
                 )}
               </div>
@@ -177,15 +175,15 @@ function RunDetailPage() {
         <div className="card-surface p-4">
           <p className="mb-2 text-sm font-medium">Generate a payslip</p>
           <div className="flex flex-wrap gap-2">
-            {notYetPaid.map((s) => (
+            {notYetPaid.map((e) => (
               <Button
-                key={s.id}
+                key={e.id}
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => setGenerateFor(s.id)}
+                onClick={() => setGenerateFor(e.id)}
               >
-                <Plus className="size-3.5" /> {s.name}
+                <Plus className="size-3.5" /> {e.name}
               </Button>
             ))}
           </div>
@@ -194,9 +192,10 @@ function RunDetailPage() {
 
       {missingConfig.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          No pay config yet for: {missingConfig.map((s) => s.name).join(", ")}. Set one under{" "}
-          <Link to="/payroll/pay-config" className="text-primary hover:underline">
-            Staff Pay Config
+          No approved pay config yet for: {missingConfig.map((e) => e.name).join(", ")}. Set one
+          from{" "}
+          <Link to="/employees" className="text-primary hover:underline">
+            Employees
           </Link>
           .
         </p>
@@ -213,7 +212,7 @@ function RunDetailPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="px-5 py-3 font-medium">Staff</th>
+                  <th className="px-5 py-3 font-medium">Employee</th>
                   <th className="px-5 py-3 text-right font-medium">Basic</th>
                   <th className="px-5 py-3 text-right font-medium">Allowances</th>
                   <th className="px-5 py-3 text-right font-medium">Overtime</th>
@@ -226,7 +225,7 @@ function RunDetailPage() {
               <tbody className="divide-y">
                 {runPayslips.map((p) => (
                   <tr key={p.id} className="hover:bg-muted/40">
-                    <td className="px-5 py-3 font-medium">{p.staffName}</td>
+                    <td className="px-5 py-3 font-medium">{p.employeeName}</td>
                     <td className="px-5 py-3 text-right tabular-nums">{currency(p.basicSalary)}</td>
                     <td className="px-5 py-3 text-right tabular-nums">
                       {currency(p.totalAllowances)}
@@ -260,10 +259,10 @@ function RunDetailPage() {
       {generateFor && (
         <GeneratePayslipDialog
           runId={run.id}
-          staffId={generateFor}
-          staffName={roster.find((s) => s.id === generateFor)?.name ?? "Staff"}
+          employeeId={generateFor}
+          employeeName={employees.find((e) => e.id === generateFor)?.name ?? "Employee"}
           allowanceTypes={allowanceTypes}
-          standing={standingAllowancesFor(staffAllowances, generateFor)}
+          standing={standingAllowancesFor(allowances, generateFor)}
           onClose={() => setGenerateFor(null)}
         />
       )}
@@ -476,7 +475,7 @@ function SummaryCard({ label, value, strong }: { label: string; value: string; s
 function DeletePayslipButton({ payslip }: { payslip: Payslip }) {
   const [busy, setBusy] = useState(false);
   async function onDelete() {
-    if (!window.confirm(`Delete ${payslip.staffName}'s payslip? You can regenerate it.`)) return;
+    if (!window.confirm(`Delete ${payslip.employeeName}'s payslip? You can regenerate it.`)) return;
     setBusy(true);
     try {
       await deletePayslip(payslip.id);
@@ -504,15 +503,15 @@ type AllowanceRow = { key: string; allowanceTypeId: string; amount: string };
 
 function GeneratePayslipDialog({
   runId,
-  staffId,
-  staffName,
+  employeeId,
+  employeeName,
   allowanceTypes,
   standing,
   onClose,
 }: {
   runId: string;
-  staffId: string;
-  staffName: string;
+  employeeId: string;
+  employeeName: string;
   allowanceTypes: { id: string; name: string }[];
   standing: { allowanceTypeId: string; defaultAmount: number }[];
   onClose: () => void;
@@ -545,14 +544,14 @@ function GeneratePayslipDialog({
     try {
       await createPayslip({
         payrollRunId: runId,
-        staffId,
+        employeeId,
         overtimeHours: Number(overtimeHours) || 0,
         overtimeRate: Number(overtimeRate) || 0,
         allowances,
         fines: Number(fines) || 0,
         iou: Number(iou) || 0,
       });
-      toast.success(`Payslip generated for ${staffName}`);
+      toast.success(`Payslip generated for ${employeeName}`);
       onClose();
     } catch (error) {
       toast.error(getErrorMessage(error, "Could not generate the payslip."));
@@ -565,10 +564,10 @@ function GeneratePayslipDialog({
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Generate payslip — {staffName}</DialogTitle>
+          <DialogTitle>Generate payslip — {employeeName}</DialogTitle>
           <DialogDescription>
-            Basic salary, SSNIT, Tier 2 and PAYE are computed server-side from this staff member's
-            pay config. Adjust the month-specific figures below.
+            Basic salary, SSNIT, Tier 2 and PAYE are computed server-side from this employee's
+            approved pay config. Adjust the month-specific figures below.
           </DialogDescription>
         </DialogHeader>
 

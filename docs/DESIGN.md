@@ -54,6 +54,11 @@ depend on them holding true for every new table/function added.
   selects `has_role(['Manager','Accountant','Auditor'])`. Everywhere else
   the old combined role could read (Banking, Purchasing, Suppliers, the
   Audit Log): selects gain Auditor, writes stay Manager-only.
+  - Payroll adds a fourth shade inside the Manager/Accountant write scope:
+    creating an employee and changing basic salary / bank details are
+    *proposed* by an Accountant and only take effect on *Manager* approval
+    (`approve_*` RPCs check `has_role(['Manager'])`). See the approval
+    state-machine convention below.
   - Documented tradeoff: a direct RPC call by an Accountant to an
     *ordinary* RPC (e.g. `create_invoice()`) fails on RLS deep inside the
     function rather than with an early friendly message. The security
@@ -85,8 +90,8 @@ depend on them holding true for every new table/function added.
 
 ## New conventions introduced for TCS-specific work
 
-- **Effective-dated config instead of mutable single rows.** Staff pay
-  configuration (`staff_pay_config`), statutory rates
+- **Effective-dated config instead of mutable single rows.** Employee pay
+  configuration (`employee_pay_config`), statutory rates
   (`statutory_rates`), and PAYE bands (`paye_bands`) are all
   effective-dated (`effective_from`/`effective_to`) rather than a row
   that gets updated in place. A payslip references the config row that
@@ -94,7 +99,7 @@ depend on them holding true for every new table/function added.
   correction never silently rewrites a historical payslip.
 - **Flexible allowance system, not fixed columns.** `allowance_types`
   (a school-editable list — Extra Classes, Transport, etc., each flagged
-  taxable or not) + `staff_allowances` (standing per-staff defaults) +
+  taxable or not) + `employee_allowances` (standing per-employee defaults) +
   `payslip_allowances` (the actual amount applied on one month's
   payslip). Mirrors the same instinct as Wilelik's `expense_categories`
   — a configurable list beats hardcoded columns whenever the set of
@@ -104,22 +109,27 @@ depend on them holding true for every new table/function added.
   named amount), so it stays as its own `overtime_hours` /
   `overtime_rate` /computed `overtime_pay` fields directly on the
   payslip.
-- **Per-staff statutory exemption flags.** `pays_ssnit`, `pays_tier2`,
-  `pays_paye` on `staff_pay_config`, independently toggleable — covers
+- **Per-employee statutory exemption flags.** `pays_ssnit`, `pays_tier2`,
+  `pays_paye` on `employee_pay_config`, independently toggleable — covers
   National Service personnel and any other temporary/contract staff who
-  don't participate in some or all of the standard deductions.
+  don't participate in some or all of the standard deductions. These are a
+  **direct** edit (`set_pay_config_exemptions()` RPC, Manager/Accountant,
+  no approval) — only basic salary and bank details are approval-gated.
 - **Financial records: select-only tables, writes only through their own
   `SECURITY DEFINER` function.** `payroll_runs` / `payslips` /
-  `payslip_allowances` (like `journal_entries` before them) have a
-  `select` RLS policy and *no* `insert`/`update`/`delete` policy or grant
-  for `authenticated` — every write goes through `create_payroll_run()` /
-  `create_payslip()` / `delete_payslip()`, which are `SECURITY DEFINER`
-  and re-check the role themselves. This keeps the computed figures
-  un-forgeable (a client can't hand-insert a payslip row) without needing
-  a per-column CHECK. Ordinary *config* tables (`allowance_types`,
-  `staff_pay_config`, statutory rate/band tables) stay on plain
-  role-based RLS — a Manager or Accountant edits them directly, same as
-  `accounts`.
+  `payslip_allowances` / `employees` / `employee_pay_config` (like
+  `journal_entries` before them) have a `select` RLS policy and *no*
+  `insert`/`update`/`delete` policy or grant for `authenticated` — every
+  write goes through a `SECURITY DEFINER` RPC that re-checks the role:
+  `create_payroll_run()` / `create_payslip()` / `delete_payslip()` /
+  `post_payroll_run()` for the run side, and `propose_employee()` /
+  `approve_employee()` / `propose_pay_config_change()` /
+  `approve_pay_config()` / … for the employee side (`20260909130000`).
+  This keeps computed figures un-forgeable *and* makes the approval trail
+  un-bypassable — even a Manager cannot PATCH `employee_pay_config`
+  directly. `employee_allowances` and the statutory rate/band tables stay
+  on plain role-based RLS (a Manager or Accountant edits them directly);
+  `allowance_types` likewise.
 - **Mutation window on lifecycle records.** Where a record has a
   draft→final lifecycle (`payroll_runs.status`), delete/regenerate is
   allowed only while it's a draft — `delete_payslip()` and
@@ -157,35 +167,40 @@ depend on them holding true for every new table/function added.
   the function body, an array of plain objects from the client. Composite
   type arrays (`create type ... as (...)` + `foo[]`) work in raw SQL but
   are a PostgREST footgun; don't reach for them.
-- **Effective-dated config edit model.** Editing an effective-dated config
-  row (`staff_pay_config`): if the effective date is unchanged it's a
-  *correction* → plain in-place `UPDATE` (safe, because every dependent
-  record — a payslip — snapshots the actual amounts at generation, so
-  history is unaffected either way). A *later* effective date is a real
-  change → close the open row (`effective_to` = day before) and insert a
-  new open-ended one. A dedicated "record a pay change" flow can replace
-  the heuristic later.
-- **Staff identity vs pay data — put current-state facts on `staff`, not
-  in an effective-dated or 1:1 side table.** `phone`, `position`,
-  `department` live directly on `staff` (with `name` / `email` / `role` /
-  `active`). The effective-dated pattern is only for values that have to be
-  reconstructed *as-of a past date* — which bank an old payslip paid into
-  matters months later, which department someone sits in does not
-  (`create_payslip()` snapshots amounts, never org placement; the payslip
-  UI reads position/department *live*). A 1:1 `staff_profiles` table was
-  rejected too: `staff` is already the identity table and is already
-  readable by every active staff member (names show on "Recorded by"
-  everywhere), so a directory field is no more sensitive than
-  `staff.name` and rides the existing `staff_select` policy. Split these
-  columns into their own table only if genuinely stricter per-field read
-  control is ever needed. `bank` / `account_no` stay on `staff_pay_config`
-  — they *are* pay data (a payslip's `staff_pay_config_id` FK pins it to
-  the exact details paid against) and the effective-dated edit flow already
-  owns them. Editing `staff` is Manager-only (`staff_update` =
-  `has_role(['Manager'])`, the same policy that gates role/active) — staff
-  records are org-admin/HR data, not one of the finance modules the
-  `20260909090000` split opened to the Accountant; an HR-equivalent role
-  can come later. (`20260909100000_staff_profile_fields.sql`.)
+- **Paid person vs ERP login are two tables.** `employees` is everyone TCS
+  pays (teachers, drivers, kitchen staff — most with no login for a long
+  time); `staff` is an ERP sign-in account. `staff.employee_id` optionally
+  links the two (an Accountant who is also paid). `employee_pay_config` /
+  `employee_allowances` / `payslips` all key off `employees.id`.
+  `name` / `phone` / `position` / `department` live on `employees` (they
+  are current-state 1:1 facts — the effective-dated pattern is only for
+  values reconstructed *as-of a past date*, which org placement isn't).
+  (`20260909130000_employees_and_approval_workflow.sql`.)
+- **Approval workflow = an in-row state machine, not a parallel proposals
+  table.** Three actions need Manager sign-off, proposed by an Accountant:
+  creating an employee, changing basic salary, changing bank/account
+  number. A pending proposal is *a row in a pending state* —
+  `employees.employment_status = 'Pending Approval'`, or an
+  `employee_pay_config` row with `approval_status = 'Pending Approval'` —
+  so it reuses the effective-dated snapshot pattern directly and never
+  touches live data (`create_payslip()` and every "current config" query
+  filter `approval_status = 'Active'` / `employment_status = 'Active'`).
+  Approve promotes it (`approve_pay_config()` closes the current open row
+  with `effective_to = proposal.effective_from - 1`, then flips the
+  pending row to `Active`); reject/withdraw tombstones it
+  (`approval_status = 'Rejected'`, `effective_to` stays null, filtered out
+  everywhere). Partial unique indexes enforce *one current approved row*
+  (`where effective_to is null and approval_status = 'Active'`) and *one
+  outstanding proposal* (`where approval_status = 'Pending Approval'`) per
+  employee. **No same-period corrections** — a proposal's effective date
+  must be a future month with no posted payslip; fixing the current period
+  isn't supported (add a dedicated correction RPC later if it's ever
+  needed). Suspend/reactivate (`Active` ⇄ `Suspended`) is a *direct*
+  Accountant/Manager action, no gate. Every propose/approve/reject/suspend
+  lands in `audit_log` (new action values) via `AFTER` triggers on
+  `employees` / `employee_pay_config` — audit_log stays trigger-written-
+  only, actor `coalesce(auth.uid(), proposed_by)`, skipped when null
+  (seed/migration).
 - **Entity-wide reference data goes in the migration, not `seed.sql`.**
   Rows that must exist in *every* environment and have no branch/staff FK
   — the chart of accounts, statutory rates, PAYE bands — are inserted by

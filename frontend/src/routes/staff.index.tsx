@@ -7,17 +7,24 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/data/auth-store";
+import { useEmployees } from "@/data/employees-store";
 import { useStaff } from "@/data/staff-store";
 
 export const Route = createFileRoute("/staff/")({
-  component: StaffOverviewPage,
+  component: LoginAccountsPage,
 });
 
-function StaffOverviewPage() {
+// ERP login accounts (20260909130000). Everyone TCS *pays* lives on the
+// Employees screen; this is only the people who can sign in.
+function LoginAccountsPage() {
   const { staff: currentStaff } = useAuth();
   const { staff: roster, pendingIds, loading } = useStaff();
+  const { employees } = useEmployees();
   const [query, setQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+
+  const employeeName = (id: string | null) =>
+    id ? (employees.find((e) => e.id === id)?.name ?? null) : null;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -28,8 +35,6 @@ function StaffOverviewPage() {
         return (
           s.name.toLowerCase().includes(q) ||
           s.email.toLowerCase().includes(q) ||
-          (s.position ?? "").toLowerCase().includes(q) ||
-          (s.department ?? "").toLowerCase().includes(q) ||
           s.role.toLowerCase().includes(q)
         );
       })
@@ -41,12 +46,12 @@ function StaffOverviewPage() {
   return (
     <>
       <PageHeader
-        title="Staff"
-        description="Everyone with a TCS login — role, position and how to reach them."
+        title="Login accounts"
+        description="Everyone who can sign in to TCS ERP, and their role."
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <SummaryCard label="Active staff" value={String(activeCount)} hint="Can sign in" />
+        <SummaryCard label="Active logins" value={String(activeCount)} hint="Can sign in" />
         <SummaryCard
           label="All accounts"
           value={String(roster.length)}
@@ -66,7 +71,7 @@ function StaffOverviewPage() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, email, position or department"
+              placeholder="Search name, email or role"
               className="h-10 rounded-xl pl-9"
               maxLength={80}
             />
@@ -84,7 +89,7 @@ function StaffOverviewPage() {
             <div className="flex size-12 items-center justify-center rounded-2xl bg-muted">
               <Users className="size-5 text-muted-foreground" />
             </div>
-            <p className="text-sm font-medium">No staff match this search</p>
+            <p className="text-sm font-medium">No accounts match this search</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -93,9 +98,7 @@ function StaffOverviewPage() {
                 <tr>
                   <th className="px-5 py-3 font-medium">Name</th>
                   <th className="px-5 py-3 font-medium">Role</th>
-                  <th className="px-5 py-3 font-medium">Position</th>
-                  <th className="px-5 py-3 font-medium">Department</th>
-                  <th className="px-5 py-3 font-medium">Phone</th>
+                  <th className="px-5 py-3 font-medium">Linked employee</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                 </tr>
               </thead>
@@ -120,10 +123,18 @@ function StaffOverviewPage() {
                     <td className="px-5 py-3">
                       <Badge variant="outline">{s.role}</Badge>
                     </td>
-                    <td className="px-5 py-3 text-muted-foreground">{s.position ?? "—"}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{s.department ?? "—"}</td>
-                    <td className="px-5 py-3 tabular-nums text-muted-foreground">
-                      {s.phone ?? "—"}
+                    <td className="px-5 py-3 text-muted-foreground">
+                      {s.employeeId ? (
+                        <Link
+                          to="/employees/$employeeId"
+                          params={{ employeeId: s.employeeId }}
+                          className="hover:text-primary hover:underline"
+                        >
+                          {employeeName(s.employeeId) ?? "View"}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       {pendingIds.has(s.id) ? (
@@ -147,7 +158,11 @@ function StaffOverviewPage() {
         <Link to="/settings" className="text-primary hover:underline">
           Settings → Staff
         </Link>
-        . Bank details live on each person's Pay Config.
+        . Contact details and pay live on the linked{" "}
+        <Link to="/employees" className="text-primary hover:underline">
+          employee record
+        </Link>
+        .
       </p>
     </>
   );

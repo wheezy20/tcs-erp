@@ -69,15 +69,29 @@ update public.staff set role = 'Attendant' where id in (
   '30000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000002'
 );
 
--- Contact / org-placement fields for the Staff Overview screen. position /
--- department moved off staff_pay_config here (20260909100000).
-update public.staff set position = 'Head Teacher',       department = 'Administration', phone = '+233 24 100 0004'
+-- Employees (20260909130000): everyone TCS pays, independent of ERP login.
+-- All four seeded staff also happen to be paid, so each gets an 'Active'
+-- employees row linked back to their login. phone / position / department
+-- live here now, not on `staff`.
+insert into public.employees
+  (id, branch_id, name, phone, position, department, employment_status, reviewed_at)
+values
+  ('e0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001',
+   'Emmanuel Ansah', '+233 24 100 0004', 'Head Teacher', 'Administration', 'Active', now()),
+  ('e0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001',
+   'Ebenezer Addo', '+233 24 100 0003', 'Accountant', 'Administration', 'Active', now()),
+  ('e0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001',
+   'Ama Owusu', '+233 24 100 0001', 'Class Teacher', 'Lower Primary', 'Active', now()),
+  ('e0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001',
+   'Kojo Boadu', '+233 24 100 0002', 'Teaching Assistant', 'Lower Primary', 'Active', now());
+
+update public.staff set employee_id = 'e0000000-0000-0000-0000-000000000004'
   where id = '30000000-0000-0000-0000-000000000004';
-update public.staff set position = 'Accountant',         department = 'Administration', phone = '+233 24 100 0003'
+update public.staff set employee_id = 'e0000000-0000-0000-0000-000000000003'
   where id = '30000000-0000-0000-0000-000000000003';
-update public.staff set position = 'Class Teacher',      department = 'Lower Primary',  phone = '+233 24 100 0001'
+update public.staff set employee_id = 'e0000000-0000-0000-0000-000000000001'
   where id = '30000000-0000-0000-0000-000000000001';
-update public.staff set position = 'Teaching Assistant', department = 'Lower Primary',  phone = '+233 24 100 0002'
+update public.staff set employee_id = 'e0000000-0000-0000-0000-000000000002'
   where id = '30000000-0000-0000-0000-000000000002';
 
 insert into public.products
@@ -1696,22 +1710,22 @@ values
   ('a1100000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Transport', true, 1),
   ('a1100000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Responsibility', true, 2);
 
--- One open-ended pay config per seeded staff member. Kojo Boadu is set up
--- as a National Service person — exempt from all three statutory
--- deductions — to exercise the pays_ssnit/pays_tier2/pays_paye flags.
--- position / department are on `staff` now (see the updates above).
-insert into public.staff_pay_config
-  (staff_id, bank, account_no, basic_salary, pays_ssnit, pays_tier2, pays_paye, effective_from)
+-- One open-ended, already-approved (approval_status defaults to 'Active')
+-- pay config per seeded employee. Kojo Boadu is a National Service person
+-- — exempt from all three statutory deductions — to exercise the
+-- pays_ssnit/pays_tier2/pays_paye flags.
+insert into public.employee_pay_config
+  (employee_id, bank, account_no, basic_salary, pays_ssnit, pays_tier2, pays_paye, effective_from)
 values
-  ('30000000-0000-0000-0000-000000000004', 'GCB Bank', '1234500001', 6500.00, true,  true,  true,  '2026-01-01'),
-  ('30000000-0000-0000-0000-000000000003', 'Ecobank',  '0201500002', 4200.00, true,  true,  true,  '2026-01-01'),
-  ('30000000-0000-0000-0000-000000000001', 'GCB Bank', '1234500003', 2800.00, true,  true,  true,  '2026-01-01'),
-  ('30000000-0000-0000-0000-000000000002', 'Fidelity', '1050000004', 1500.00, false, false, false, '2026-01-01');
+  ('e0000000-0000-0000-0000-000000000004', 'GCB Bank', '1234500001', 6500.00, true,  true,  true,  '2026-01-01'),
+  ('e0000000-0000-0000-0000-000000000003', 'Ecobank',  '0201500002', 4200.00, true,  true,  true,  '2026-01-01'),
+  ('e0000000-0000-0000-0000-000000000001', 'GCB Bank', '1234500003', 2800.00, true,  true,  true,  '2026-01-01'),
+  ('e0000000-0000-0000-0000-000000000002', 'Fidelity', '1050000004', 1500.00, false, false, false, '2026-01-01');
 
 -- Standing monthly allowances (pre-filled, editable per payslip).
-insert into public.staff_allowances (staff_id, allowance_type_id, default_amount, effective_from)
+insert into public.employee_allowances (employee_id, allowance_type_id, default_amount, effective_from)
 values
-  ('30000000-0000-0000-0000-000000000004', 'a1100000-0000-0000-0000-000000000003', 800.00, '2026-01-01'),
-  ('30000000-0000-0000-0000-000000000004', 'a1100000-0000-0000-0000-000000000002', 300.00, '2026-01-01'),
-  ('30000000-0000-0000-0000-000000000001', 'a1100000-0000-0000-0000-000000000001', 250.00, '2026-01-01'),
-  ('30000000-0000-0000-0000-000000000001', 'a1100000-0000-0000-0000-000000000002', 150.00, '2026-01-01');
+  ('e0000000-0000-0000-0000-000000000004', 'a1100000-0000-0000-0000-000000000003', 800.00, '2026-01-01'),
+  ('e0000000-0000-0000-0000-000000000004', 'a1100000-0000-0000-0000-000000000002', 300.00, '2026-01-01'),
+  ('e0000000-0000-0000-0000-000000000001', 'a1100000-0000-0000-0000-000000000001', 250.00, '2026-01-01'),
+  ('e0000000-0000-0000-0000-000000000001', 'a1100000-0000-0000-0000-000000000002', 150.00, '2026-01-01');

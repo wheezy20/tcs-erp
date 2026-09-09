@@ -63,8 +63,9 @@ Things that shape how this gets built, not just what gets built.
   data change, not a code deploy.
 - Some staff (e.g. National Service personnel, other temporary/contract
   staff) are **exempt from some or all of SSNIT/PAYE/Tier 2**. This is
-  handled per-staff via boolean flags on `staff_pay_config`
-  (`pays_ssnit`, `pays_tier2`, `pays_paye`), independently toggleable.
+  handled per-employee via boolean flags on `employee_pay_config`
+  (`pays_ssnit`, `pays_tier2`, `pays_paye`), independently toggleable
+  (renamed from `staff_pay_config` in `20260909130000`).
 
 ## Staff roles (as of 20260909090000)
 

@@ -868,6 +868,197 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_allowances: {
+        Row: {
+          allowance_type_id: string
+          default_amount: number
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+        }
+        Insert: {
+          allowance_type_id: string
+          default_amount: number
+          effective_from: string
+          effective_to?: string | null
+          employee_id: string
+          id?: string
+        }
+        Update: {
+          allowance_type_id?: string
+          default_amount?: number
+          effective_from?: string
+          effective_to?: string | null
+          employee_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_allowances_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_allowances_allowance_type_id_fkey"
+            columns: ["allowance_type_id"]
+            isOneToOne: false
+            referencedRelation: "allowance_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_pay_config: {
+        Row: {
+          account_no: string | null
+          approval_status: string
+          bank: string | null
+          basic_salary: number
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+          pays_paye: boolean
+          pays_ssnit: boolean
+          pays_tier2: boolean
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+        }
+        Insert: {
+          account_no?: string | null
+          approval_status?: string
+          bank?: string | null
+          basic_salary: number
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          employee_id: string
+          id?: string
+          pays_paye?: boolean
+          pays_ssnit?: boolean
+          pays_tier2?: boolean
+          proposed_by?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+        }
+        Update: {
+          account_no?: string | null
+          approval_status?: string
+          bank?: string | null
+          basic_salary?: number
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          employee_id?: string
+          id?: string
+          pays_paye?: boolean
+          pays_ssnit?: boolean
+          pays_tier2?: boolean
+          proposed_by?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_pay_config_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_pay_config_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_pay_config_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          branch_id: string
+          created_at: string
+          department: string | null
+          employment_status: string
+          id: string
+          name: string
+          phone: string | null
+          position: string | null
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          department?: string | null
+          employment_status?: string
+          id?: string
+          name: string
+          phone?: string | null
+          position?: string | null
+          proposed_by?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          department?: string | null
+          employment_status?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          position?: string | null
+          proposed_by?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_categories: {
         Row: {
           branch_id: string
@@ -1671,6 +1862,8 @@ export type Database = {
       payslips: {
         Row: {
           basic_salary: number
+          employee_id: string
+          employee_pay_config_id: string
           fines: number
           generated_at: string
           gross_salary: number
@@ -1684,8 +1877,6 @@ export type Database = {
           pdf_path: string | null
           ssnit: number
           ssnit_employer: number
-          staff_id: string
-          staff_pay_config_id: string
           tax: number
           taxable_income: number
           tier2: number
@@ -1695,6 +1886,8 @@ export type Database = {
         }
         Insert: {
           basic_salary: number
+          employee_id: string
+          employee_pay_config_id: string
           fines?: number
           generated_at?: string
           gross_salary: number
@@ -1708,8 +1901,6 @@ export type Database = {
           pdf_path?: string | null
           ssnit?: number
           ssnit_employer?: number
-          staff_id: string
-          staff_pay_config_id: string
           tax?: number
           taxable_income: number
           tier2?: number
@@ -1719,6 +1910,8 @@ export type Database = {
         }
         Update: {
           basic_salary?: number
+          employee_id?: string
+          employee_pay_config_id?: string
           fines?: number
           generated_at?: string
           gross_salary?: number
@@ -1732,8 +1925,6 @@ export type Database = {
           pdf_path?: string | null
           ssnit?: number
           ssnit_employer?: number
-          staff_id?: string
-          staff_pay_config_id?: string
           tax?: number
           taxable_income?: number
           tier2?: number
@@ -1743,24 +1934,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "payslips_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslips_employee_pay_config_id_fkey"
+            columns: ["employee_pay_config_id"]
+            isOneToOne: false
+            referencedRelation: "employee_pay_config"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payslips_payroll_run_id_fkey"
             columns: ["payroll_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payslips_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payslips_staff_pay_config_id_fkey"
-            columns: ["staff_pay_config_id"]
-            isOneToOne: false
-            referencedRelation: "staff_pay_config"
             referencedColumns: ["id"]
           },
         ]
@@ -2588,12 +2779,10 @@ export type Database = {
           active: boolean
           branch_id: string
           created_at: string
-          department: string | null
           email: string
+          employee_id: string | null
           id: string
           name: string
-          phone: string | null
-          position: string | null
           protected: boolean
           role: string
           updated_at: string
@@ -2602,12 +2791,10 @@ export type Database = {
           active?: boolean
           branch_id: string
           created_at?: string
-          department?: string | null
           email: string
+          employee_id?: string | null
           id: string
           name: string
-          phone?: string | null
-          position?: string | null
           protected?: boolean
           role: string
           updated_at?: string
@@ -2616,12 +2803,10 @@ export type Database = {
           active?: boolean
           branch_id?: string
           created_at?: string
-          department?: string | null
           email?: string
+          employee_id?: string | null
           id?: string
           name?: string
-          phone?: string | null
-          position?: string | null
           protected?: boolean
           role?: string
           updated_at?: string
@@ -2634,96 +2819,11 @@ export type Database = {
             referencedRelation: "branches"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      staff_allowances: {
-        Row: {
-          allowance_type_id: string
-          default_amount: number
-          effective_from: string
-          effective_to: string | null
-          id: string
-          staff_id: string
-        }
-        Insert: {
-          allowance_type_id: string
-          default_amount: number
-          effective_from: string
-          effective_to?: string | null
-          id?: string
-          staff_id: string
-        }
-        Update: {
-          allowance_type_id?: string
-          default_amount?: number
-          effective_from?: string
-          effective_to?: string | null
-          id?: string
-          staff_id?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "staff_allowances_allowance_type_id_fkey"
-            columns: ["allowance_type_id"]
+            foreignKeyName: "staff_employee_id_fkey"
+            columns: ["employee_id"]
             isOneToOne: false
-            referencedRelation: "allowance_types"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "staff_allowances_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      staff_pay_config: {
-        Row: {
-          account_no: string | null
-          bank: string | null
-          basic_salary: number
-          created_at: string
-          effective_from: string
-          effective_to: string | null
-          id: string
-          pays_paye: boolean
-          pays_ssnit: boolean
-          pays_tier2: boolean
-          staff_id: string
-        }
-        Insert: {
-          account_no?: string | null
-          bank?: string | null
-          basic_salary: number
-          created_at?: string
-          effective_from: string
-          effective_to?: string | null
-          id?: string
-          pays_paye?: boolean
-          pays_ssnit?: boolean
-          pays_tier2?: boolean
-          staff_id: string
-        }
-        Update: {
-          account_no?: string | null
-          bank?: string | null
-          basic_salary?: number
-          created_at?: string
-          effective_from?: string
-          effective_to?: string | null
-          id?: string
-          pays_paye?: boolean
-          pays_ssnit?: boolean
-          pays_tier2?: boolean
-          staff_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "staff_pay_config_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
+            referencedRelation: "employees"
             referencedColumns: ["id"]
           },
         ]
@@ -3004,6 +3104,57 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "stock_movements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      approve_employee: {
+        Args: { p_employee_id: string }
+        Returns: {
+          branch_id: string
+          created_at: string
+          department: string | null
+          employment_status: string
+          id: string
+          name: string
+          phone: string | null
+          position: string | null
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      approve_pay_config: {
+        Args: { p_config_id: string }
+        Returns: {
+          account_no: string | null
+          approval_status: string
+          bank: string | null
+          basic_salary: number
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+          pays_paye: boolean
+          pays_ssnit: boolean
+          pays_tier2: boolean
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_pay_config"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -3499,15 +3650,17 @@ export type Database = {
       create_payslip: {
         Args: {
           p_allowances?: Json
+          p_employee_id: string
           p_fines?: number
           p_iou?: number
           p_overtime_hours?: number
           p_overtime_rate?: number
           p_payroll_run_id: string
-          p_staff_id: string
         }
         Returns: {
           basic_salary: number
+          employee_id: string
+          employee_pay_config_id: string
           fines: number
           generated_at: string
           gross_salary: number
@@ -3521,8 +3674,6 @@ export type Database = {
           pdf_path: string | null
           ssnit: number
           ssnit_employer: number
-          staff_id: string
-          staff_pay_config_id: string
           tax: number
           taxable_income: number
           tier2: number
@@ -4230,6 +4381,80 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      propose_employee: {
+        Args: {
+          p_account_no?: string
+          p_bank?: string
+          p_basic_salary?: number
+          p_branch_id: string
+          p_department?: string
+          p_effective_from?: string
+          p_name: string
+          p_pays_paye?: boolean
+          p_pays_ssnit?: boolean
+          p_pays_tier2?: boolean
+          p_phone?: string
+          p_position?: string
+          p_staff_id?: string
+        }
+        Returns: {
+          branch_id: string
+          created_at: string
+          department: string | null
+          employment_status: string
+          id: string
+          name: string
+          phone: string | null
+          position: string | null
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      propose_pay_config_change: {
+        Args: {
+          p_account_no: string
+          p_bank: string
+          p_basic_salary: number
+          p_effective_from: string
+          p_employee_id: string
+          p_pays_paye: boolean
+          p_pays_ssnit: boolean
+          p_pays_tier2: boolean
+        }
+        Returns: {
+          account_no: string | null
+          approval_status: string
+          bank: string | null
+          basic_salary: number
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+          pays_paye: boolean
+          pays_ssnit: boolean
+          pays_tier2: boolean
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_pay_config"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       receive_purchase_order: {
         Args: {
           p_lines: Json
@@ -4342,6 +4567,57 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reject_employee: {
+        Args: { p_employee_id: string; p_reason: string }
+        Returns: {
+          branch_id: string
+          created_at: string
+          department: string | null
+          employment_status: string
+          id: string
+          name: string
+          phone: string | null
+          position: string | null
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reject_pay_config: {
+        Args: { p_config_id: string; p_reason: string }
+        Returns: {
+          account_no: string | null
+          approval_status: string
+          bank: string | null
+          basic_salary: number
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+          pays_paye: boolean
+          pays_ssnit: boolean
+          pays_tier2: boolean
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_pay_config"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       require_finance_writer: { Args: never; Returns: undefined }
       require_staff: {
         Args: never
@@ -4349,12 +4625,10 @@ export type Database = {
           active: boolean
           branch_id: string
           created_at: string
-          department: string | null
           email: string
+          employee_id: string | null
           id: string
           name: string
-          phone: string | null
-          position: string | null
           protected: boolean
           role: string
           updated_at: string
@@ -4389,6 +4663,30 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_employee_status: {
+        Args: { p_employee_id: string; p_status: string }
+        Returns: {
+          branch_id: string
+          created_at: string
+          department: string | null
+          employment_status: string
+          id: string
+          name: string
+          phone: string | null
+          position: string | null
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_expense_categories: {
         Args: { p_branch_id: string; p_categories: string[] }
         Returns: {
@@ -4402,6 +4700,38 @@ export type Database = {
           to: "expense_categories"
           isOneToOne: false
           isSetofReturn: true
+        }
+      }
+      set_pay_config_exemptions: {
+        Args: {
+          p_employee_id: string
+          p_pays_paye: boolean
+          p_pays_ssnit: boolean
+          p_pays_tier2: boolean
+        }
+        Returns: {
+          account_no: string | null
+          approval_status: string
+          bank: string | null
+          basic_salary: number
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+          pays_paye: boolean
+          pays_ssnit: boolean
+          pays_tier2: boolean
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_pay_config"
+          isOneToOne: true
+          isSetofReturn: false
         }
       }
       settlement_account: {
@@ -4463,6 +4793,35 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "bank_statement_lines"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_employee_profile: {
+        Args: {
+          p_department: string
+          p_employee_id: string
+          p_phone: string
+          p_position: string
+        }
+        Returns: {
+          branch_id: string
+          created_at: string
+          department: string | null
+          employment_status: string
+          id: string
+          name: string
+          phone: string | null
+          position: string | null
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4591,6 +4950,33 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "sales"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      withdraw_pay_config_proposal: {
+        Args: { p_config_id: string }
+        Returns: {
+          account_no: string | null
+          approval_status: string
+          bank: string | null
+          basic_salary: number
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          employee_id: string
+          id: string
+          pays_paye: boolean
+          pays_ssnit: boolean
+          pays_tier2: boolean
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_pay_config"
           isOneToOne: true
           isSetofReturn: false
         }

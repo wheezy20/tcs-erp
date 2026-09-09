@@ -544,3 +544,128 @@ runs are immutable and stay as posted.
 Removed the "Employer SSNIT (13%) is not in the books" checklist item.
 The SSNIT/Tier-2 item now notes only the *rate* still needs an official
 source check — the mechanism is done.
+
+## 2026-09-09 — Employees vs ERP logins + payroll approval workflow
+
+Split "person TCS pays" from "person with an ERP login" and put a
+propose → approve workflow in front of the fraud-sensitive payroll edits.
+Migration `20260909130000_employees_and_approval_workflow.sql`.
+
+### Schema
+- **`employees`** — everyone TCS pays, independent of a login: `name`,
+  `phone`, `position`, `department`, `employment_status` (`Pending
+  Approval` / `Active` / `Suspended` / `Rejected`), `proposed_by` /
+  `created_at` / `reviewed_by` / `reviewed_at` / `rejection_reason`.
+  Select-only for `authenticated` (M/Acc/Aud); all writes via RPC.
+- **`staff.employee_id`** — optional link (partial-unique). `staff` is now
+  an ERP login only; `phone` / `position` / `department` **dropped** from
+  it (moved to `employees`).
+- **`staff_pay_config` → `employee_pay_config`**, **`staff_allowances` →
+  `employee_allowances`**, `payslips.staff_id` → `employee_id`,
+  `payslips.staff_pay_config_id` → `employee_pay_config_id`. All FKs now
+  point at `employees`. `employee_pay_config` gains `approval_status`
+  (default `'Active'` — raw inserts are live; only the propose RPC writes
+  `'Pending Approval'`), `proposed_by` / `reviewed_by` / `reviewed_at` /
+  `rejection_reason`. Partial unique indexes: `one_active` (`effective_to
+  is null and approval_status = 'Active'`) and `one_pending`
+  (`approval_status = 'Pending Approval'`).
+- **`employee_pay_config` write policies dropped** — was Manager/Accountant
+  CRUD, now RPC-only (even a Manager goes through the approval RPCs so the
+  trail can't be bypassed). `employee_allowances` keeps plain M/Acc RLS
+  (not approval-gated).
+- **`audit_log`** — 9 new `action` values; `AFTER` triggers on `employees`
+  / `employee_pay_config` write them on the relevant transitions. Actor
+  `coalesce(auth.uid(), proposed_by)`, skipped when null (seed/migration).
+
+### RPCs (all `SECURITY DEFINER`)
+- `create_payslip()` — `p_staff_id` → `p_employee_id` (drop + recreate);
+  adds "employee must be `Active`" and "config `approval_status =
+  'Active'`" guards.
+- **propose_*** (`require_finance_writer()`, M/Acc): `propose_employee()`
+  (optionally bundles an initial pay config + a login link, per Open
+  Question 3), `propose_pay_config_change()`.
+- **approve_* / reject_*** (Manager only): `approve_employee()`,
+  `reject_employee()`, `approve_pay_config()`, `reject_pay_config()`.
+- **direct** (M/Acc, no gate): `set_employee_status()` (suspend ⇄
+  reactivate), `update_employee_profile()`, `set_pay_config_exemptions()`,
+  `withdraw_pay_config_proposal()`.
+- Unchanged: `create_payroll_run()`, `delete_payslip()`,
+  `post_payroll_run()` (they never referenced pay identity).
+
+### Design decisions (from the confirmed plan)
+1. `approval_status` default `'Active'`. 2. **No same-period corrections**
+— a proposal's effective date must be a future month with no posted
+payslip. 3. `propose_employee` bundles the initial pay config; approved /
+rejected together. 4. Exemption flags stay a **direct** edit. 5.
+Reactivation is direct, symmetric with suspend. 6. A login with no linked
+employee has no phone/position/department — acceptable. 7. The `staff`
+directory slims to "Login accounts" rather than being removed.
+
+### Data migration (point 8) — verified by replay
+A backfill `do` block (no-op on a fresh local reset; runs for real on a
+DB with old-shape rows): for every `staff` row referenced by
+`staff_pay_config` ∪ `staff_allowances` ∪ `payslips`, insert a linked
+`Active` `employees` row (name/phone/position/department copied), set
+`staff.employee_id`, repoint the three tables, then `NOT NULL` + swap FKs
++ drop `staff_id`. **Replay test**: applied the migration against a DB
+pre-loaded with a 2-row effective-dated pay-config history for Ebenezer +
+a generated payslip → 4 employees created & linked, all history preserved
+(`4200 [Jan–May]` + `4600 [Jun→open]`), the payslip repointed with every
+figure unchanged (gross 4690 / ssnit 23 / ssnit_er 598 / net 3729.25), no
+orphans, `staff.phone/position/department` gone.
+
+### Frontend
+- **New `employees-store.ts`** (owns `employees` + `employee_pay_config`
+  all-statuses + `employee_allowances` + the 10 RPC wrappers +
+  `currentConfigFor` / `pendingConfigFor` / `configHistoryFor` /
+  `standingAllowancesFor`).
+- `payroll-store.ts` — dropped the pay-config/allowance bits;
+  `Payslip.staff*` → `employee*`.
+- **New routes** `/employees` (layout + guard), `/employees/` (list +
+  `ProposeEmployeeDialog` + Manager `ApprovalsPanel`),
+  `/employees/$employeeId` (profile: direct contact edit, current config +
+  exemption switches, "Propose salary/bank change" + pending banner with
+  withdraw/approve/reject, standing allowances, history table, status
+  card).
+- `payroll.$runId.tsx` — eligible list now = `Active` employees with an
+  `Active` config. `payroll.pay-config.tsx` slimmed to statutory rates +
+  allowance types ("Setup" tab). `payslips.$payslipId.tsx` sources
+  position/department/bank from the employee.
+- `staff.*` slimmed to **Login accounts** (name / role / linked employee /
+  status; no phone/position/department). Sidebar: new "Employees" entry,
+  "Staff" → "Login Accounts".
+- `auth-store.ts` / `staff-store.ts` — `Staff` drops phone/position/
+  department, gains `employeeId`; `updateStaffProfile()` removed.
+
+### Verification
+- `db reset` (migration + rewritten seed) clean; `gen types` current;
+  `tsc` / `eslint src` (0 new errors) / `vite build` /
+  `check-duplicate-function-overloads.sh` pass.
+- **Backfill replay** — above.
+- **DB state-machine matrix** (psql + JWT impersonation): create → pending
+  → approve → Active (pending employee/config not payslip-eligible until
+  approved); reject cascades to bundled config + unlinks the login;
+  propose-change leaves the live config untouched, a mid-proposal payslip
+  uses the old figure, approve closes the old row & the next month's
+  payslip uses the new one; `one_pending` blocks a second proposal;
+  same-period and already-paid-month effective dates rejected; suspend →
+  not eligible → reactivate → eligible; exemptions toggle directly;
+  no-approved-config → `create_payslip` refused.
+- **RLS matrix**: `propose_*` — Attendant/Auditor blocked, Accountant/
+  Manager OK; `approve_*` — Accountant/Auditor blocked ("Only a Manager"),
+  Manager OK; `set_employee_status` — Attendant/Auditor blocked,
+  Accountant OK; Auditor SELECTs `employees` + `employee_pay_config`
+  including pending rows; Attendant SELECTs 0.
+- **audit_log**: `employee_created` / `pay_config_proposed` attributed to
+  the Accountant; `employee_approved` / `pay_config_approved` /
+  `employee_suspended` to the Manager.
+- **Browser** (headless, all 4 roles, zero console errors): Attendant →
+  `/employees` blocked; Accountant proposes an employee (bundled pay),
+  Manager sees the Approvals panel and approves, the employee becomes
+  payslip-eligible, a payslip is generated; Accountant proposes a raise →
+  pending banner, live config unchanged → Manager approves inline →
+  history shows both salaries; suspend → the employee drops out of the
+  next run's eligible list; Auditor sees the list but has no Propose /
+  Suspend / Propose-change controls. DB check after the run confirmed the
+  Jan payslip at 2000, the Feb-effective 2500 row current, and the full
+  audit trail.

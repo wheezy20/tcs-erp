@@ -15,6 +15,7 @@ import {
   Truck,
   Coins,
   Contact,
+  IdCard,
   Settings,
   ChevronLeft,
 } from "lucide-react";
@@ -38,7 +39,8 @@ export const navItems = [
   { title: "Payroll", url: "/payroll", icon: Coins },
   { title: "Banking", url: "/banking", icon: Landmark },
   { title: "Purchasing", url: "/purchasing", icon: Truck },
-  { title: "Staff", url: "/staff", icon: Contact },
+  { title: "Employees", url: "/employees", icon: IdCard },
+  { title: "Login Accounts", url: "/staff", icon: Contact },
   { title: "Settings", url: "/settings", icon: Settings },
 ] as const;
 
@@ -74,9 +76,9 @@ export function AppSidebar({
     .filter((item) => item.url !== "/payroll" || canViewReports)
     .filter((item) => item.url !== "/banking" || canViewReports)
     .filter((item) => item.url !== "/purchasing" || canViewReports)
-    // Staff directory: same Manager/Accountant/Auditor view gate (route
-    // guard in routes/staff.tsx is the real enforcement); edits inside are
-    // Manager-only.
+    // Employees + Login Accounts: same Manager/Accountant/Auditor view gate
+    // (each route's own guard + RLS is the real enforcement).
+    .filter((item) => item.url !== "/employees" || canViewReports)
     .filter((item) => item.url !== "/staff" || canViewReports)
     .map((item) => (item.url === "/pos" && posReadOnly ? { ...item, url: "/pos/history" } : item));
 

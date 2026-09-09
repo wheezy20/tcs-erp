@@ -14,9 +14,7 @@ function mapStaffRow(row: StaffRow): Staff {
     role: row.role as StaffRole,
     active: row.active,
     protected: row.protected,
-    phone: row.phone,
-    position: row.position,
-    department: row.department,
+    employeeId: row.employee_id,
   };
 }
 
@@ -114,30 +112,6 @@ export async function setStaffRole(id: string, role: StaffRole): Promise<void> {
 
 export async function setStaffActive(id: string, active: boolean): Promise<void> {
   const { error } = await supabase.from("staff").update({ active }).eq("id", id);
-  if (error) throw error;
-  await reload();
-}
-
-/** Contact / org-placement fields edited on the Staff Overview profile
- * screen. Manager-only, enforced by the same `staff_update` RLS policy
- * (`has_role(['Manager'])`) that gates role/active — this just calls the
- * update; the profile screen hides the form for anyone else. Empty strings
- * are normalised to null so "cleared" reads back as "not set". Bank details
- * are deliberately NOT here — they live on staff_pay_config (Pay Config
- * screen), tied to pay history. */
-export async function updateStaffProfile(
-  id: string,
-  patch: { phone?: string; position?: string; department?: string },
-): Promise<void> {
-  const clean = (v: string | undefined) => (v === undefined ? undefined : v.trim() || null);
-  const { error } = await supabase
-    .from("staff")
-    .update({
-      ...(patch.phone !== undefined ? { phone: clean(patch.phone) } : {}),
-      ...(patch.position !== undefined ? { position: clean(patch.position) } : {}),
-      ...(patch.department !== undefined ? { department: clean(patch.department) } : {}),
-    })
-    .eq("id", id);
   if (error) throw error;
   await reload();
 }

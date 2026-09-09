@@ -21,7 +21,7 @@ export const Route = createFileRoute("/payroll")({
 
 const TABS = [
   { to: "/payroll", label: "Payroll Runs", exact: true },
-  { to: "/payroll/pay-config", label: "Staff Pay Config", exact: false },
+  { to: "/payroll/pay-config", label: "Setup", exact: false },
 ] as const;
 
 /** Same Manager + Accountant + Auditor view gate as Accounting / Reports —

@@ -7,40 +7,33 @@ import { canViewFinancials, useAuth } from "@/data/auth-store";
 export const Route = createFileRoute("/staff")({
   head: () => ({
     meta: [
-      { title: "Staff — TCS" },
+      { title: "Login accounts — TCS" },
       {
         name: "description",
         content:
-          "Staff directory: role, position, department and active status for everyone with a TCS login, with an editable contact profile per person.",
+          "ERP login accounts: name, role, active status and the linked employee record, for everyone who can sign in to TCS ERP.",
       },
     ],
   }),
-  component: StaffLayout,
+  component: LoginAccountsLayout,
 });
 
-// Manager / Accountant / Auditor can view the directory (the same
-// non-Attendant "back office" set every finance-adjacent section uses —
-// canViewFinancials is that exact triple). Editing a profile is
-// Manager-only and gated again inside routes/staff.$staffId.tsx and by the
-// `staff_update` RLS policy (has_role(['Manager'])). Attendants have no
-// directory screen — they still read `staff` names via RLS everywhere
-// "Recorded by" appears, they just don't get this page.
-function StaffLayout() {
+// Manager / Accountant / Auditor can view (canViewFinancials — the
+// non-Attendant back-office triple). Attendants still read `staff` names
+// via RLS everywhere "Recorded by" appears; they just don't get this page.
+function LoginAccountsLayout() {
   const { staff } = useAuth();
   const canView = canViewFinancials(staff?.role);
 
   if (!canView) {
     return (
       <div>
-        <PageHeader title="Staff" description="Staff directory and profiles." />
+        <PageHeader title="Login accounts" description="ERP sign-in accounts." />
         <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 py-24 text-center">
           <Contact className="size-8 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">
-            The staff directory isn't available for this role
-          </h2>
+          <h2 className="text-lg font-semibold">Login accounts aren't available for this role</h2>
           <p className="max-w-sm text-sm text-muted-foreground">
-            It's open to Managers, Accountants and Auditors. Ask a Manager if you need a colleague's
-            contact details.
+            It's open to Managers, Accountants and Auditors.
           </p>
         </div>
       </div>
