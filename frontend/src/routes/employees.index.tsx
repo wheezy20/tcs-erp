@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, Plus, Search, X } from "lucide-react";
+import { Check, ChevronRight, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { PaymentDestinationFields } from "@/components/employees/payment-fields";
+import { RefListSelect } from "@/components/employees/ref-list-select";
+import { RejectButton } from "@/components/employees/reject-reason-dialog";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import {
@@ -42,6 +44,7 @@ import {
   type PayConfig,
   type PaymentMethod,
 } from "@/data/employees-store";
+import { activeNames, useDepartments, usePositions } from "@/data/org-lists-store";
 import { useStaff } from "@/data/staff-store";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -220,6 +223,10 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
 
 /* -------------------------------------------------------- approvals panel */
 
+type PendingRow =
+  | { kind: "employee"; id: string; emp: Employee; pay: PayConfig | undefined; when: string }
+  | { kind: "config"; id: string; emp: Employee | undefined; cfg: PayConfig; when: string };
+
 function ApprovalsPanel({
   employees,
   pendingEmployees,
@@ -229,8 +236,31 @@ function ApprovalsPanel({
   pendingEmployees: Employee[];
   pendingConfigs: PayConfig[];
 }) {
+  const { staff: roster } = useStaff();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   const { bundledByEmployee, standalone } = splitPendingConfigs(employees, pendingConfigs);
+  const staffName = (id: string | null) =>
+    id ? (roster.find((s) => s.id === id)?.name ?? "someone") : "someone";
+  const empName = (id: string) => employees.find((e) => e.id === id)?.name ?? "Employee";
+
+  const rows: PendingRow[] = [
+    ...pendingEmployees.map((emp) => ({
+      kind: "employee" as const,
+      id: emp.id,
+      emp,
+      pay: bundledByEmployee.get(emp.id),
+      when: emp.createdAt,
+    })),
+    ...standalone.map((cfg) => ({
+      kind: "config" as const,
+      id: cfg.id,
+      emp: employees.find((e) => e.id === cfg.employeeId),
+      cfg,
+      when: cfg.createdAt,
+    })),
+  ].sort((a, b) => (a.when < b.when ? 1 : -1));
 
   async function run(id: string, fn: () => Promise<void>, ok: string) {
     setBusyId(id);
@@ -244,118 +274,219 @@ function ApprovalsPanel({
     }
   }
 
-  function reject(id: string, fn: (reason: string) => Promise<void>, ok: string) {
-    const reason = window.prompt("Reason for rejection?");
-    if (reason === null) return;
-    run(id, () => fn(reason), ok);
-  }
-
-  const empName = (id: string) => employees.find((e) => e.id === id)?.name ?? "Employee";
-
   return (
-    <div className="card-surface mb-6 border-primary/30 p-5">
-      <h2 className="text-sm font-semibold">Waiting for your approval</h2>
-
-      {pendingEmployees.length > 0 && (
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            New employee records
-          </p>
-          <ul className="divide-y">
-            {pendingEmployees.map((e) => {
-              const pay = bundledByEmployee.get(e.id);
+    <div className="card-surface mb-6 overflow-hidden border-primary/30">
+      <div className="border-b px-5 py-3">
+        <h2 className="text-sm font-semibold">
+          Waiting for your approval <span className="text-muted-foreground">({rows.length})</span>
+        </h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="w-8 px-3 py-2" />
+              <th className="px-3 py-2 font-medium">Name</th>
+              <th className="px-3 py-2 font-medium">Change</th>
+              <th className="px-3 py-2 font-medium">Proposed by</th>
+              <th className="px-3 py-2 font-medium">Submitted</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {rows.map((row) => {
+              const name =
+                row.kind === "employee"
+                  ? row.emp.name
+                  : (row.emp?.name ?? empName(row.cfg.employeeId));
+              const proposedBy =
+                row.kind === "employee" ? row.emp.proposedById : row.cfg.proposedById;
+              const changeLabel =
+                row.kind === "employee"
+                  ? row.pay
+                    ? "New employee + pay"
+                    : "New employee"
+                  : "Salary / bank change";
+              const isOpen = expanded === row.id;
+              const busy = busyId === row.id;
               return (
-                <li key={e.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
-                  <div className="min-w-0 text-sm">
-                    <p className="font-medium">{e.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[e.position, e.department].filter(Boolean).join(" · ") || "no placement"}
-                      {e.phone ? ` · ${e.phone}` : ""}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {pay
-                        ? `Pay: ${currency(pay.basicSalary)}${
-                            pay.paymentMethod === "Mobile Money" ? " · MoMo" : ""
-                          }${pay.bank ? ` · ${pay.bank}` : ""}${
-                            pay.accountNo ? ` · ${pay.accountNo}` : ""
-                          } · from ${pay.effectiveFrom}`
-                        : "No initial pay config proposed"}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      size="sm"
-                      className="gap-1.5"
-                      disabled={busyId === e.id}
-                      onClick={() => run(e.id, () => approveEmployee(e.id), `${e.name} approved`)}
-                    >
-                      <Check className="size-3.5" /> Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5 text-destructive"
-                      disabled={busyId === e.id}
-                      onClick={() =>
-                        reject(e.id, (r) => rejectEmployee(e.id, r), `${e.name} rejected`)
-                      }
-                    >
-                      <X className="size-3.5" /> Reject
-                    </Button>
-                  </div>
-                </li>
+                <Fragment key={row.id}>
+                  <tr
+                    className="cursor-pointer hover:bg-muted/40"
+                    onClick={() => setExpanded(isOpen ? null : row.id)}
+                  >
+                    <td className="px-3 py-2 text-muted-foreground">
+                      <ChevronRight
+                        className={`size-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                      />
+                    </td>
+                    <td className="px-3 py-2 font-medium">{name}</td>
+                    <td className="px-3 py-2">
+                      <Badge variant="outline">{changeLabel}</Badge>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">{staffName(proposedBy)}</td>
+                    <td className="px-3 py-2 text-muted-foreground tabular-nums">
+                      {row.when.slice(0, 10)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs text-muted-foreground">
+                      {isOpen ? "Hide" : "Review"}
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="bg-muted/20">
+                      <td />
+                      <td colSpan={5} className="px-3 pb-4 pt-1">
+                        {row.kind === "employee" ? (
+                          <NewEmployeeDetail
+                            emp={row.emp}
+                            pay={row.pay}
+                            busy={busy}
+                            onApprove={() =>
+                              run(
+                                row.id,
+                                () => approveEmployee(row.emp.id),
+                                `${row.emp.name} approved`,
+                              )
+                            }
+                            onReject={(reason) => rejectEmployee(row.emp.id, reason)}
+                          />
+                        ) : (
+                          <ConfigChangeDetail
+                            cfg={row.cfg}
+                            emp={row.emp}
+                            busy={busy}
+                            onApprove={() =>
+                              run(row.id, () => approvePayConfig(row.cfg.id), "Pay change approved")
+                            }
+                            onReject={(reason) => rejectPayConfig(row.cfg.id, reason)}
+                          />
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
-          </ul>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Approving a new record also approves its bundled pay config, in one step.
-          </p>
-        </div>
-      )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
-      {standalone.length > 0 && (
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Salary / bank changes
-          </p>
-          <ul className="divide-y">
-            {standalone.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
-                <div className="text-sm">
-                  <span className="font-medium">{empName(c.employeeId)}</span>
-                  <span className="text-muted-foreground">
-                    {" "}
-                    · {currency(c.basicSalary)}
-                    {c.bank ? ` · ${c.bank}` : ""}
-                    {c.accountNo ? ` · ${c.accountNo}` : ""} · from {c.effectiveFrom}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={busyId === c.id}
-                    onClick={() => run(c.id, () => approvePayConfig(c.id), "Pay change approved")}
-                  >
-                    <Check className="size-3.5" /> Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-destructive"
-                    disabled={busyId === c.id}
-                    onClick={() =>
-                      reject(c.id, (r) => rejectPayConfig(c.id, r), "Pay change rejected")
-                    }
-                  >
-                    <X className="size-3.5" /> Reject
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+function DetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-sm">{value}</dd>
+    </div>
+  );
+}
+
+function payLine(pay: PayConfig): string {
+  return [
+    currency(pay.basicSalary),
+    pay.paymentMethod === "Mobile Money" ? "Mobile Money" : "Bank",
+    pay.bank ?? "—",
+    pay.accountNo ?? undefined,
+    `from ${pay.effectiveFrom}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function NewEmployeeDetail({
+  emp,
+  pay,
+  busy,
+  onApprove,
+  onReject,
+}: {
+  emp: Employee;
+  pay: PayConfig | undefined;
+  busy: boolean;
+  onApprove: () => void;
+  onReject: (reason: string) => Promise<void>;
+}) {
+  return (
+    <div className="space-y-3">
+      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-3">
+        <DetailField label="Name" value={emp.name} />
+        <DetailField label="Position" value={emp.position ?? "—"} />
+        <DetailField label="Department" value={emp.department ?? "—"} />
+        <DetailField label="Phone" value={emp.phone ?? "—"} />
+        <DetailField
+          label="Initial pay"
+          value={pay ? payLine(pay) : "No initial pay config proposed"}
+        />
+      </dl>
+      <p className="text-xs text-muted-foreground">
+        Approving the record also approves its bundled pay config, in one step.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" className="gap-1.5" disabled={busy} onClick={onApprove}>
+          <Check className="size-3.5" /> Approve
+        </Button>
+        <RejectButton
+          title={`Reject ${emp.name}'s record`}
+          onReject={onReject}
+          successMessage={`${emp.name} rejected`}
+        />
+        <Button asChild size="sm" variant="ghost">
+          <Link to="/employees/$employeeId" params={{ employeeId: emp.id }}>
+            Open record
+          </Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ConfigChangeDetail({
+  cfg,
+  emp,
+  busy,
+  onApprove,
+  onReject,
+}: {
+  cfg: PayConfig;
+  emp: Employee | undefined;
+  busy: boolean;
+  onApprove: () => void;
+  onReject: (reason: string) => Promise<void>;
+}) {
+  return (
+    <div className="space-y-3">
+      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-3">
+        <DetailField label="Basic salary" value={currency(cfg.basicSalary)} />
+        <DetailField label="Payment method" value={cfg.paymentMethod} />
+        <DetailField
+          label={cfg.paymentMethod === "Mobile Money" ? "Network" : "Bank"}
+          value={cfg.bank ?? "—"}
+        />
+        <DetailField
+          label={cfg.paymentMethod === "Mobile Money" ? "Wallet number" : "Account number"}
+          value={cfg.accountNo ?? "—"}
+        />
+        <DetailField label="Effective from" value={cfg.effectiveFrom} />
+      </dl>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" className="gap-1.5" disabled={busy} onClick={onApprove}>
+          <Check className="size-3.5" /> Approve
+        </Button>
+        <RejectButton
+          title="Reject this pay change"
+          onReject={onReject}
+          successMessage="Pay change rejected"
+        />
+        {emp && (
+          <Button asChild size="sm" variant="ghost">
+            <Link to="/employees/$employeeId" params={{ employeeId: emp.id }}>
+              Open record
+            </Link>
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -364,6 +495,8 @@ function ApprovalsPanel({
 
 function ProposeEmployeeDialog() {
   const { staff: roster } = useStaff();
+  const { items: positions } = usePositions();
+  const { items: departments } = useDepartments();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -451,18 +584,20 @@ function ProposeEmployeeDialog() {
             </div>
             <div className="space-y-1.5">
               <Label>Position</Label>
-              <Input
+              <RefListSelect
+                options={activeNames(positions)}
                 value={position}
-                maxLength={80}
-                onChange={(e) => setPosition(e.target.value)}
+                onChange={setPosition}
+                placeholder="Select position"
               />
             </div>
             <div className="space-y-1.5">
               <Label>Department</Label>
-              <Input
+              <RefListSelect
+                options={activeNames(departments)}
                 value={department}
-                maxLength={80}
-                onChange={(e) => setDepartment(e.target.value)}
+                onChange={setDepartment}
+                placeholder="Select department"
               />
             </div>
           </div>

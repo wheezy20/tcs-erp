@@ -417,7 +417,7 @@ export type CreatePayslipInput = {
   iou: number;
 };
 
-export async function createPayslip(input: CreatePayslipInput): Promise<void> {
+async function callCreatePayslip(input: CreatePayslipInput) {
   const { error } = await supabase.rpc("create_payslip", {
     p_payroll_run_id: input.payrollRunId,
     p_employee_id: input.employeeId,
@@ -431,7 +431,35 @@ export async function createPayslip(input: CreatePayslipInput): Promise<void> {
     p_iou: input.iou,
   });
   if (error) throw error;
+}
+
+export async function createPayslip(input: CreatePayslipInput): Promise<void> {
+  await callCreatePayslip(input);
   await reload();
+}
+
+/** Generate several payslips in one action — each at its standing config
+ * with zero adjustments (no overtime / fines / IOU; allowances default to
+ * the employee's standing list, passed in by the caller). Continues past a
+ * failure and reports the tally; reloads once at the end. */
+export async function createPayslipsBulk(
+  inputs: CreatePayslipInput[],
+): Promise<{ ok: number; failed: { employeeId: string; message: string }[] }> {
+  let ok = 0;
+  const failed: { employeeId: string; message: string }[] = [];
+  for (const input of inputs) {
+    try {
+      await callCreatePayslip(input);
+      ok += 1;
+    } catch (err) {
+      failed.push({
+        employeeId: input.employeeId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  await reload();
+  return { ok, failed };
 }
 
 export async function deletePayslip(id: string): Promise<void> {

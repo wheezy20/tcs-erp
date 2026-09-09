@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { PaymentDestinationFields } from "@/components/employees/payment-fields";
+import { RefListSelect } from "@/components/employees/ref-list-select";
+import { RejectButton } from "@/components/employees/reject-reason-dialog";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import {
@@ -47,6 +49,7 @@ import {
   type PayConfig,
   type PaymentMethod,
 } from "@/data/employees-store";
+import { activeNames, useDepartments, usePositions } from "@/data/org-lists-store";
 import { usePayroll, type AllowanceType } from "@/data/payroll-store";
 import { useStaff } from "@/data/staff-store";
 import { getErrorMessage } from "@/lib/utils";
@@ -177,6 +180,8 @@ function EmployeeProfilePage() {
 /* --------------------------------------------------------- profile form */
 
 function ProfileForm({ emp, canWrite }: { emp: Employee; canWrite: boolean }) {
+  const { items: positions } = usePositions();
+  const { items: departments } = useDepartments();
   const [phone, setPhone] = useState(emp.phone ?? "");
   const [position, setPosition] = useState(emp.position ?? "");
   const [department, setDepartment] = useState(emp.department ?? "");
@@ -218,23 +223,23 @@ function ProfileForm({ emp, canWrite }: { emp: Employee; canWrite: boolean }) {
         </div>
         <div />
         <div className="space-y-2">
-          <Label htmlFor="e-position">Position</Label>
-          <Input
-            id="e-position"
+          <Label>Position</Label>
+          <RefListSelect
+            options={activeNames(positions)}
             value={position}
+            onChange={setPosition}
+            placeholder="Select position"
             disabled={!canWrite}
-            maxLength={80}
-            onChange={(e) => setPosition(e.target.value)}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="e-department">Department</Label>
-          <Input
-            id="e-department"
+          <Label>Department</Label>
+          <RefListSelect
+            options={activeNames(departments)}
             value={department}
+            onChange={setDepartment}
+            placeholder="Select department"
             disabled={!canWrite}
-            maxLength={80}
-            onChange={(e) => setDepartment(e.target.value)}
           />
         </div>
       </div>
@@ -423,19 +428,11 @@ function PayConfigSection({
                 >
                   Approve
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive"
-                  disabled={busy}
-                  onClick={() => {
-                    const r = window.prompt("Reason for rejection?");
-                    if (r === null) return;
-                    act(() => rejectPayConfig(pending.id, r), "Pay change rejected");
-                  }}
-                >
-                  Reject
-                </Button>
+                <RejectButton
+                  title="Reject this pay change"
+                  onReject={(reason) => rejectPayConfig(pending.id, reason)}
+                  successMessage="Pay change rejected"
+                />
               </>
             )}
             {canWrite && (
@@ -776,18 +773,13 @@ function StatusCard({
             >
               Approve record
             </Button>
-            <Button
-              variant="outline"
-              className="text-destructive"
-              disabled={busy}
-              onClick={() => {
-                const r = window.prompt("Reason for rejection?");
-                if (r === null) return;
-                act(() => rejectEmployee(emp.id, r), `${emp.name} rejected`);
-              }}
-            >
-              Reject record
-            </Button>
+            <RejectButton
+              title={`Reject ${emp.name}'s record`}
+              label="Reject record"
+              size="default"
+              onReject={(reason) => rejectEmployee(emp.id, reason)}
+              successMessage={`${emp.name} rejected`}
+            />
           </>
         )}
         {emp.status === "Active" && canWrite && (

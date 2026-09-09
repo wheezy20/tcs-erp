@@ -110,7 +110,17 @@ depend on them holding true for every new table/function added.
   entity-wide reference data, not branch-scoped), that drives the
   bank / mobile-money picker on the employee flow.
   `employee_pay_config.bank` stays plain `text` — the list constrains the
-  picker, it isn't an FK.
+  picker, it isn't an FK. `positions` and `departments`
+  (`20260909160000`) are two more lists of exactly the same shape —
+  `name` (unique) / `position` / `is_active`, select for M/Acc/Aud, write
+  for M/Acc, seeded in the migration, entity-wide — driving the position
+  and department dropdowns on the employee flow. `employees.position` /
+  `.department` likewise stay plain `text` (no FK); a stored value not in
+  the active list still round-trips, flagged "(not in list)" in the
+  picker (`RefListSelect` / `PaymentProviderSelect`). The rule: whenever a
+  free-text field turns out to be a small set the school will curate,
+  promote it to one of these lists rather than adding an FK'd lookup
+  table or a hardcoded enum.
 - **Payment destination reuses two columns for both methods.**
   `employee_pay_config.payment_method` (`'Bank' | 'Mobile Money'`,
   `20260909150000`) decides how to read `bank` / `account_no`: for a bank
@@ -219,6 +229,18 @@ depend on them holding true for every new table/function added.
   are current-state 1:1 facts — the effective-dated pattern is only for
   values reconstructed *as-of a past date*, which org placement isn't).
   (`20260909130000_employees_and_approval_workflow.sql`.)
+- **Uppercase normalization is a DB trigger, not client styling.**
+  `employees.name` / `.position` / `.department` are forced to
+  `upper(nullif(trim(x), ''))` by a `BEFORE INSERT OR UPDATE` trigger
+  (`uppercase_employee_fields()`, `20260909160000`), so every write path —
+  RPC, raw SQL, a future importer — stores them the same way and
+  "Ama"/"AMA"/"ama" can't diverge. `positions` / `departments` get the
+  same trigger (`uppercase_ref_list_name()`) and are seeded uppercase, so
+  a stored `employees.department` always matches a list entry exactly.
+  Email and phone are deliberately left exactly as entered. If another
+  text column ever needs the same treatment, extend the existing trigger
+  function rather than adding CSS `text-transform` (which only hides the
+  inconsistency).
 - **Approval workflow = an in-row state machine, not a parallel proposals
   table.** Three actions need Manager sign-off, proposed by an Accountant:
   creating an employee, changing basic salary, changing bank/account

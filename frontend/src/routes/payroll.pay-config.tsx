@@ -24,6 +24,17 @@ import {
   type PaymentKind,
   type PaymentProvider,
 } from "@/data/payment-providers-store";
+import {
+  createDepartment,
+  createPosition,
+  deleteDepartment,
+  deletePosition,
+  updateDepartment,
+  updatePosition,
+  useDepartments,
+  usePositions,
+  type RefListItem,
+} from "@/data/org-lists-store";
 import { getErrorMessage } from "@/lib/utils";
 
 export const Route = createFileRoute("/payroll/pay-config")({
@@ -38,6 +49,8 @@ function PayrollSetupPage() {
   const canWrite = canWriteFinancials(currentStaff?.role);
   const { allowanceTypes, rates, bands, loading } = usePayroll();
   const { providers } = usePaymentProviders();
+  const { items: positions } = usePositions();
+  const { items: departments } = useDepartments();
 
   const activeRates = rates[0];
 
@@ -67,7 +80,161 @@ function PayrollSetupPage() {
 
       <AllowanceTypesSection types={allowanceTypes} canWrite={canWrite} />
       <PaymentProvidersSection providers={providers} canWrite={canWrite} />
+      <RefListSection
+        title="Positions"
+        hint="Drives the position dropdown on the employee flow. Stored uppercase."
+        placeholder="e.g. Sports Coordinator"
+        items={positions}
+        canWrite={canWrite}
+        onCreate={createPosition}
+        onToggle={(id, isActive) => updatePosition(id, { isActive })}
+        onDelete={deletePosition}
+      />
+      <RefListSection
+        title="Departments"
+        hint="Drives the department dropdown on the employee flow. Stored uppercase."
+        placeholder="e.g. Special Needs Unit"
+        items={departments}
+        canWrite={canWrite}
+        onCreate={createDepartment}
+        onToggle={(id, isActive) => updateDepartment(id, { isActive })}
+        onDelete={deleteDepartment}
+      />
     </div>
+  );
+}
+
+function RefListSection({
+  title,
+  hint,
+  placeholder,
+  items,
+  canWrite,
+  onCreate,
+  onToggle,
+  onDelete,
+}: {
+  title: string;
+  hint: string;
+  placeholder: string;
+  items: RefListItem[];
+  canWrite: boolean;
+  onCreate: (name: string) => Promise<void>;
+  onToggle: (id: string, isActive: boolean) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function add() {
+    if (!name.trim()) return;
+    setBusy(true);
+    try {
+      await onCreate(name);
+      setName("");
+      toast.success(`${title.replace(/s$/, "")} added`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not add that."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">{title}</h3>
+      <p className="mb-2 text-xs text-muted-foreground">{hint}</p>
+      <div className="card-surface p-4">
+        <div className="flex flex-wrap gap-2">
+          {items.length === 0 && <p className="text-sm text-muted-foreground">Nothing yet.</p>}
+          {items.map((it) => (
+            <RefListChip
+              key={it.id}
+              item={it}
+              canWrite={canWrite}
+              onToggle={onToggle}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+        {canWrite && (
+          <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">New entry</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={placeholder}
+                className="w-56"
+              />
+            </div>
+            <Button size="sm" className="gap-1.5" disabled={busy || !name.trim()} onClick={add}>
+              <Plus className="size-3.5" /> Add
+            </Button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function RefListChip({
+  item,
+  canWrite,
+  onToggle,
+  onDelete,
+}: {
+  item: RefListItem;
+  canWrite: boolean;
+  onToggle: (id: string, isActive: boolean) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  async function toggle() {
+    setBusy(true);
+    try {
+      await onToggle(item.id, !item.isActive);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not update that."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove() {
+    if (!window.confirm(`Delete "${item.name}"?`)) return;
+    setBusy(true);
+    try {
+      await onDelete(item.id);
+      toast.success("Deleted");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not delete that."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${
+        item.isActive ? "" : "opacity-50"
+      }`}
+    >
+      {item.name}
+      {canWrite && (
+        <>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={toggle}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {item.isActive ? "active" : "inactive"}
+          </button>
+          <button type="button" disabled={busy} onClick={remove} className="text-destructive">
+            <Trash2 className="size-3" />
+          </button>
+        </>
+      )}
+    </span>
   );
 }
 

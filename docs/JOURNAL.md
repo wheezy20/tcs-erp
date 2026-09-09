@@ -904,3 +904,93 @@ Mobile money groups and a kind toggle when adding).
   the method to Mobile Money relabels to "Network" / "Mobile money
   number" and the provider dropdown offers exactly the 3 networks (24
   banks in Bank mode).
+
+## 2026-09-09 — Group B: position/department lists, uppercase names, approvals redesign, bulk payslips
+
+One migration, `20260909160000_position_department_lists_and_uppercase.sql`,
+plus frontend. Five items.
+
+### 1. `positions` / `departments` reference lists
+
+Two more school-editable lists, identical shape and RLS to
+`payment_providers` (`name` unique / `position` / `is_active`; select
+M/Acc/Aud, write M/Acc; not approval-gated; entity-wide, so seeded in the
+migration). They drive the Position and Department dropdowns on the
+employee flow, replacing free-text inputs. `employees.position` /
+`.department` stay plain `text` — no FK; a stored value not in the active
+list still round-trips, flagged "(not in list)". Seeded a starter set
+(16 positions, 10 departments) covering the demo employees' values plus a
+sensible Ghanaian-school baseline. New generic `RefListSelect` component;
+new `org-lists-store.ts` (a `makeRefListStore(table)` factory → `usePositions`
+/ `useDepartments` + create/update/delete). Editors added to Payroll →
+Setup as a generic `RefListSection` (beside Allowance types / Payment
+providers).
+
+### 2. Uppercase normalization (server-side)
+
+`employees.name` / `.position` / `.department` → `upper(nullif(trim(x), ''))`
+via a `BEFORE INSERT OR UPDATE` trigger (`uppercase_employee_fields()`),
+so every write path stores them the same and case can't diverge.
+`positions` / `departments` get the same trigger
+(`uppercase_ref_list_name()`) and are seeded uppercase, so a stored
+`employees.department` always resolves to a list entry. Email and phone
+left exactly as entered. Existing rows normalized by a one-time `update`
+in the migration (no-op on a fresh local reset — seed.sql runs after and
+the trigger catches those).
+
+### 3. Rejection reason UI
+
+`reject_employee` / `reject_pay_config` already took `p_reason text`
+(nullable — `nullif(trim(p_reason), '')`). The buttons were calling
+`window.prompt("Reason for rejection?")`. Replaced every one with a
+proper `RejectButton` component: a dialog with a `<Textarea>` (reason
+optional, matching the RPC), used in the redesigned approvals panel and
+on the employee profile page (status card + pending pay-change section).
+No RPC change.
+
+### 4. Approvals panel redesigned for scale
+
+Was: full cards stacked inline for every pending item, in two sections.
+Now: one compact table — Name · Change (badge) · Proposed by · Submitted
+· Review — with a click-to-expand row per item. Expanding shows the
+detail grid (identity + bundled pay for a new hire; salary / method /
+provider / number / effective date for a pay change), an **Approve**
+button, the `RejectButton` dialog, and an "Open record" link. Bundled
+new-hire proposals stay one row / one Approve (via the existing
+`splitPendingConfigs`). Rows sorted newest first.
+
+### 5. Bulk-select + generate payslips
+
+The run page's "Not yet on this run" list gains a checkbox per employee +
+a select-all, and a **Generate N payslips** button that generates for
+every selected employee at once — each at its standing config with the
+employee's standing allowances and zero overtime / fines / IOU. The
+per-employee dialog is still there as **Adjust** for month-specific
+figures; **Exclude** unchanged. New `createPayslipsBulk(inputs[])` in
+payroll-store loops `create_payslip` (continuing past a failure, tallying
+ok/failed) and reloads once.
+
+### Verification
+
+- `db reset` + seed clean; `gen types` current; `tsc` / `vite build` /
+  `check-duplicate-function-overloads.sh` pass; `eslint src` — only the
+  pre-existing `accent-sync.tsx:32` error.
+- **DB**: reference-list uppercase trigger ("night matron" → "NIGHT
+  MATRON"); `propose_employee` / `update_employee_profile` uppercase
+  name+position+department, leave phone ("MixedCase Phone Stays" kept);
+  bundled config's `payment_method` carried, `bank` not uppercased; RLS on
+  `positions`/`departments` — Accountant insert OK, Auditor insert blocked
+  but sees all rows, Attendant sees none; `reject_employee` /
+  `reject_pay_config` / `reject_payroll_run` all take `p_reason text`, a
+  real reject stores the reason.
+- **Browser** (headless, zero console errors): Setup tab shows Positions /
+  Departments editors, adding "relief teacher" stores "RELIEF TEACHER";
+  propose-employee dialog Position/Department are dropdowns (18 options,
+  all uppercase, HEAD TEACHER present); proposed "kwesi arthur" lands as
+  "KWESI ARTHUR" in the list with position "CLASS TEACHER"; approvals
+  panel is a compact table (Review cells per row), expanding a row shows
+  Approve + Open record, Reject opens a dialog with a textarea (not
+  window.prompt); on a run, "Not yet on this run" has 5 checkboxes
+  (select-all + 4), per-row Adjust/Exclude retained, select-all →
+  "Generate 4 payslips" → 4 payslip rows created, section gone,
+  "Ready to submit for review" shown.

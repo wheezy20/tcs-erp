@@ -25,6 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -40,6 +41,7 @@ import { currency } from "@/data/dashboard";
 import { currentConfigFor, standingAllowancesFor, useEmployees } from "@/data/employees-store";
 import {
   createPayslip,
+  createPayslipsBulk,
   deletePayslip,
   excludeEmployeeFromRun,
   includeEmployeeInRun,
@@ -72,6 +74,8 @@ function RunDetailPage() {
   const { staff: roster } = useStaff();
   const [generateFor, setGenerateFor] = useState<string | null>(null);
   const [excludeFor, setExcludeFor] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const run = runs.find((r) => r.id === runId);
@@ -241,32 +245,104 @@ function RunDetailPage() {
 
       {isDraft && canGenerate && notAccountedFor.length > 0 && (
         <div className="card-surface p-4">
-          <p className="mb-2 text-sm font-medium">Not yet on this run</p>
-          <div className="flex flex-col gap-2">
-            {notAccountedFor.map((e) => (
-              <div key={e.id} className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm">{e.name}</span>
-                <div className="flex gap-2">
+          {(() => {
+            const ids = notAccountedFor.map((e) => e.id);
+            const sel = ids.filter((id) => selected.has(id));
+            const allChecked = sel.length === ids.length && ids.length > 0;
+            const toggle = (id: string) =>
+              setSelected((prev) => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              });
+            const toggleAll = () => setSelected(allChecked ? new Set() : new Set(ids));
+            async function bulkGenerate() {
+              setBulkBusy(true);
+              try {
+                const inputs = sel.map((id) => ({
+                  payrollRunId: run!.id,
+                  employeeId: id,
+                  overtimeHours: 0,
+                  overtimeRate: 0,
+                  allowances: standingAllowancesFor(allowances, id).map((a) => ({
+                    allowanceTypeId: a.allowanceTypeId,
+                    amount: a.defaultAmount,
+                  })),
+                  fines: 0,
+                  iou: 0,
+                }));
+                const { ok, failed } = await createPayslipsBulk(inputs);
+                setSelected(new Set());
+                if (failed.length === 0) {
+                  toast.success(`Generated ${ok} payslip${ok === 1 ? "" : "s"}`);
+                } else {
+                  toast.error(`${ok} generated, ${failed.length} failed — ${failed[0].message}`);
+                }
+              } finally {
+                setBulkBusy(false);
+              }
+            }
+            return (
+              <>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <Checkbox checked={allChecked} onCheckedChange={toggleAll} />
+                    Not yet on this run ({notAccountedFor.length})
+                  </label>
                   <Button
-                    variant="outline"
                     size="sm"
                     className="gap-1.5"
-                    onClick={() => setGenerateFor(e.id)}
+                    disabled={sel.length === 0 || bulkBusy}
+                    onClick={bulkGenerate}
                   >
-                    <Plus className="size-3.5" /> Generate payslip
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 text-muted-foreground"
-                    onClick={() => setExcludeFor(e.id)}
-                  >
-                    <Ban className="size-3.5" /> Exclude
+                    <Plus className="size-3.5" />
+                    {bulkBusy
+                      ? "Generating…"
+                      : `Generate ${sel.length || ""} payslip${sel.length === 1 ? "" : "s"}`.trim()}
                   </Button>
                 </div>
-              </div>
-            ))}
-          </div>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Bulk generate uses each employee's standing config and allowances with no
+                  overtime, fines or IOU. Use “Adjust” for month-specific figures.
+                </p>
+                <div className="flex flex-col divide-y">
+                  {notAccountedFor.map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex flex-wrap items-center justify-between gap-2 py-2"
+                    >
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={selected.has(e.id)}
+                          onCheckedChange={() => toggle(e.id)}
+                        />
+                        {e.name}
+                      </label>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => setGenerateFor(e.id)}
+                        >
+                          <Plus className="size-3.5" /> Adjust
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-muted-foreground"
+                          onClick={() => setExcludeFor(e.id)}
+                        >
+                          <Ban className="size-3.5" /> Exclude
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
