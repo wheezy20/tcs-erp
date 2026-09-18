@@ -36,15 +36,36 @@ function setState(next: ExpenseState) {
   listeners.forEach((l) => l());
 }
 
-/** The object's public URL within the receipts bucket, or null if no
- * receipt is attached. Public bucket, so this is a plain URL — no signed
- * request needed (see the Session 4 migration for why). */
-function receiptUrl(path: string | null): string | null {
-  if (!path) return null;
-  return supabase.storage.from(RECEIPTS_BUCKET).getPublicUrl(path).data.publicUrl;
+/** Signed URLs expire after this long. The bucket is private
+ * (20260918110000) — a receipt is exactly as sensitive as the expense row
+ * it belongs to (Manager/Accountant/Auditor only), so it's read through a
+ * time-limited signed URL rather than a permanent public one. Re-signed on
+ * every load, so this only bounds how long a URL keeps working if it
+ * leaks somewhere outside the app (browser history, a screenshare) — a
+ * normal viewing session never sees a stale one. */
+const RECEIPT_URL_EXPIRY_SECONDS = 60 * 60;
+
+/** One batched `createSignedUrls()` call for every receipt in this load,
+ * instead of one request per row — same signed-URL access-check either
+ * way (Storage gates signing itself against the `receipts_select` RLS
+ * policy using the caller's own session), just fewer round trips. Missing/
+ * failed entries resolve to null rather than failing the whole load — a
+ * receipt that can't be signed (e.g. the underlying object was somehow
+ * removed) shouldn't block the rest of the expense list from loading. */
+async function signReceiptUrls(paths: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (paths.length === 0) return map;
+  const { data, error } = await supabase.storage
+    .from(RECEIPTS_BUCKET)
+    .createSignedUrls(paths, RECEIPT_URL_EXPIRY_SECONDS);
+  if (error) throw error;
+  for (const item of data) {
+    if (item.path && item.signedUrl && !item.error) map.set(item.path, item.signedUrl);
+  }
+  return map;
 }
 
-function mapExpenseRow(row: ExpenseRowWithStaff): Expense {
+function mapExpenseRow(row: ExpenseRowWithStaff, signedUrls: Map<string, string>): Expense {
   return {
     id: row.id,
     date: row.date,
@@ -56,7 +77,7 @@ function mapExpenseRow(row: ExpenseRowWithStaff): Expense {
     bankAccountId: row.bank_account_id,
     recordedBy: row.recorder_staff?.name ?? "Unknown",
     recordedAt: row.recorded_at,
-    receiptUrl: receiptUrl(row.receipt_path),
+    receiptUrl: row.receipt_path ? (signedUrls.get(row.receipt_path) ?? null) : null,
     voidedAt: row.voided_at,
     voidedBy: row.voider_staff?.name ?? null,
     voidReason: row.void_reason,
@@ -85,8 +106,12 @@ async function loadExpenses() {
   if (categoriesResult.error) throw categoriesResult.error;
   if (expensesResult.error) throw expensesResult.error;
 
+  const rows = expensesResult.data as ExpenseRowWithStaff[];
+  const receiptPaths = rows.map((r) => r.receipt_path).filter((p): p is string => p !== null);
+  const signedUrls = await signReceiptUrls(receiptPaths);
+
   setState({
-    expenses: (expensesResult.data as ExpenseRowWithStaff[]).map(mapExpenseRow),
+    expenses: rows.map((row) => mapExpenseRow(row, signedUrls)),
     categories: (categoriesResult.data as ExpenseCategoryRow[]).map((c) => c.name),
     branchId: branchResult.data.id,
     loading: false,

@@ -39,6 +39,7 @@ import {
   approveEmployee,
   approvePayConfig,
   currentConfigFor,
+  pendingConfigFor,
   proposeEmployee,
   rejectEmployee,
   rejectPayConfig,
@@ -172,7 +173,19 @@ function EmployeesListPage() {
               </thead>
               <tbody className="divide-y">
                 {filtered.map((e) => {
-                  const cfg = currentConfigFor(configs, e.id);
+                  // currentConfigFor only ever matches an Active,
+                  // open-ended config — a brand-new employee's bundled pay
+                  // (still `Pending Approval` until the record itself is
+                  // approved) never qualifies, which is exactly why this
+                  // fell through to "Not set"/"—" instead of the actually-
+                  // proposed figures. Fall back to the pending proposal
+                  // only when there's no live config at all — an Active
+                  // employee with a separate pending salary/bank change
+                  // still shows their current (approved) config here, not
+                  // the unapproved one, same as before.
+                  const activeCfg = currentConfigFor(configs, e.id);
+                  const pendingCfg = activeCfg ? undefined : pendingConfigFor(configs, e.id);
+                  const cfg = activeCfg ?? pendingCfg;
                   return (
                     <tr key={e.id} className="group hover:bg-muted/40">
                       <td className="px-5 py-3">
@@ -191,15 +204,25 @@ function EmployeesListPage() {
                       <td className="px-5 py-3 text-muted-foreground">{e.position ?? "—"}</td>
                       <td className="px-5 py-3 text-right tabular-nums">
                         {cfg ? (
-                          currency(cfg.basicSalary)
+                          <span className={pendingCfg ? "italic text-muted-foreground" : undefined}>
+                            {currency(cfg.basicSalary)}
+                            {pendingCfg && (
+                              <span className="ml-1 text-xs not-italic">(pending)</span>
+                            )}
+                          </span>
                         ) : (
                           <span className="text-muted-foreground">Not set</span>
                         )}
                       </td>
                       <td className="px-5 py-3 text-muted-foreground">
-                        {cfg?.bank
-                          ? `${cfg.bank}${cfg.accountNo ? ` · ${cfg.accountNo}` : ""}`
-                          : "—"}
+                        {cfg?.bank ? (
+                          <span className={pendingCfg ? "italic" : undefined}>
+                            {cfg.bank}
+                            {cfg.accountNo ? ` · ${cfg.accountNo}` : ""}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="px-5 py-3 tabular-nums text-muted-foreground">
                         {e.phone ?? "—"}

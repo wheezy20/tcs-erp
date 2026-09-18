@@ -1415,3 +1415,102 @@ through. `tsc --noEmit` clean except the same pre-existing, unrelated
 `__root.tsx` error. `eslint` (both scoped and full-repo, now ~20–40s per
 the fix above) clean except the same pre-existing baseline issues.
 `vite build` exit 0.
+
+## 2026-09-18 — Receipts bucket made private; pending-employee list-view fix
+
+Two findings from a walkthrough.
+
+### Receipts publicly readable via unsigned URL
+
+The `receipts` storage bucket has been `public = true` since it was
+created (`20260802100000_expenses_schema.sql`), from before this app had
+any auth/RLS at all. `20260803120000_auth_roles_schema.sql` tightened
+storage *writes* to `authenticated` only but explicitly left `public`
+alone — a real gap, not a deliberate tradeoff, since a `public = true`
+Supabase Storage bucket serves downloads through an endpoint that
+bypasses `storage.objects` RLS entirely. Every receipt has been readable
+by anyone with the object path (a guessable `<uuid>.<ext>`, no session
+required) since the day this table shipped.
+
+Presented a plan before touching anything, since it affects every
+existing receipt reference in the frontend: checked and confirmed there
+is exactly one such place — `expenses-store.ts`'s `receiptUrl()` — with
+`record-expense-dialog.tsx`, `expenses.index.tsx`, and
+`expenses.$expenseId.tsx` all just consuming the already-resolved
+`Expense.receiptUrl: string | null`, never touching Storage directly.
+
+**Fix, confirmed before building:** private bucket + role-scoped RLS,
+not an edge function. `20260918110000_receipts_bucket_private.sql` flips
+`storage.buckets.public` to `false` for `receipts` and replaces the one
+blanket `receipts_staff_access` (`for all to authenticated`) policy with
+four command-scoped ones mirroring `expenses_select` /
+`expenses_insert` / `expenses_update` / `expenses_delete` exactly (same
+`has_role()` predicate, same role sets) — a receipt is exactly as
+sensitive as the expense row it belongs to:
+- `receipts_select`: `Manager`, `Accountant`, `Auditor`
+- `receipts_insert` / `receipts_update` / `receipts_delete`: `Manager`,
+  `Accountant`
+
+No edge function: Supabase's `createSignedUrl(s)` is itself gated by the
+`storage.objects` SELECT RLS policy at generation time, using the
+caller's own session — the frontend's already-authenticated client can
+call it directly and only ever receives a signed URL for a receipt it's
+actually RLS-permitted to read, so there's no "trusting the client" gap
+to close with a server component. This codebase's one existing edge
+function (`invite-staff`) exists specifically because that operation
+needs the `service_role` key; signing a URL for an object the caller
+already has read access to does not, so adding one here would've been
+inconsistent with how this repo already draws that line.
+
+`expenses-store.ts`: `receiptUrl()` → `signReceiptUrls()`, one batched
+`createSignedUrls(paths, 3600)` call per `loadExpenses()` (not one
+request per row) instead of `getPublicUrl()`. Expiry: 1 hour, confirmed
+with Eyram — regenerated fresh on every list/detail load, so a normal
+viewing session never sees a stale URL; a leaked one (browser history, a
+screenshare) goes stale same-day. `Expense.receiptUrl`'s shape is
+unchanged (`string | null`), so the three consuming files needed zero
+changes.
+
+Verified end-to-end against the local stack via direct Storage REST
+calls (not the JS SDK, to rule out any client-side masking of a real
+gap) with real `dev-manager@tcs.test` / `dev-auditor@tcs.test` /
+`dev-attendant@tcs.test` sessions (password grant, not a service-role
+bypass): uploaded a real object as Manager; the old unsigned
+`/object/public/receipts/...` path now returns 400 (no longer resolves
+— confirms the bucket is actually private, not just RLS-narrowed);
+`/object/sign/...` succeeds for Manager and Auditor and returns a token
+whose signed URL serves the real file content; the same call for
+Attendant is denied (`AccessDenied`); Attendant's own upload attempt is
+denied with an explicit RLS-violation message. `check-duplicate-function-
+overloads.sh` clean (no function signatures touched). `database.types.ts`
+unaffected (storage schema isn't part of what it generates from).
+Nothing to flag in `docs/CONSTRAINTS.md` — fully resolved, no open
+decision left pending.
+
+### Pending employee shows "Basic salary: Not set" / "Paid to: —" in the list view
+
+Display bug only — the detail page (`employees.$employeeId.tsx`) already
+read the bundled pay config correctly. Root cause:
+`employees.index.tsx`'s list-view row only called `currentConfigFor()`,
+which requires `approval_status = 'Active'` — a brand-new employee's
+bundled pay is still `Pending Approval` until the *employee record*
+itself is approved (`approve_employee()` cascades both in one step), so
+it never matched and silently fell through to "Not set"/"—".
+
+Fixed by falling back to `pendingConfigFor()` only when there's no
+*active* config at all — an Active employee with a separate outstanding
+salary/bank change still shows their current, approved figures here (not
+the unapproved proposal), unchanged from before. When the fallback
+applies, the cell renders in italic with a small "(pending)" suffix so
+it doesn't read as if the figure were already approved. Verified via a
+data-level trace (not a browser pass — the dev machine's swap was fully
+exhausted mid-session from unrelated processes, and a prior Playwright
+run had already been OOM-killed once, so a second Chromium launch was
+skipped to avoid risking collateral damage to whatever else was running):
+proposed a fresh `Pending Approval` employee with a bundled ₵2,750 config
+via the real `propose_employee()` RPC, confirmed the row's exact shape in
+the database, and hand-traced `currentConfigFor`/`pendingConfigFor`
+against it — `activeCfg` correctly `undefined` (status is `Pending
+Approval`, not `Active`), `pendingCfg` correctly picks up the ₵2,750/
+Ecobank Ghana row. `tsc --noEmit` and `eslint` both clean (pre-existing
+`__root.tsx` error and baseline warnings only). `vite build` exit 0.
