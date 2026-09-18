@@ -1514,3 +1514,131 @@ against it — `activeCfg` correctly `undefined` (status is `Pending
 Approval`, not `Active`), `pendingCfg` correctly picks up the ₵2,750/
 Ecobank Ghana row. `tsc --noEmit` and `eslint` both clean (pre-existing
 `__root.tsx` error and baseline warnings only). `vite build` exit 0.
+
+## 2026-09-18 — SSNIT ledger clarity; real GRA PAYE bands; overtime/bonus tax flag
+
+Three items from a walkthrough.
+
+### 2310 SSNIT Payable's dual use was invisible once posted
+
+`post_payroll_run()` has posted both the employee withholding and the
+employer's 13% contribution to the same account (2310) since
+`20260909120000_payslip_employer_ssnit.sql`, distinguished only by each
+`journal_lines` row's own `description` text. Asked to show reasoning
+before building, since the fix approach mattered.
+
+Checked whether the two General Ledger-adjacent views already handled
+this before assuming they didn't: `accounting.ledger.tsx` (General
+Ledger) already renders `lineDescription` inline, unconditionally, right
+under the entry description — not broken. `accounting.journal-entries.tsx`
+(Journal Entries list) already has a dedicated "Line description" column
+in its expand-a-row detail table — not broken either, just behind a
+normal click-to-expand, same as any other drill-into-a-row list. The
+actual gap was narrower than the initial report implied: only the payroll
+run's own embedded "Posted to Accounting" card (`PostedEntryCard` in
+`payroll.$runId.tsx`) was missing the description entirely —
+`EntryLinesTable` (shared with the pre-post confirmation dialog) never
+had a description column, and the pre-post dialog only read fine because
+it fakes distinct account *names* ("SSNIT Payable (employee)" / "(employer)")
+for its synthetic preview rows, a trick that doesn't exist once the real
+entry is posted and both lines share the account's one real name.
+
+**Considered and rejected: a second account (2311) for the employer
+portion**, i.e. the sub-account-code approach floated in the request.
+Doesn't fit this schema at all — `accounts.code` has `check (code ~
+'^[0-9]{3,6}$')`, strictly numeric, no separator, so a "2310-1/2310-2"
+scheme would need loosening a constraint that's never been loosened for
+any other account. A distinct whole code (2311) would fit that
+constraint, but splits one real liability to one creditor (SSNIT, settled
+in one monthly remittance) into two account balances by *cost origin*
+rather than by creditor — "what do we owe SSNIT this month" stops being
+a single account balance, and nothing in this app currently sums
+accounts back together for that purpose. Introducing this codebase's
+first-ever split/sub-account, solely to fix a display gap, would be a
+disproportionate schema change for what turned out to be a small
+rendering gap in one view.
+
+**Fix:** `EntryLinesTable`'s `lines` gained an optional `description`,
+rendered as a muted sub-line under the account code/name — the exact
+pattern `accounting.ledger.tsx` already uses for `lineDescription`, now
+applied here too. `PostedEntryCard` threads the real posted line's
+`description` through. `PostRunDialog`'s synthetic preview lines also
+gained matching `description` text (mirroring `post_payroll_run()`'s
+own strings exactly) for every line, not just the two SSNIT ones, so the
+pre-post preview and the post-post card render identically in structure
+— the preview keeps its extra "(employee)"/"(employer)" name suffixes as
+a bonus immediate-read clarity, not a substitute for the description.
+
+Also corrected account 2310's own `description` (`Chart of Accounts`
+page) — it only mentioned the employee side, which was accurate until
+`20260909120000` and stale ever since (`20260918120000_ssnit_payable_
+description_fix.sql`).
+
+Verified against a real posted run rather than a browser pass (the dev
+machine's swap stayed fully exhausted throughout, same constraint as the
+last two sessions): created a run, generated one payslip, excluded the
+rest, submitted for review and posted it end-to-end via the real RPC
+chain as real `dev-accountant@tcs.test`/`dev-manager@tcs.test` sessions
+(→ `JE-30080001`), then queried the resulting `journal_lines` directly —
+`SSNIT withheld — August 2030` / `Employer SSNIT contribution — August
+2030`, distinct as expected. Traced the render chain by reading every
+link (`journal_lines.description` → PostgREST's `journal_lines(*, ...)`
+embed → `mapJournalEntry` → `PostedEntryCard`'s new mapping →
+`EntryLinesTable`) rather than screenshotting it. `tsc --noEmit` and
+`eslint` (scoped + full-repo, ~21s) both clean except the same
+pre-existing baseline issues. `vite build` exit 0.
+
+### PAYE bands sourced from GRA's real published table
+
+The `20260908070000` seed rows labeled "PLACEHOLDERS" turned out to
+already be GRA's real monthly figures for five of seven bands — only the
+top two needed correcting: band 6's upper bound and band 7's lower bound,
+both 50,416.67 → 50,000
+(`20260918130000_paye_bands_gra_2024.sql`).
+
+Confirmed `paye_bands` stores **monthly**, not annual, thresholds before
+touching anything: `create_payslip()`'s `v_taxable_income` is built
+straight from `employee_pay_config.basic_salary` (a monthly figure) plus
+monthly overtime/allowances minus monthly SSNIT/Tier2, compared directly
+against `lower_bound`/`upper_bound` with no annualization step anywhere
+in the band loop. GRA's monthly figures were used as-is, no conversion
+needed.
+
+GRA's own table (gra.gov.gh, labeled "Year 2024") has a genuine internal
+rounding inconsistency: its band widths sum arithmetically to 50,416.67
+(exactly where the original placeholder's boundary came from — it wasn't
+a guess, someone had already sourced this correctly once), but the
+table's own top-band row is explicitly labeled "Exceeding 50,000.00".
+Per explicit direction: 50,000 is authoritative, GRA's literal stated
+threshold over the arithmetic sum. The 30% band now runs 19,896.67 →
+50,000 and 35% starts exactly at 50,000 — every taxable cedi still
+covered by exactly one band, just a GHS 416.67 narrower 30% band than
+the old placeholder.
+
+`docs/CONSTRAINTS.md`: checklist item flipped from `[ ]` placeholder to
+`[x]` sourced-from-GRA, with a new `[ ]` line for the residual "Year
+2024, not re-confirmed against a later revision" risk. "Statutory
+accuracy" section rewritten to match, with the monthly-vs-annual and
+rounding-inconsistency reasoning spelled out there too.
+
+Verified against a real posted payslip (the same `JE-30080001` run
+above, employee EMMANUEL ANSAH, taxable income GHS 6,142.50): computed
+tax GHS 1,134.13 by hand against the corrected bands (0 + 5.50 + 13.00 +
+554.08 + 561.46, each rounded per-band the way `create_payslip()` itself
+does) and it matched the actual posted `payslips.tax` value, confirming
+the corrected bands are live and computing correctly, not just seeded.
+
+### New flag: overtime/bonus may need non-graduated tax treatment
+
+Not built, per explicit decision — documentation only.
+`docs/CONSTRAINTS.md` gained a new checklist item + a matching
+"Statutory accuracy" bullet: GRA's monthly PAYE schedule's own completion
+notes (items 23–24) suggest overtime pay for a *qualifying junior
+employee* (income ≤ GHS 800/month or GHS 9,600/year) may need a separate
+concessionary flat rate rather than the graduated bands
+`create_payslip()` currently applies to every overtime cedi — meaning
+current overtime taxation could be wrong specifically for TCS's
+lower-paid staff. Lower priority and also unmodeled: bonus income
+reportedly carries its own flat 5% final-tax treatment (up to 15% of
+annual basic). Both need confirmation from TCS's accountant or GRA
+directly before any code changes.

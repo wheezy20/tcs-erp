@@ -4,8 +4,16 @@ Things that shape how this gets built, not just what gets built.
 
 ## Checklist — must be done before real go-live
 
-- [ ] Verify PAYE bands against the official GRA published schedule
-      (currently placeholder values, see docs/JOURNAL.md)
+- [x] PAYE band thresholds sourced directly from GRA's published schedule
+      (gra.gov.gh) — done, `20260918` (see docs/JOURNAL.md). No longer
+      placeholder values.
+- [ ] The GRA table used is labeled "Year 2024" and has not been
+      re-confirmed against any later revision — recheck before real
+      go-live. Also unresolved from the same GRA notes: overtime income
+      for qualifying junior employees may need a flat concessionary rate
+      instead of graduated PAYE, and bonus income has an unmodeled flat
+      5% final-tax treatment — see the "Statutory accuracy" section below
+      for both; not building either without confirmation first.
 - [ ] Confirm the SSNIT / Tier 2 split (0.5% / 13% / 5%) against an
       official SSNIT source — currently only confirmed verbally against
       the school's current practice (see "Statutory accuracy" below).
@@ -92,11 +100,29 @@ Things that shape how this gets built, not just what gets built.
   is 0 in this setup). This was confirmed directly by Eyram against his
   school's actual payroll practice, so it's more reliable than the
   secondhand tax-guide figures found via web search.
-- **PAYE band thresholds are NOT yet verified against an official GRA
-  source.** The `paye_bands` table structure is built (graduated bands,
-  editable, effective-dated), but real numbers must come from GRA's
-  actual published schedule before this is used for real payroll, not
-  from blog/calculator sites.
+- **PAYE band thresholds are sourced directly from GRA's published
+  schedule** (gra.gov.gh, labeled "Year 2024") as of `20260918` — no
+  longer placeholder values (see docs/JOURNAL.md). `paye_bands` stores
+  **monthly** thresholds, confirmed against `create_payslip()`'s own
+  computation (taxable income is built from monthly figures throughout,
+  never annualized). GRA's table has an internal rounding inconsistency:
+  its band widths sum arithmetically to GHS 50,416.67, but the table's own
+  top-band row is explicitly labeled "Exceeding 50,000.00" — GHS 50,000 is
+  used as authoritative here, per GRA's literal stated threshold, not the
+  arithmetic sum. **Not yet re-confirmed against any GRA revision
+  published after this "Year 2024" table.**
+- **Overtime and bonus income may need non-graduated tax treatment —
+  unconfirmed, not built.** Per GRA's monthly PAYE schedule's own
+  completion notes (items 23–24): overtime pay for a *qualifying junior
+  employee* (income ≤ GHS 800/month or GHS 9,600/year) may be taxed at a
+  separate concessionary flat rate rather than folded into the graduated
+  bands the way `create_payslip()` currently treats it — every overtime
+  cedi is taxed as ordinary graduated income today, which could be wrong
+  specifically for TCS's lower-paid staff. Separately, and lower priority:
+  bonus income reportedly has its own unmodeled flat 5% final-tax
+  treatment (up to 15% of annual basic), also not implemented. Neither is
+  built pending confirmation from TCS's accountant or GRA directly — this
+  is a "know it might be wrong" flag, not a fix.
 - Rates and bands are stored as **editable database rows, never
   hardcoded constants** — a correction or an annual update should be a
   data change, not a code deploy.

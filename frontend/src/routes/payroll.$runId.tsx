@@ -650,7 +650,14 @@ function ExcludeDialog({
 function EntryLinesTable({
   lines,
 }: {
-  lines: { key: string; code: string; name: string; debit: number; credit: number }[];
+  lines: {
+    key: string;
+    code: string;
+    name: string;
+    debit: number;
+    credit: number;
+    description?: string;
+  }[];
 }) {
   const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
   const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
@@ -668,7 +675,19 @@ function EntryLinesTable({
           {lines.map((l) => (
             <tr key={l.key}>
               <td className="px-3 py-2">
-                <span className="font-mono text-xs text-muted-foreground">{l.code}</span> {l.name}
+                <div>
+                  <span className="font-mono text-xs text-muted-foreground">{l.code}</span> {l.name}
+                </div>
+                {/* The same account can appear twice in one entry for
+                    different reasons (e.g. 2310 SSNIT Payable posts both
+                    the employee withholding and the employer contribution
+                    as separate lines) — the line description, not the
+                    account name, is what tells them apart, so it has to
+                    render here even though this card also shows before a
+                    run is posted, not just after. */}
+                {l.description && (
+                  <div className="text-xs text-muted-foreground">{l.description}</div>
+                )}
               </td>
               <td className="px-3 py-2 text-right tabular-nums">
                 {l.debit ? currency(l.debit) : "—"}
@@ -723,6 +742,7 @@ function PostedEntryCard({ entry }: { entry: JournalEntry | undefined }) {
           name: l.accountName,
           debit: l.debit,
           credit: l.credit,
+          description: l.description,
         }))}
       />
       <p className="text-xs text-muted-foreground">{POSTING_NOTE}</p>
@@ -757,23 +777,52 @@ function PostRunDialog({
     }),
     { gross: 0, ssnit: 0, ssnitEmployer: 0, tier2: 0, paye: 0, fines: 0, iou: 0, net: 0 },
   );
+  // Descriptions mirror exactly what post_payroll_run() will actually
+  // write onto each journal_lines row, so this preview and the posted
+  // card (PostedEntryCard below) render identically — the "(employee)"/
+  // "(employer)" suffixes on the two 2310 lines are an extra, preview-only
+  // clarity touch (immediately readable without a second glance at the
+  // description sub-line), not a substitute for it.
   const lines = [
-    { key: "5140", code: "5140", name: "Salaries & Wages Expense", debit: sums.gross, credit: 0 },
+    {
+      key: "5140",
+      code: "5140",
+      name: "Salaries & Wages Expense",
+      debit: sums.gross,
+      credit: 0,
+      description: `Gross pay — ${period}`,
+    },
     {
       key: "5145",
       code: "5145",
       name: "Employer SSNIT Contribution",
       debit: sums.ssnitEmployer,
       credit: 0,
+      description: `Employer SSNIT contribution — ${period}`,
     },
-    { key: "2300", code: "2300", name: "Salaries & Wages Payable", debit: 0, credit: sums.net },
-    { key: "2310e", code: "2310", name: "SSNIT Payable (employee)", debit: 0, credit: sums.ssnit },
+    {
+      key: "2300",
+      code: "2300",
+      name: "Salaries & Wages Payable",
+      debit: 0,
+      credit: sums.net,
+      description: `Net pay payable — ${period}`,
+    },
+    {
+      key: "2310e",
+      code: "2310",
+      name: "SSNIT Payable (employee)",
+      debit: 0,
+      credit: sums.ssnit,
+      description: `SSNIT withheld — ${period}`,
+    },
     {
       key: "2310r",
       code: "2310",
       name: "SSNIT Payable (employer)",
       debit: 0,
       credit: sums.ssnitEmployer,
+      description: `Employer SSNIT contribution — ${period}`,
     },
     {
       key: "2320",
@@ -781,10 +830,32 @@ function PostRunDialog({
       name: "Provident Fund (Tier 2) Payable",
       debit: 0,
       credit: sums.tier2,
+      description: `Tier 2 withheld — ${period}`,
     },
-    { key: "2330", code: "2330", name: "PAYE Payable", debit: 0, credit: sums.paye },
-    { key: "1350", code: "1350", name: "Advances to Staff", debit: 0, credit: sums.iou },
-    { key: "4910", code: "4910", name: "Staff Fines Recovered", debit: 0, credit: sums.fines },
+    {
+      key: "2330",
+      code: "2330",
+      name: "PAYE Payable",
+      debit: 0,
+      credit: sums.paye,
+      description: `PAYE withheld — ${period}`,
+    },
+    {
+      key: "1350",
+      code: "1350",
+      name: "Advances to Staff",
+      debit: 0,
+      credit: sums.iou,
+      description: `Staff advance recovery — ${period}`,
+    },
+    {
+      key: "4910",
+      code: "4910",
+      name: "Staff Fines Recovered",
+      debit: 0,
+      credit: sums.fines,
+      description: `Staff fines recovered — ${period}`,
+    },
   ].filter((l) => l.debit > 0 || l.credit > 0);
 
   return (
