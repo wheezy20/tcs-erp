@@ -1193,3 +1193,99 @@ only `styles.css` would have shipped no visible change at all).
 48×48 favicon and dark-mode logomark variant split into their own still-
 open item. `CLAUDE.md`: brand-assets bullet updated, new operational-
 specifics bullet for `optimizeDeps.entries`.
+
+## 2026-09-18 — Amend a pending pay config before approving
+
+A pending pay-config proposal (standalone salary/bank change, or the
+bundled initial pay config on a new-hire proposal) could previously only
+be Approved-as-submitted or Rejected — a mistyped account number meant a
+full reject/resubmit cycle, even though Contact & Placement fields on the
+same employee record are already directly editable with no approval gate
+at all. Requested with an explicit ask to see the RPC-shape plan before
+any code was written, since the audit-trail implication (not silently
+crediting the Accountant's proposal with a number the Manager actually
+changed) was the part that mattered most.
+
+### The RPC shape
+
+Went with the "extend the existing RPCs" option over a separate
+`amend_and_approve_pay_config()`, per the plan presented and confirmed:
+`approve_pay_config(p_config_id uuid, p_basic_salary numeric default
+null, p_payment_method text default null, p_bank text default null,
+p_account_no text default null)` and `approve_employee(p_employee_id
+uuid, ...)` with the same four trailing params — `null` means "leave as
+proposed." Both needed `drop function` + `create` (not `create or
+replace`) for the new argument lists, per the repo's function-overload
+convention (`scripts/check-duplicate-function-overloads.sh`).
+
+The override is applied inside the *same* `update` that flips
+`approval_status` to `'Active'`, in both functions — this is what makes
+the audit diff free: `audit_employee_pay_config()`'s `OLD` row is always
+exactly the Accountant's (or bundled-proposal's) original insert, and
+`NEW` is whatever the Manager actually approved, so a plain `OLD` vs `NEW`
+comparison on the four amendable columns is the whole detection
+mechanism — no new column, no snapshot table.
+
+### The new audit action
+
+`audit_employee_pay_config()` now branches on a
+`(old.basic_salary, old.payment_method, old.bank, old.account_no) is
+distinct from (new.*)` check, but only on a Pending→Active transition. A
+real difference emits `pay_config_amended_and_approved` (added to
+`audit_log_action_check`) with `before` built from `old.*` — the original
+proposed values, not just `{approval_status: 'Pending Approval'}` the way
+`pay_config_approved` records it — so the diff is self-contained in one
+audit row and doesn't depend on cross-referencing the earlier
+`pay_config_proposed` row. No difference still produces exactly
+`pay_config_approved`, byte-for-byte what it always emitted — verified by
+running both paths locally and diffing the resulting `audit_log` rows
+(see Verification). Reject is untouched; effective_from and the exemption
+flags are out of scope (exemptions are already direct-edit with no gate,
+and effective_from carries its own posted-payslip re-validation that
+would meaningfully complicate a same-statement amendment).
+
+### Frontend
+
+A shared `AdjustPayFields` component
+(`components/employees/payment-fields.tsx`, built on the existing
+`PaymentDestinationFields`) went into all three Approve surfaces: the
+standalone pending-config panel and the bundled-hire "Approve record"
+button on the employee profile page (`employees.$employeeId.tsx`), and
+both the new-employee and standalone-change rows of the list page's
+Approvals panel (`employees.index.tsx`, `NewEmployeeDetail` /
+`ConfigChangeDetail`). Each gets an "Adjust before approving" toggle,
+closed by default (plain approve, unchanged). Opening it always submits
+all four fields together, even ones left exactly as proposed — the
+trigger's own diff decides whether anything counts as an amendment, so
+the frontend never has to track per-field "touched" state or worry about
+sending a partial override. `employees-store.ts`'s `approvePayConfig()` /
+`approveEmployee()` both gained an optional `override` argument threaded
+straight to the RPC's four new params.
+
+### Verification
+
+Local `supabase db reset` applied
+`20260918100000_pay_config_amend_on_approve.sql` clean;
+`check-duplicate-function-overloads.sh` reported no duplicates;
+`database.types.ts` regenerated (diff limited to the two RPCs' `Args`
+gaining the four optional params, as expected). `tsc --noEmit` clean
+except the same pre-existing, unrelated `__root.tsx` error. Three
+Playwright runs against the local stack (Accountant proposes, Manager
+approves in a separate browser context so the two roles don't share a
+session):
+
+1. Standalone change, adjusted: proposed 3,500 → Manager adjusted to
+   3,750 → `audit_log` shows `pay_config_amended_and_approved`,
+   `before.basic_salary: 3500`, `after.basic_salary: 3750`.
+2. Standalone change, plain approve (no adjustment opened): proposed
+   2,900 → approved as-is → `audit_log` shows the unchanged
+   `pay_config_approved` shape, confirming the no-amendment path is
+   byte-for-byte what it was before this change.
+3. Bundled new-hire: proposed with an initial 1,500 basic salary →
+   Manager opened "Adjust before approving" on the bundled pay in the
+   Approvals panel and changed it to 1,800 → `audit_log` shows
+   `pay_config_amended_and_approved` with the same before/after shape,
+   and the employee record itself flipped to `Active` in the same action.
+
+Zero console/page errors across all three runs. No new `tsc`/`eslint`
+issues introduced.

@@ -3272,7 +3272,13 @@ export type Database = {
         }
       }
       approve_employee: {
-        Args: { p_employee_id: string }
+        Args: {
+          p_account_no?: string
+          p_bank?: string
+          p_basic_salary?: number
+          p_employee_id: string
+          p_payment_method?: string
+        }
         Returns: {
           branch_id: string
           created_at: string
@@ -3296,7 +3302,13 @@ export type Database = {
         }
       }
       approve_pay_config: {
-        Args: { p_config_id: string }
+        Args: {
+          p_account_no?: string
+          p_bank?: string
+          p_basic_salary?: number
+          p_config_id: string
+          p_payment_method?: string
+        }
         Returns: {
           account_no: string | null
           approval_status: string

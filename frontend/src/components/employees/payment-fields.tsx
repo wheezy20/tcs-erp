@@ -13,6 +13,33 @@ import {
   type PaymentKind,
 } from "@/data/payment-providers-store";
 
+/** The fields a Manager can amend on a pending pay config before approving
+ * it (see `AdjustPayFields` below) — basic salary + the same three
+ * payment-destination fields a propose dialog already collects. Kept as
+ * strings (not `number`) so the salary input behaves like every other
+ * salary `<Input type="number">` in this codebase (free typing, parsed on
+ * submit). */
+export type PayOverride = {
+  basicSalary: string;
+  paymentMethod: PaymentKind;
+  bank: string;
+  accountNo: string;
+};
+
+export function payOverrideFrom(cfg: {
+  basicSalary: number;
+  paymentMethod: PaymentKind;
+  bank: string | null;
+  accountNo: string | null;
+}): PayOverride {
+  return {
+    basicSalary: String(cfg.basicSalary),
+    paymentMethod: cfg.paymentMethod,
+    bank: cfg.bank ?? "",
+    accountNo: cfg.accountNo ?? "",
+  };
+}
+
 const NONE = "__none__";
 
 /** Provider picker backed by the school-editable `payment_providers`
@@ -108,5 +135,42 @@ export function PaymentDestinationFields({
         <Input value={number} disabled={disabled} onChange={(e) => onNumber(e.target.value)} />
       </div>
     </>
+  );
+}
+
+/** Basic salary + `PaymentDestinationFields`, pre-filled from a proposed
+ * pay config and fully controlled — the parent (a pending-approval detail
+ * view) owns `value`/`onChange` and decides at Approve-click time whether
+ * to send these as an override or not. Changing the payment method resets
+ * the provider field, same behavior as the propose dialogs. */
+export function AdjustPayFields({
+  value,
+  onChange,
+}: {
+  value: PayOverride;
+  onChange: (next: PayOverride) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-1.5">
+        <Label>Basic salary</Label>
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          value={value.basicSalary}
+          onChange={(e) => onChange({ ...value, basicSalary: e.target.value })}
+        />
+      </div>
+      <div />
+      <PaymentDestinationFields
+        method={value.paymentMethod}
+        provider={value.bank}
+        number={value.accountNo}
+        onMethod={(m) => onChange({ ...value, paymentMethod: m, bank: "" })}
+        onProvider={(b) => onChange({ ...value, bank: b })}
+        onNumber={(n) => onChange({ ...value, accountNo: n })}
+      />
+    </div>
   );
 }

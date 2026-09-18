@@ -299,8 +299,25 @@ export async function proposeEmployee(input: ProposeEmployeeInput): Promise<void
   await reload();
 }
 
-export async function approveEmployee(id: string): Promise<void> {
-  const { error } = await supabase.rpc("approve_employee", { p_employee_id: id });
+/** A Manager's amendment to a proposed pay config, applied in the same
+ * approval statement so the audit trigger can diff original-vs-approved
+ * (20260918, pay_config_amended_and_approved). `undefined`/omitted means
+ * approve-as-submitted, unchanged from before this existed. */
+export type PayConfigOverride = {
+  basicSalary: number;
+  paymentMethod: PaymentMethod;
+  bank: string;
+  accountNo: string;
+};
+
+export async function approveEmployee(id: string, override?: PayConfigOverride): Promise<void> {
+  const { error } = await supabase.rpc("approve_employee", {
+    p_employee_id: id,
+    p_basic_salary: override?.basicSalary,
+    p_payment_method: override?.paymentMethod,
+    p_bank: override?.bank,
+    p_account_no: override?.accountNo,
+  });
   if (error) throw error;
   await reload();
 }
@@ -362,8 +379,17 @@ export async function proposePayConfigChange(input: ProposePayConfigInput): Prom
   await reload();
 }
 
-export async function approvePayConfig(configId: string): Promise<void> {
-  const { error } = await supabase.rpc("approve_pay_config", { p_config_id: configId });
+export async function approvePayConfig(
+  configId: string,
+  override?: PayConfigOverride,
+): Promise<void> {
+  const { error } = await supabase.rpc("approve_pay_config", {
+    p_config_id: configId,
+    p_basic_salary: override?.basicSalary,
+    p_payment_method: override?.paymentMethod,
+    p_bank: override?.bank,
+    p_account_no: override?.accountNo,
+  });
   if (error) throw error;
   await reload();
 }

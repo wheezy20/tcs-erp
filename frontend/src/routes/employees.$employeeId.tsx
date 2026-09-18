@@ -24,7 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { PaymentDestinationFields } from "@/components/employees/payment-fields";
+import {
+  AdjustPayFields,
+  PaymentDestinationFields,
+  payOverrideFrom,
+  type PayOverride,
+} from "@/components/employees/payment-fields";
 import { RefListSelect } from "@/components/employees/ref-list-select";
 import { RejectButton } from "@/components/employees/reject-reason-dialog";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
@@ -151,7 +156,7 @@ function EmployeeProfilePage() {
         </div>
 
         <div className="space-y-6">
-          <StatusCard emp={emp} canWrite={canWrite} isManager={isManager} />
+          <StatusCard emp={emp} pending={pending} canWrite={canWrite} isManager={isManager} />
           <section className="card-surface p-6">
             <h2 className="text-sm font-semibold">Linked login</h2>
             {login ? (
@@ -273,6 +278,8 @@ function PayConfigSection({
 }) {
   const [busy, setBusy] = useState(false);
   const [showPropose, setShowPropose] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+  const [override, setOverride] = useState<PayOverride | null>(null);
 
   async function toggleExemption(next: { ssnit: boolean; tier2: boolean; paye: boolean }) {
     setBusy(true);
@@ -418,13 +425,68 @@ function PayConfigSection({
                 : ""}
             </span>
           </div>
+          {isManager && (
+            <div className="mt-3">
+              {!adjusting ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="px-0"
+                  onClick={() => {
+                    setOverride(payOverrideFrom(pending));
+                    setAdjusting(true);
+                  }}
+                >
+                  Adjust before approving
+                </Button>
+              ) : (
+                <div className="space-y-2 rounded-lg border p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Adjusting the proposed values — recorded as an amendment, separate from what
+                      was proposed.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setAdjusting(false);
+                        setOverride(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  {override && <AdjustPayFields value={override} onChange={setOverride} />}
+                </div>
+              )}
+            </div>
+          )}
           <div className="mt-3 flex flex-wrap gap-2">
             {isManager && (
               <>
                 <Button
                   size="sm"
                   disabled={busy}
-                  onClick={() => act(() => approvePayConfig(pending.id), "Pay change approved")}
+                  onClick={() =>
+                    act(
+                      () =>
+                        approvePayConfig(
+                          pending.id,
+                          adjusting && override
+                            ? {
+                                basicSalary: Number(override.basicSalary) || 0,
+                                paymentMethod: override.paymentMethod,
+                                bank: override.bank,
+                                accountNo: override.accountNo,
+                              }
+                            : undefined,
+                        ),
+                      "Pay change approved",
+                    )
+                  }
                 >
                   Approve
                 </Button>
@@ -738,14 +800,18 @@ function HistoryTable({ rows }: { rows: PayConfig[] }) {
 
 function StatusCard({
   emp,
+  pending,
   canWrite,
   isManager,
 }: {
   emp: Employee;
+  pending: PayConfig | undefined;
   canWrite: boolean;
   isManager: boolean;
 }) {
   const [busy, setBusy] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+  const [override, setOverride] = useState<PayOverride | null>(null);
 
   async function act(fn: () => Promise<void>, ok: string) {
     setBusy(true);
@@ -767,9 +833,60 @@ function StatusCard({
       <div className="mt-4 flex flex-col gap-2">
         {emp.status === "Pending Approval" && isManager && (
           <>
+            {pending &&
+              (!adjusting ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="justify-start px-0"
+                  onClick={() => {
+                    setOverride(payOverrideFrom(pending));
+                    setAdjusting(true);
+                  }}
+                >
+                  Adjust bundled pay before approving
+                </Button>
+              ) : (
+                <div className="space-y-2 rounded-lg border p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Adjusting the proposed pay — recorded as an amendment.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setAdjusting(false);
+                        setOverride(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  {override && <AdjustPayFields value={override} onChange={setOverride} />}
+                </div>
+              ))}
             <Button
               disabled={busy}
-              onClick={() => act(() => approveEmployee(emp.id), `${emp.name} approved`)}
+              onClick={() =>
+                act(
+                  () =>
+                    approveEmployee(
+                      emp.id,
+                      adjusting && override
+                        ? {
+                            basicSalary: Number(override.basicSalary) || 0,
+                            paymentMethod: override.paymentMethod,
+                            bank: override.bank,
+                            accountNo: override.accountNo,
+                          }
+                        : undefined,
+                    ),
+                  `${emp.name} approved`,
+                )
+              }
             >
               Approve record
             </Button>

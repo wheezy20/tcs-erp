@@ -272,6 +272,43 @@ depend on them holding true for every new table/function added.
   `employees` / `employee_pay_config` — audit_log stays trigger-written-
   only, actor `coalesce(auth.uid(), proposed_by)`, skipped when null
   (seed/migration).
+- **Amend-then-approve, not reject-then-resubmit — and the audit trail must
+  say which one happened (`20260918`).** A Manager can correct a pending
+  pay config's basic salary / payment method / bank / account number in the
+  same click as approving it, rather than being forced through a full
+  reject/resubmit cycle for a typo. `approve_pay_config()` and
+  `approve_employee()` each gained four optional trailing parameters
+  (`p_basic_salary`, `p_payment_method`, `p_bank`, `p_account_no`, all
+  `default null` — "leave as proposed") rather than a separate
+  `amend_and_approve_*` RPC: the bundled-vs-standalone split already forces
+  two entry points (`approve_pay_config()` refuses a not-yet-`Active`
+  employee's bundled config; `approve_employee()` cascades it instead), so
+  widening both is no new surface, and it keeps "adjust" and "approve" one
+  atomic statement/audit event instead of two. The override, when given, is
+  applied in the *same* `update` that flips `approval_status` to `Active`,
+  so `audit_employee_pay_config()`'s `OLD` row is always the Accountant's
+  original proposal and `NEW` is whatever the Manager actually approved — a
+  direct diff, no extra bookkeeping column. The trigger compares
+  `(old.basic_salary, old.payment_method, old.bank, old.account_no)` against
+  `new.*` on every Pending→Active transition; a real difference gets its own
+  action, `pay_config_amended_and_approved`, with `before` set to the
+  *original proposed values* (not just `{approval_status: 'Pending
+  Approval'}` the way `pay_config_approved` records it) so the diff survives
+  independently of the earlier `pay_config_proposed` row — an unamended
+  approval is still exactly `pay_config_approved`, byte-for-byte unchanged.
+  Scope is deliberately narrow: `effective_from` and the exemption flags are
+  not amendable this way (exemptions are already direct-edit with no gate;
+  `effective_from` carries its own posted-payslip re-validation that would
+  complicate a same-statement amendment). Reject is untouched — no
+  amendment path there. On the frontend, every Approve surface (the
+  standalone pending-config panel and the bundled-hire status card on the
+  employee profile page, and both rows of the list page's Approvals panel)
+  offers an "Adjust before approving" toggle
+  (`AdjustPayFields`/`PaymentDestinationFields` in
+  `components/employees/payment-fields.tsx`) that always sends all four
+  fields together when opened, even ones left unedited — the trigger's own
+  diff is what decides whether anything actually counts as an amendment, so
+  the frontend doesn't need to track per-field "touched" state.
 - **Entity-wide reference data goes in the migration, not `seed.sql`.**
   Rows that must exist in *every* environment and have no branch/staff FK
   — the chart of accounts, statutory rates, PAYE bands, `payment_providers`,

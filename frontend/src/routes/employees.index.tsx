@@ -25,7 +25,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { PaymentDestinationFields } from "@/components/employees/payment-fields";
+import {
+  AdjustPayFields,
+  PaymentDestinationFields,
+  payOverrideFrom,
+  type PayOverride,
+} from "@/components/employees/payment-fields";
 import { RefListSelect } from "@/components/employees/ref-list-select";
 import { RejectButton } from "@/components/employees/reject-reason-dialog";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
@@ -341,10 +346,21 @@ function ApprovalsPanel({
                             emp={row.emp}
                             pay={row.pay}
                             busy={busy}
-                            onApprove={() =>
+                            onApprove={(override) =>
                               run(
                                 row.id,
-                                () => approveEmployee(row.emp.id),
+                                () =>
+                                  approveEmployee(
+                                    row.emp.id,
+                                    override
+                                      ? {
+                                          basicSalary: Number(override.basicSalary) || 0,
+                                          paymentMethod: override.paymentMethod,
+                                          bank: override.bank,
+                                          accountNo: override.accountNo,
+                                        }
+                                      : undefined,
+                                  ),
                                 `${row.emp.name} approved`,
                               )
                             }
@@ -355,8 +371,23 @@ function ApprovalsPanel({
                             cfg={row.cfg}
                             emp={row.emp}
                             busy={busy}
-                            onApprove={() =>
-                              run(row.id, () => approvePayConfig(row.cfg.id), "Pay change approved")
+                            onApprove={(override) =>
+                              run(
+                                row.id,
+                                () =>
+                                  approvePayConfig(
+                                    row.cfg.id,
+                                    override
+                                      ? {
+                                          basicSalary: Number(override.basicSalary) || 0,
+                                          paymentMethod: override.paymentMethod,
+                                          bank: override.bank,
+                                          accountNo: override.accountNo,
+                                        }
+                                      : undefined,
+                                  ),
+                                "Pay change approved",
+                              )
                             }
                             onReject={(reason) => rejectPayConfig(row.cfg.id, reason)}
                           />
@@ -395,6 +426,54 @@ function payLine(pay: PayConfig): string {
     .join(" · ");
 }
 
+/** Toggle + fields shared by `NewEmployeeDetail` and `ConfigChangeDetail`:
+ * "Approve as submitted" by default, or open "Adjust before approving" to
+ * correct a proposed value first. Opening it always sends all four fields
+ * on Approve (even ones left as proposed) — the backend diffs old vs new
+ * itself, so an untouched field is a no-op and the audit trail only ever
+ * flags a real change (`pay_config_amended_and_approved`). */
+function useApprovalAdjustment(proposed: {
+  basicSalary: number;
+  paymentMethod: PaymentMethod;
+  bank: string | null;
+  accountNo: string | null;
+}) {
+  const [adjusting, setAdjusting] = useState(false);
+  const [override, setOverride] = useState<PayOverride>(() => payOverrideFrom(proposed));
+  const reset = () => setOverride(payOverrideFrom(proposed));
+  return { adjusting, setAdjusting, override, setOverride, reset };
+}
+
+function AdjustToggle({
+  adjusting,
+  onOpen,
+  onCancel,
+}: {
+  adjusting: boolean;
+  onOpen: () => void;
+  onCancel: () => void;
+}) {
+  if (!adjusting) {
+    return (
+      <Button type="button" size="sm" variant="ghost" onClick={onOpen}>
+        Adjust before approving
+      </Button>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-muted-foreground">
+          Adjusting the proposed values — recorded as an amendment, separate from what was proposed.
+        </p>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function NewEmployeeDetail({
   emp,
   pay,
@@ -405,9 +484,12 @@ function NewEmployeeDetail({
   emp: Employee;
   pay: PayConfig | undefined;
   busy: boolean;
-  onApprove: () => void;
+  onApprove: (override: PayOverride | null) => void;
   onReject: (reason: string) => Promise<void>;
 }) {
+  const { adjusting, setAdjusting, override, setOverride, reset } = useApprovalAdjustment(
+    pay ?? { basicSalary: 0, paymentMethod: "Bank", bank: null, accountNo: null },
+  );
   return (
     <div className="space-y-3">
       <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-3">
@@ -423,8 +505,26 @@ function NewEmployeeDetail({
       <p className="text-xs text-muted-foreground">
         Approving the record also approves its bundled pay config, in one step.
       </p>
+      {pay && (
+        <>
+          <AdjustToggle
+            adjusting={adjusting}
+            onOpen={() => setAdjusting(true)}
+            onCancel={() => {
+              reset();
+              setAdjusting(false);
+            }}
+          />
+          {adjusting && <AdjustPayFields value={override} onChange={setOverride} />}
+        </>
+      )}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" className="gap-1.5" disabled={busy} onClick={onApprove}>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          disabled={busy}
+          onClick={() => onApprove(adjusting ? override : null)}
+        >
           <Check className="size-3.5" /> Approve
         </Button>
         <RejectButton
@@ -452,9 +552,10 @@ function ConfigChangeDetail({
   cfg: PayConfig;
   emp: Employee | undefined;
   busy: boolean;
-  onApprove: () => void;
+  onApprove: (override: PayOverride | null) => void;
   onReject: (reason: string) => Promise<void>;
 }) {
+  const { adjusting, setAdjusting, override, setOverride, reset } = useApprovalAdjustment(cfg);
   return (
     <div className="space-y-3">
       <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-3">
@@ -470,8 +571,22 @@ function ConfigChangeDetail({
         />
         <DetailField label="Effective from" value={cfg.effectiveFrom} />
       </dl>
+      <AdjustToggle
+        adjusting={adjusting}
+        onOpen={() => setAdjusting(true)}
+        onCancel={() => {
+          reset();
+          setAdjusting(false);
+        }}
+      />
+      {adjusting && <AdjustPayFields value={override} onChange={setOverride} />}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" className="gap-1.5" disabled={busy} onClick={onApprove}>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          disabled={busy}
+          onClick={() => onApprove(adjusting ? override : null)}
+        >
           <Check className="size-3.5" /> Approve
         </Button>
         <RejectButton
