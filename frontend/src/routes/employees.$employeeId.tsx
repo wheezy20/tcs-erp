@@ -32,6 +32,7 @@ import {
 } from "@/components/employees/payment-fields";
 import { RefListSelect } from "@/components/employees/ref-list-select";
 import { RejectButton } from "@/components/employees/reject-reason-dialog";
+import { actionLabel, summarizeAuditEntry, useEmployeeAuditHistory } from "@/data/audit-history";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import {
@@ -153,6 +154,11 @@ function EmployeeProfilePage() {
           )}
 
           {history.length > 0 && <HistoryTable rows={history} />}
+
+          <HistorySection
+            employeeId={emp.id}
+            configIds={configs.filter((c) => c.employeeId === emp.id).map((c) => c.id)}
+          />
         </div>
 
         <div className="space-y-6">
@@ -794,6 +800,56 @@ function HistoryTable({ rows }: { rows: PayConfig[] }) {
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+/** Full audit trail for this employee — profile status changes plus every
+ * pay-config event (proposed/approved/amended/rejected/exemptions), newest
+ * first. `configIds` covers every `employee_pay_config` row ever proposed
+ * for this employee (any approval_status — a rejected or superseded
+ * proposal is still part of the history), since a pay-config audit row's
+ * `entity_id` is the config row's id, not the employee's. RLS on
+ * `audit_log` already restricts reads to Manager/Accountant/Auditor, same
+ * as `employees`/`employee_pay_config` — an Attendant would see this page
+ * with no data at all, not just this section, so no extra role gate here. */
+function HistorySection({ employeeId, configIds }: { employeeId: string; configIds: string[] }) {
+  const { entries, loading, error } = useEmployeeAuditHistory(employeeId, configIds);
+  const { staff: roster } = useStaff();
+  const staffName = (id: string) => roster.find((s) => s.id === id)?.name ?? "Unknown";
+
+  return (
+    <section className="card-surface overflow-hidden">
+      <p className="border-b p-4 text-sm font-semibold">History</p>
+      {loading && <p className="p-4 text-sm text-muted-foreground">Loading…</p>}
+      {error && <p className="p-4 text-sm text-destructive">Could not load history: {error}</p>}
+      {!loading && !error && entries.length === 0 && (
+        <p className="p-4 text-sm text-muted-foreground">No recorded activity yet.</p>
+      )}
+      {!loading && !error && entries.length > 0 && (
+        <ul className="divide-y">
+          {entries.map((entry) => {
+            const lines = summarizeAuditEntry(entry);
+            return (
+              <li key={entry.id} className="p-4 text-sm">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <span className="font-medium">{actionLabel(entry.action)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {staffName(entry.actorId)} · {entry.occurredAt.slice(0, 16).replace("T", " ")}
+                  </span>
+                </div>
+                {lines.length > 0 && (
+                  <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                    {lines.map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }
