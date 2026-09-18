@@ -74,7 +74,13 @@ export const TIMEZONES = [
   "EAT (Africa/Nairobi)",
   "UTC",
 ];
-export const DEFAULT_ACCENT = "#00029B";
+// TCS brand deep teal (sampled from frontend/brand/ artwork). AccentSync
+// applies this inline on document.documentElement, which is what actually
+// drives --primary/--accent/--ring/--sidebar-*/--chart-1 at runtime — the
+// styles.css defaults are only a pre-hydration/no-JS fallback, so this is
+// the value that has to change for a re-theme to be visible at all. Was an
+// unrelated indigo placeholder (#00029B).
+export const DEFAULT_ACCENT = "#005e61";
 
 /** Printable widths in millimetres. */
 export const PAPER_WIDTH_MM: Record<ReceiptPaper | InvoicePaper, number> = {

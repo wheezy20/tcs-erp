@@ -122,6 +122,16 @@ Operational specifics not covered there:
 - **Before committing anything under `supabase/migrations/`**, run
   `scripts/check-duplicate-function-overloads.sh` alongside lint and
   `npx supabase db reset`.
+- **`vite.config.ts` sets `optimizeDeps.entries` to the whole
+  `src/routes/**` glob.** Without it, Vite's dev-server dependency scanner
+  only crawls pages visited so far in the session; the first visit to an
+  unvisited route can trigger a mid-session re-optimization whose stale
+  client/server module-map mismatch throws a `SyntaxError` on import and
+  leaves the in-flight navigation showing the previous page until a hard
+  reload (`20260916`, see docs/JOURNAL.md). Dev-only — the production
+  Cloudflare Worker build has no runtime dependency discovery. Keep this
+  entry if a new top-level route directory is ever added outside
+  `src/routes/`.
 
 ## Local dev-only test accounts
 
@@ -198,7 +208,9 @@ their own credentials, against their own project.
 - Real TCS brand assets are in place: favicons + `site.webmanifest` under
   `frontend/public/`, `public/tcs-logomark.png` in the sidebar + login.
   Master logo library is `frontend/brand/` (not web-served). The app theme
-  is still indigo, not the brand teal — see `docs/JOURNAL.md`.
+  is re-themed to the brand deep teal — see `docs/DESIGN.md`'s Branding
+  section for where `--primary` is actually set (two places, and it's not
+  the one in `styles.css`).
 
 ## SSR error handling
 

@@ -39,30 +39,37 @@ function AccountingLayout() {
       <PageHeader
         title="Accounting"
         description="The chart of accounts, journal entries, general ledger and financial reports behind the books."
-        actions={
-          canView ? (
-            <div className="flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1">
-              {TABS.map((tab) => {
-                const active = tab.exact ? pathname === tab.to : pathname.startsWith(tab.to);
-                return (
-                  <Link
-                    key={tab.to}
-                    to={tab.to}
-                    className={cn(
-                      "rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors",
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {tab.label}
-                  </Link>
-                );
-              })}
-            </div>
-          ) : undefined
-        }
       />
+
+      {/* A standalone, full-width row rather than PageHeader's `actions`
+          slot: with 7 tabs this pill competes with the title for width
+          there, and at ~1200px loses — the last tab or two wrap onto their
+          own line inside the rounded border, looking broken. Full width +
+          `overflow-x-auto`/`flex-nowrap` means it either fits on one line
+          or scrolls horizontally; it never wraps. */}
+      {canView && (
+        <div className="mb-6 overflow-x-auto">
+          <div className="inline-flex flex-nowrap gap-1 rounded-xl border border-border bg-card p-1">
+            {TABS.map((tab) => {
+              const active = tab.exact ? pathname === tab.to : pathname.startsWith(tab.to);
+              return (
+                <Link
+                  key={tab.to}
+                  to={tab.to}
+                  className={cn(
+                    "shrink-0 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Same shape as Reports' route guard (and Session 12's own, now
           moved up here since it applies uniformly to every tab, including

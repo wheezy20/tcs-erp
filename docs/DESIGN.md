@@ -315,5 +315,19 @@ document/report titles, exported filenames, localStorage keys, Supabase
 walkthrough follow-up): the favicon set + `site.webmanifest` under
 `frontend/public/`, and `public/tcs-logomark.png` in the sidebar + login.
 The master logo library lives in `frontend/brand/` (out of the web dir).
-Still open: the app theme's `--primary` is indigo, not the brand teal —
-re-theming wasn't done. See JOURNAL.md.
+`--primary` is re-themed to the brand deep teal `#005e61` (`20260916`),
+sampled directly from the artwork in `frontend/brand/` rather than
+guessed — see "Two places define `--primary`" below and JOURNAL.md. A
+true 48×48 favicon and a dark-mode logomark variant are still outstanding.
+
+- **Two places define `--primary` — the runtime one wins.**
+  `styles.css`'s `:root`/`.dark` `--primary` is only the pre-hydration/
+  no-JS fallback. `AccentSync` (`components/settings/accent-sync.tsx`)
+  always runs on mount and overwrites `--primary`/`--accent`/`--ring`/
+  `--sidebar-primary`/`--sidebar-accent`/`--chart-1` with an inline style
+  from `appearance.accent` (`settings-store.ts`, `localStorage`-backed —
+  a school could pick its own accent color from Settings). So changing
+  the CSS token alone has **no visible effect**; `DEFAULT_ACCENT` must
+  change too, and that's the value that actually matters for what a
+  fresh browser profile sees. Both are kept in sync to the same brand hex
+  so there's no flash-of-wrong-color between first paint and hydration.

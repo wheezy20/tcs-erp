@@ -23,9 +23,11 @@ Things that shape how this gets built, not just what gets built.
       **Cloudflare Workers build environment** (build-time — see below),
       then `wrangler deploy` from a Node ≥ 22 runner with a CF API token.
 - [x] Real TCS logo / favicon assets — done (favicons + manifest in
-      `frontend/public/`, logomark in the sidebar + login). Remaining: a
-      true 48×48 favicon (currently downscaled), a dark-mode logomark
-      variant, and re-theming `--primary` from indigo to the brand teal.
+      `frontend/public/`, logomark in the sidebar + login).
+- [x] Re-theme `--primary` from indigo to the brand deep teal (`#005e61`)
+      — done, `20260916` (see docs/JOURNAL.md).
+- [ ] A true 48×48 favicon (currently downscaled) and a dark-mode
+      logomark variant are still outstanding — see docs/JOURNAL.md.
 
 ## Data safety
 

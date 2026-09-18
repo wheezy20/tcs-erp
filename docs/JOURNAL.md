@@ -1097,3 +1097,99 @@ $APP_URL/accept-invite>` to the invite call. Same allow-list caveat as the
 Edge Function: GoTrue only honors a `redirect_to` on the project's
 `site_url` / `additional_redirect_urls` list. CLAUDE.md's bootstrap
 command updated with the new var.
+
+## 2026-09-16 — Nav glitch fix, Accounting tab-wrap fix, brand teal re-theme
+
+Three small polish items, investigated + fixed.
+
+### Rare "previous page stays on screen" glitch on navigation
+
+Reviewed every route-level component in the reported path (`payroll.tsx`,
+`payroll.pay-config.tsx`, `accounting.tsx`) plus `AppShell` / `AuthGate` /
+`router.tsx` for a missing `key` or leaked local state — found none; all
+are pure functions of `pathname`/store data, no `useState` that could
+survive a navigation. Reproduced the actual glitch with a scripted
+headless run (20+ rapid Payroll↔Accounting navigations): one run threw
+`SyntaxError: ... does not provide an export named 'useSelector'` from a
+`.vite/deps` chunk, at the exact moment the dev server's log showed
+`[optimizer] bundling dependencies...` — i.e. **Vite's dev-only dependency
+pre-bundler re-optimizing mid-navigation**. It only discovers a route's
+transitive dependencies the first time that route is visited in a
+session; visiting a rarely-opened page (Payroll → Setup, which pulls in
+stores no other page touches) can trigger a fresh re-bundle whose
+in-flight module-graph swap leaves the client and server briefly
+disagreeing about a chunk's exports — the navigation gets stuck showing
+the old page until a hard reload re-fetches the now-consistent bundle
+(exactly the reported symptom). Not present in the production Cloudflare
+Worker build, which has no runtime dependency discovery at all.
+
+Fix: `vite.config.ts` now sets `optimizeDeps.entries: ["src/routes/**/*.tsx",
+"src/routes/**/*.ts"]`, so Vite crawls every route's full import graph at
+dev-server start instead of discovering it piecemeal as pages get
+visited. Verified: cleared `.vite` cache, cold-started, and the first-ever
+visit to Setup then Accounting in a fresh session rendered correctly with
+zero console errors (previously the failure mode was specifically a
+first-visit-to-an-unvisited-route event). See CLAUDE.md's operational
+specifics list.
+
+### Accounting tab bar wrapping at ~1200px
+
+`accounting.tsx`'s 7 tabs lived in `PageHeader`'s `actions` slot
+(`flex flex-wrap`), competing with the title for width — at ~1200px it
+lost, wrapping "Cash Flow" onto its own line inside the rounded pill.
+Moved the tab bar out of `actions` into its own full-width row below the
+header, `overflow-x-auto` + `flex-nowrap` + `shrink-0 whitespace-nowrap`
+tabs: it either fits on one line or scrolls horizontally, never wraps.
+Verified at 1200px viewport — all 7 tabs render on one row (Playwright
+`boundingBox()` check: "Chart of Accounts" and "Cash Flow" at the same
+y-coordinate) with a screenshot confirming no visual break.
+
+### Re-themed `--primary` to the brand teal
+
+Sampled actual pixel colors out of `frontend/brand/*.png` (Python/Pillow)
+rather than reusing memory of the palette — confirmed: deep teal
+`#005e61`, green `#11b87a`, orange `#f15e00`, gold-amber `#edbb0f`. Teal
+is the wordmark/text color in the horizontal logo and the obvious
+`--primary` — white-on-teal contrast is 7.6:1 (clears AAA). The gold-amber
+`#edbb0f` the user flagged turns out to already closely match the
+existing `--warning` token (`oklch(0.78 0.15 78)` vs. teal-gold's own
+`oklch(0.814 0.164 88.9)`), so no separate change was needed there.
+
+Two places actually needed changing, not one — `styles.css`'s `--primary`
+is only the pre-hydration CSS fallback; `AccentSync` always overwrites it
+at runtime from `settings-store.ts`'s `DEFAULT_ACCENT` (a
+`localStorage`-backed, school-editable "accent colour" in Settings →
+Appearance), which is what a real browser actually shows. Changed both,
+to the same `oklch(0.438 0.074 198.6)` / `#005e61`, so there's no
+flash-of-indigo before hydration and "Reset" in Settings restores the
+real brand color. `--accent`/`--ring`/`--chart-1`/`--sidebar-primary`/
+`--sidebar-accent`/the Liquid Glass tint all already derive from
+`--primary` via `var()`/`color-mix()`, so the whole app re-themed from
+these two edits with no other file touched.
+
+Verified: computed `getComputedStyle(document.documentElement)
+.getPropertyValue("--primary")` = `#005e61` in both light and dark mode;
+screenshots confirm the sidebar active state, primary buttons, badges,
+and the dashboard revenue chart line all render teal, consistently across
+both themes.
+
+### Verification (all three)
+
+`tsc --noEmit` — clean except one **pre-existing, unrelated** error in
+`__root.tsx`'s `ErrorComponent` typing (confirmed present on `HEAD` before
+any of today's changes via `git stash`; not touched, out of scope).
+`eslint src` — only the pre-existing `accent-sync.tsx:32` prettier error
+and the usual `react-refresh` warnings. `vite build` — exit 0, unaffected
+by `optimizeDeps` (a dev-only Vite option). No schema changes, so no
+`db reset` / `gen types` / dup-overload check needed this round.
+
+### Docs
+
+`docs/DESIGN.md`'s Branding section updated: re-theme done, plus a new
+"Two places define `--primary`" note explaining the `AccentSync` /
+`DEFAULT_ACCENT` runtime-override relationship (a real gotcha — editing
+only `styles.css` would have shipped no visible change at all).
+`docs/CONSTRAINTS.md`'s go-live checklist: re-theme checked off; the
+48×48 favicon and dark-mode logomark variant split into their own still-
+open item. `CLAUDE.md`: brand-assets bullet updated, new operational-
+specifics bullet for `optimizeDeps.entries`.
