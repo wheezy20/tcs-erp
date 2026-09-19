@@ -156,6 +156,27 @@ per-table role check.
   than it needs to be — the DESIGN.md conventions exist partly for this
   reason.
 
+## HR expansion beyond payroll (as of 20260919)
+
+Building HR out beyond Payroll, informed by TCS's existing Google Apps
+Script HR system (field names, workflow logic, email conventions —
+**not** its security model, which is a public Google Form with no RLS).
+Recruitment (Careers form, Applicant pipeline, Interview Tracker) stays
+on that existing Apps Script system for now — out of scope here, to be
+migrated in its own later phase.
+
+**Explicitly deferred, uniformly, per Eyram's confirmed decision**: Leave,
+KPI & Performance, Training, Disciplinary, and Exit & Offboarding. All
+five exist in the source spreadsheet as full column structures with
+seeded dropdown enums, but none has any actual working logic behind it
+(no Apps Script automation touches any of them) — there's nothing
+"existing" to preserve, just a column shape to copy later if any of
+these becomes real work. Not building placeholder schema for features
+that were never functioning anywhere. If/when one of these becomes real,
+the source spreadsheet's own tab (`05 LEAVE`, `06 KPI & PERFORMANCE`,
+`07 TRAINING`, `08 DISCIPLINARY`, `09 EXIT & OFFBOARDING`) is the
+reference for field names and dropdown enums to start from.
+
 ## Ghana-specific context worth keeping in mind
 
 - Currency: GH₵ throughout.

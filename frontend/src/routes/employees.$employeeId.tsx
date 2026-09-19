@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AdjustPayFields,
   PaymentDestinationFields,
@@ -52,6 +53,7 @@ import {
   useEmployees,
   withdrawPayConfigProposal,
   type Employee,
+  type EmploymentType,
   type PayConfig,
   type PaymentMethod,
 } from "@/data/employees-store";
@@ -134,6 +136,12 @@ function EmployeeProfilePage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <ProfileForm key={emp.id} emp={emp} canWrite={canWrite && emp.status !== "Rejected"} />
+
+          <HrDetailsSection
+            key={`hr-${emp.id}`}
+            emp={emp}
+            canWrite={canWrite && emp.status !== "Rejected"}
+          />
 
           <PayConfigSection
             emp={emp}
@@ -254,6 +262,298 @@ function ProfileForm({ emp, canWrite }: { emp: Employee; canWrite: boolean }) {
           />
         </div>
       </div>
+      {canWrite && (
+        <div className="mt-6">
+          <Button onClick={save} disabled={!dirty || saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const EMPLOYMENT_TYPES: EmploymentType[] = [
+  "Full-Time",
+  "Part-Time",
+  "Contract",
+  "Volunteer",
+  "Intern",
+];
+
+/** A separate card/save from ProfileForm's phone/position/department —
+ * this one saves independently via updateEmployeeProfile()'s optional
+ * trailing HR-details params, which leave phone/position/department
+ * exactly as they are (the RPC always re-sets them to their current
+ * value here, never touching what ProfileForm owns). No approval gate,
+ * same as ProfileForm — every field is a plain current-state fact. Bank
+ * details and salary are deliberately not here — those stay in
+ * PayConfigSection below, approval-gated. */
+function HrDetailsSection({ emp, canWrite }: { emp: Employee; canWrite: boolean }) {
+  const [dateOfBirth, setDateOfBirth] = useState(emp.dateOfBirth ?? "");
+  const [gender, setGender] = useState(emp.gender ?? "");
+  const [preferredName, setPreferredName] = useState(emp.preferredName ?? "");
+  const [nationalId, setNationalId] = useState(emp.nationalId ?? "");
+  const [personalEmail, setPersonalEmail] = useState(emp.personalEmail ?? "");
+  const [schoolEmail, setSchoolEmail] = useState(emp.schoolEmail ?? "");
+  const [employmentType, setEmploymentType] = useState(emp.employmentType ?? "");
+  const [startDate, setStartDate] = useState(emp.startDate ?? "");
+  const [probationEndDate, setProbationEndDate] = useState(emp.probationEndDate ?? "");
+  const [contractEndDate, setContractEndDate] = useState(emp.contractEndDate ?? "");
+  const [emergencyContactName, setEmergencyContactName] = useState(emp.emergencyContactName ?? "");
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState(
+    emp.emergencyContactPhone ?? "",
+  );
+  const [residentialAddress, setResidentialAddress] = useState(emp.residentialAddress ?? "");
+  const [qualifications, setQualifications] = useState(emp.qualifications ?? "");
+  const [ssnitNumber, setSsnitNumber] = useState(emp.ssnitNumber ?? "");
+  const [tinNumber, setTinNumber] = useState(emp.tinNumber ?? "");
+  const [churchDenomination, setChurchDenomination] = useState(emp.churchDenomination ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const current = {
+    dateOfBirth,
+    gender,
+    preferredName,
+    nationalId,
+    personalEmail,
+    schoolEmail,
+    employmentType,
+    startDate,
+    probationEndDate,
+    contractEndDate,
+    emergencyContactName,
+    emergencyContactPhone,
+    residentialAddress,
+    qualifications,
+    ssnitNumber,
+    tinNumber,
+    churchDenomination,
+  };
+  const original = {
+    dateOfBirth: emp.dateOfBirth ?? "",
+    gender: emp.gender ?? "",
+    preferredName: emp.preferredName ?? "",
+    nationalId: emp.nationalId ?? "",
+    personalEmail: emp.personalEmail ?? "",
+    schoolEmail: emp.schoolEmail ?? "",
+    employmentType: emp.employmentType ?? "",
+    startDate: emp.startDate ?? "",
+    probationEndDate: emp.probationEndDate ?? "",
+    contractEndDate: emp.contractEndDate ?? "",
+    emergencyContactName: emp.emergencyContactName ?? "",
+    emergencyContactPhone: emp.emergencyContactPhone ?? "",
+    residentialAddress: emp.residentialAddress ?? "",
+    qualifications: emp.qualifications ?? "",
+    ssnitNumber: emp.ssnitNumber ?? "",
+    tinNumber: emp.tinNumber ?? "",
+    churchDenomination: emp.churchDenomination ?? "",
+  };
+  const dirty = Object.keys(current).some(
+    (k) => current[k as keyof typeof current] !== original[k as keyof typeof original],
+  );
+
+  async function save() {
+    setSaving(true);
+    try {
+      await updateEmployeeProfile(
+        emp.id,
+        { phone: emp.phone ?? "", position: emp.position ?? "", department: emp.department ?? "" },
+        {
+          dateOfBirth: dateOfBirth || undefined,
+          gender,
+          preferredName,
+          nationalId,
+          personalEmail,
+          schoolEmail,
+          employmentType: (employmentType || undefined) as EmploymentType | undefined,
+          startDate: startDate || undefined,
+          probationEndDate: probationEndDate || undefined,
+          contractEndDate: contractEndDate || undefined,
+          emergencyContactName,
+          emergencyContactPhone,
+          residentialAddress,
+          qualifications,
+          ssnitNumber,
+          tinNumber,
+          churchDenomination,
+        },
+      );
+      toast.success("HR details updated");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not save."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="card-surface p-6">
+      <h2 className="text-sm font-semibold">HR details</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {canWrite ? "Direct edit — no approval needed." : "Read-only for your role."}
+      </p>
+
+      <div className="mt-5 grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Preferred name</Label>
+          <Input
+            value={preferredName}
+            disabled={!canWrite}
+            onChange={(e) => setPreferredName(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Gender</Label>
+          <Input value={gender} disabled={!canWrite} onChange={(e) => setGender(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Date of birth</Label>
+          <Input
+            type="date"
+            value={dateOfBirth}
+            disabled={!canWrite}
+            onChange={(e) => setDateOfBirth(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>National ID number</Label>
+          <Input
+            value={nationalId}
+            disabled={!canWrite}
+            onChange={(e) => setNationalId(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Personal email</Label>
+          <Input
+            type="email"
+            value={personalEmail}
+            disabled={!canWrite}
+            onChange={(e) => setPersonalEmail(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>School email</Label>
+          <Input
+            type="email"
+            value={schoolEmail}
+            disabled={!canWrite}
+            onChange={(e) => setSchoolEmail(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Employment type</Label>
+          <Select
+            value={employmentType || undefined}
+            onValueChange={setEmploymentType}
+            disabled={!canWrite}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select employment type" />
+            </SelectTrigger>
+            <SelectContent>
+              {EMPLOYMENT_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div />
+        <div className="space-y-2">
+          <Label>Start date</Label>
+          <Input
+            type="date"
+            value={startDate}
+            disabled={!canWrite}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Probation end date</Label>
+          <Input
+            type="date"
+            value={probationEndDate}
+            disabled={!canWrite}
+            onChange={(e) => setProbationEndDate(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Contract end date</Label>
+          <Input
+            type="date"
+            value={contractEndDate}
+            disabled={!canWrite}
+            onChange={(e) => setContractEndDate(e.target.value)}
+          />
+        </div>
+        <div />
+
+        <div className="space-y-2">
+          <Label>Emergency contact name</Label>
+          <Input
+            value={emergencyContactName}
+            disabled={!canWrite}
+            onChange={(e) => setEmergencyContactName(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Emergency contact phone</Label>
+          <Input
+            value={emergencyContactPhone}
+            disabled={!canWrite}
+            onChange={(e) => setEmergencyContactPhone(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>SSNIT number</Label>
+          <Input
+            value={ssnitNumber}
+            disabled={!canWrite}
+            onChange={(e) => setSsnitNumber(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>TIN number</Label>
+          <Input
+            value={tinNumber}
+            disabled={!canWrite}
+            onChange={(e) => setTinNumber(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Church / denomination</Label>
+          <Input
+            value={churchDenomination}
+            disabled={!canWrite}
+            onChange={(e) => setChurchDenomination(e.target.value)}
+          />
+        </div>
+        <div />
+
+        <div className="space-y-2 sm:col-span-2">
+          <Label>Residential address</Label>
+          <Textarea
+            value={residentialAddress}
+            disabled={!canWrite}
+            rows={2}
+            onChange={(e) => setResidentialAddress(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label>Qualifications</Label>
+          <Textarea
+            value={qualifications}
+            disabled={!canWrite}
+            rows={2}
+            onChange={(e) => setQualifications(e.target.value)}
+          />
+        </div>
+      </div>
+
       {canWrite && (
         <div className="mt-6">
           <Button onClick={save} disabled={!dirty || saving}>

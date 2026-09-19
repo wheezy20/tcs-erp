@@ -23,6 +23,7 @@ import type { Database } from "@/lib/database.types";
 export type EmploymentStatus = "Pending Approval" | "Active" | "Suspended" | "Rejected";
 export type PayApprovalStatus = "Pending Approval" | "Active" | "Rejected";
 export type PaymentMethod = "Bank" | "Mobile Money";
+export type EmploymentType = "Full-Time" | "Part-Time" | "Contract" | "Volunteer" | "Intern";
 
 export type Employee = {
   id: string;
@@ -37,6 +38,27 @@ export type Employee = {
   reviewedAt: string | null;
   rejectionReason: string | null;
   createdAt: string;
+  // HR record enrichment (20260919) — every one a plain current-state
+  // fact, direct-edit via updateEmployeeProfile(), no approval gate.
+  // Bank details and salary are NOT here — those stay on PayConfig,
+  // approval-gated and effective-dated, unchanged by this addition.
+  preferredName: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  nationalId: string | null;
+  personalEmail: string | null;
+  schoolEmail: string | null;
+  employmentType: EmploymentType | null;
+  startDate: string | null;
+  probationEndDate: string | null;
+  contractEndDate: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  residentialAddress: string | null;
+  qualifications: string | null;
+  ssnitNumber: string | null;
+  tinNumber: string | null;
+  churchDenomination: string | null;
 };
 
 export type PayConfig = {
@@ -93,6 +115,23 @@ function mapEmployee(row: EmployeeRow): Employee {
     reviewedAt: row.reviewed_at,
     rejectionReason: row.rejection_reason,
     createdAt: row.created_at,
+    preferredName: row.preferred_name,
+    dateOfBirth: row.date_of_birth,
+    gender: row.gender,
+    nationalId: row.national_id,
+    personalEmail: row.personal_email,
+    schoolEmail: row.school_email,
+    employmentType: row.employment_type as EmploymentType | null,
+    startDate: row.start_date,
+    probationEndDate: row.probation_end_date,
+    contractEndDate: row.contract_end_date,
+    emergencyContactName: row.emergency_contact_name,
+    emergencyContactPhone: row.emergency_contact_phone,
+    residentialAddress: row.residential_address,
+    qualifications: row.qualifications,
+    ssnitNumber: row.ssnit_number,
+    tinNumber: row.tin_number,
+    churchDenomination: row.church_denomination,
   };
 }
 
@@ -337,15 +376,57 @@ export async function setEmployeeStatus(id: string, status: "Active" | "Suspende
   await reload();
 }
 
+/** HR-details fields, all optional — omitted keys are left unchanged
+ * server-side (update_employee_profile()'s trailing params all default
+ * to null = "don't touch"). Pass an empty string to clear a text field;
+ * dates have no clear affordance yet (see the migration's comment). */
+export type EmployeeHrDetailsPatch = {
+  dateOfBirth?: string;
+  gender?: string;
+  nationalId?: string;
+  personalEmail?: string;
+  schoolEmail?: string;
+  employmentType?: EmploymentType;
+  startDate?: string;
+  probationEndDate?: string;
+  contractEndDate?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  residentialAddress?: string;
+  qualifications?: string;
+  ssnitNumber?: string;
+  tinNumber?: string;
+  churchDenomination?: string;
+  preferredName?: string;
+};
+
 export async function updateEmployeeProfile(
   id: string,
   patch: { phone: string; position: string; department: string },
+  hrDetails?: EmployeeHrDetailsPatch,
 ): Promise<void> {
   const { error } = await supabase.rpc("update_employee_profile", {
     p_employee_id: id,
     p_phone: patch.phone,
     p_position: patch.position,
     p_department: patch.department,
+    p_date_of_birth: hrDetails?.dateOfBirth,
+    p_gender: hrDetails?.gender,
+    p_national_id: hrDetails?.nationalId,
+    p_personal_email: hrDetails?.personalEmail,
+    p_school_email: hrDetails?.schoolEmail,
+    p_employment_type: hrDetails?.employmentType,
+    p_start_date: hrDetails?.startDate,
+    p_probation_end_date: hrDetails?.probationEndDate,
+    p_contract_end_date: hrDetails?.contractEndDate,
+    p_emergency_contact_name: hrDetails?.emergencyContactName,
+    p_emergency_contact_phone: hrDetails?.emergencyContactPhone,
+    p_residential_address: hrDetails?.residentialAddress,
+    p_qualifications: hrDetails?.qualifications,
+    p_ssnit_number: hrDetails?.ssnitNumber,
+    p_tin_number: hrDetails?.tinNumber,
+    p_church_denomination: hrDetails?.churchDenomination,
+    p_preferred_name: hrDetails?.preferredName,
   });
   if (error) throw error;
   await reload();

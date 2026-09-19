@@ -237,10 +237,34 @@ depend on them holding true for every new table/function added.
   "Ama"/"AMA"/"ama" can't diverge. `positions` / `departments` get the
   same trigger (`uppercase_ref_list_name()`) and are seeded uppercase, so
   a stored `employees.department` always matches a list entry exactly.
-  Email and phone are deliberately left exactly as entered. If another
-  text column ever needs the same treatment, extend the existing trigger
-  function rather than adding CSS `text-transform` (which only hides the
-  inconsistency).
+  Phone is deliberately left exactly as entered. Extended `20260919` to
+  every new HR-enrichment field that's a person's name or an ID-like
+  value (`preferred_name`, `national_id`, `ssnit_number`, `tin_number`,
+  `church_denomination`, `emergency_contact_name`) — same "Ama"/"AMA"/
+  "ama" drift risk. `personal_email`/`school_email` go the *other*
+  direction, lowercased by the same trigger — the real convention for
+  email addresses, not left alone the way the original `phone`-only
+  exception implied every contact field would be. `residential_address`/
+  `qualifications` stay as-typed: genuine free text, no canonical casing.
+  If another text column ever needs the same treatment, extend the
+  existing trigger function rather than adding CSS `text-transform`
+  (which only hides the inconsistency).
+- **HR-enrichment fields (`20260919`) all stay current-state facts on
+  `employees`, same as `phone`/`position`/`department` — none needed a
+  new table.** Sourced from TCS's existing Google-Sheets HR system's
+  staff-database columns, but not copied wholesale: bank name/account
+  number and salary stay on `employee_pay_config` exactly as before
+  (approval-gated, effective-dated) rather than being duplicated onto
+  `employees` the way the flat spreadsheet has them — this repo already
+  separates that correctly and the enrichment doesn't undo it. The source
+  system's own `Staff Status` dropdown (Probationary/Confirmed/On Leave/
+  Resigned/Terminated/Retired) is deliberately not ported as a second
+  status column: "Probationary" vs "Confirmed" is derived from
+  `probation_end_date` vs today (computed-never-stored, applied somewhere
+  the source system didn't have it) rather than a status a person has to
+  remember to flip in sync with the date; the departure-flavored values
+  overlap with the explicitly-deferred Leave/Exit & Offboarding domains
+  (see `docs/CONSTRAINTS.md`) and aren't solved by this table.
 - **Approval workflow = an in-row state machine, not a parallel proposals
   table.** Three actions need Manager sign-off, proposed by an Accountant:
   creating an employee, changing basic salary, changing bank/account

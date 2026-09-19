@@ -1860,3 +1860,135 @@ Cash on Hand/Pending Approvals/Latest Payroll Run exactly) and
 Zero console errors either session. `tsc --noEmit` clean except the
 same pre-existing `__root.tsx` error. Full-repo `eslint` clean except
 the same pre-existing baseline issues. `vite build` exit 0.
+
+## 2026-09-19 — HR beyond payroll: the full plan, and Phase 1 (staff record enrichment)
+
+New scope, informed directly by TCS's existing Google Apps Script HR
+system (its User Manual, two setup guides, the live `TCS_HR_Master_
+Database.xlsx`, and the Interview Assessment Form — read for field
+names, workflow logic and email conventions; its security model, a
+public Google Form with zero RLS, was explicitly not carried over).
+Recruitment stays on that system for now (Careers form, Applicant
+pipeline, Interview Tracker) — a separate, later migration.
+
+### The plan, presented before any code (per explicit request)
+
+Six areas: staff record enrichment, an onboarding checklist workflow, a
+private document-storage bucket for onboarding uploads (applying the
+receipts-bucket lesson from day one this time), contract generation and
+lifecycle, real email infrastructure, and a call on Leave/KPI/Training/
+Disciplinary/Exit & Offboarding.
+
+Reading the actual live spreadsheet (not just the manual's prose) turned
+up several things worth having gotten right before building:
+- **The onboarding checklist has 18 items in the real system**, not the
+  5 broadly summarized in the request — schema needed to be general
+  enough to hold all 18 (a school-editable catalog + per-employee
+  completion rows), not 5 hardcoded columns.
+- **Bank details and salary already live on `employee_pay_config`**, not
+  a flat staff row — the source spreadsheet flattens everything; this
+  schema doesn't copy that.
+- **"Handbook Issued?" appears in both the enrichment list and the
+  onboarding checklist** in the request — resolved as one thing (an
+  onboarding task with a timestamp), not duplicated.
+- **`STAFF_STATUS` exists in the sheet but wasn't in the requested field
+  list** — correctly left out: it would've collided with the existing
+  `employment_status`, which already gates payroll eligibility.
+- **Three more tabs exist beyond the two the request named as
+  "for future use"** — `07 TRAINING`, `08 DISCIPLINARY`, `09 EXIT &
+  OFFBOARDING`, fully fielded with their own dropdown enums, same as
+  Leave/KPI. Flagged alongside them rather than assumed out of scope.
+- **The payroll page's disabled "Email payslips" button** (tooltip:
+  "needs an email provider and staff email addresses") is directly
+  unblocked by two things in this same plan — the email infra (item 5)
+  and the new `school_email` field (item 1). Confirmed the connection
+  the request asked about.
+- **This repo already has a working transactional-email mechanism** —
+  `invite-staff`'s edge function has its own `sendMail()` via
+  `nodemailer` + `SMTP_HOST/PORT/USER/PASS/FROM` secrets, currently used
+  only for its "resend invite" path (and only working locally, against
+  Inbucket). Changed the email recommendation from "new Resend REST
+  integration" to "point this existing mechanism at Resend's SMTP relay"
+  — smaller, and it's the exact same secrets already needed for
+  `invite-staff`'s own production invite emails to start working at all.
+- **jsPDF's `html()` render mode and its `html2canvas` peer are already
+  installed** (confirmed in `node_modules` — an unused transitive
+  dependency of `jspdf`), which settles the contract-document mechanism:
+  HTML templates with `{{placeholder}}` merge tags, rendered via
+  `doc.html()` rather than hand-positioned `doc.text()` calls the way
+  `invoice-pdf.ts`/`payslip-pdf.ts` do — the right fit for prose of
+  unpredictable length, vs. those two files' known-structure tabular
+  documents.
+
+Three genuine judgment calls were put to Eyram before building, all
+confirmed on the recommended option: (1) a tokenized, unauthenticated
+public onboarding-form path (mirroring the source system's own approach,
+rather than inventing a fifth `staff` role) — this will be this app's
+**first-ever anon write path**, called out explicitly rather than
+introduced quietly; (2) Eyram runs `supabase secrets set` himself once
+Resend credentials exist, rather than pasting them into the dashboard;
+(3) defer Leave, KPI & Performance, Training, Disciplinary, and Exit &
+Offboarding **uniformly** — none had working logic anywhere to preserve,
+just column shapes to copy later if ever needed. `docs/CONSTRAINTS.md`
+gained a new section recording all three decisions and the deferred-list
+scope.
+
+### Phase 1: staff record enrichment — built and verified
+
+17 new columns on `employees` (`20260919100000_employee_hr_fields.sql`):
+`preferred_name`, `date_of_birth`, `gender`, `national_id`,
+`personal_email`, `school_email`, `employment_type` (check-constrained to
+the live system's actual seeded dropdown — `Full-Time`/`Part-Time`/
+`Contract`/`Volunteer`/`Intern`; its own user manual says "Fixed-Term,
+etc." but that's not what's actually in the dropdown, confirmed directly
+against the spreadsheet), `start_date`, `probation_end_date`,
+`contract_end_date`, `emergency_contact_name`/`_phone`,
+`residential_address`, `qualifications`, `ssnit_number`, `tin_number`,
+`church_denomination`. Every one a plain current-state fact, direct-edit,
+no approval gate — same treatment as the existing `phone`/`position`/
+`department`.
+
+`uppercase_employee_fields()` extended to the new name-like/ID-like
+fields (`preferred_name`, `national_id`, `ssnit_number`, `tin_number`,
+`church_denomination`, `emergency_contact_name`); `personal_email`/
+`school_email` **lowercased** by the same trigger instead — the real
+convention for email addresses, correcting what the old "email and phone
+both left alone" comment implied. `residential_address`/`qualifications`
+stay as-typed.
+
+`update_employee_profile()` (drop + recreate, per the argument-list-
+change rule): its three original params keep their exact existing
+behavior unchanged (always sent, always set) — the 17 new ones are
+trailing, default-`null` optional params using the same amend-in-place
+idiom as `approve_pay_config()`'s override params (`20260918`): `null`
+means "leave unchanged," an explicit empty string clears a text field.
+This let the frontend ship a wholly separate "HR details" card with its
+own independent Save button, without touching `ProfileForm`'s existing
+phone/position/department behavior at all — it just re-sends the
+employee's current values for those three every time the new card saves.
+
+`employees-store.ts`: `Employee` gained the 17 fields (mapped from
+snake_case), a new `EmploymentType` union, and `updateEmployeeProfile()`
+gained an optional third `hrDetails` argument. `employees.$employeeId.tsx`
+gained `HrDetailsSection`, mirroring `ProfileForm`'s exact card/dirty-
+check/save pattern.
+
+**Verified with a real browser pass**: local `db reset` applied the
+migration clean; `check-duplicate-function-overloads.sh` reported none;
+`database.types.ts` regenerated (one redo needed — piping `2>&1 | tail`
+into the same redirect target as the file write mixed the CLI's own
+stderr noise into the generated file; fixed by filtering the known noise
+lines before writing). Logged in as `dev-manager@tcs.test`, opened an
+employee record, filled every new HR-details field, saved, reloaded, and
+confirmed via screenshot that all seven spot-checked fields persisted
+correctly with the right casing (`TESTY`, `Female` left alone, `BAPTIST`
+uppercased from a lowercase `baptist` typed in) — cross-checked directly
+against the database with `psql`, which matched exactly. `tsc --noEmit`
+clean except the same pre-existing `__root.tsx` error. Full-repo `eslint`
+clean except the same pre-existing baseline issues (~17s). `vite build`
+exit 0.
+
+Phases 2–5 (document storage, onboarding + the tokenized public form,
+contract generation, email infrastructure) are separate follow-up
+sessions, each with their own plan-to-verification pass, per the phasing
+laid out when the full plan was presented.

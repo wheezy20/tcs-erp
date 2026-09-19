@@ -1019,47 +1019,98 @@ export type Database = {
       employees: {
         Row: {
           branch_id: string
+          church_denomination: string | null
+          contract_end_date: string | null
           created_at: string
+          date_of_birth: string | null
           department: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
           employment_status: string
+          employment_type: string | null
+          gender: string | null
           id: string
           name: string
+          national_id: string | null
+          personal_email: string | null
           phone: string | null
           position: string | null
+          preferred_name: string | null
+          probation_end_date: string | null
           proposed_by: string | null
+          qualifications: string | null
           rejection_reason: string | null
+          residential_address: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          school_email: string | null
+          ssnit_number: string | null
+          start_date: string | null
+          tin_number: string | null
           updated_at: string
         }
         Insert: {
           branch_id: string
+          church_denomination?: string | null
+          contract_end_date?: string | null
           created_at?: string
+          date_of_birth?: string | null
           department?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
           employment_status?: string
+          employment_type?: string | null
+          gender?: string | null
           id?: string
           name: string
+          national_id?: string | null
+          personal_email?: string | null
           phone?: string | null
           position?: string | null
+          preferred_name?: string | null
+          probation_end_date?: string | null
           proposed_by?: string | null
+          qualifications?: string | null
           rejection_reason?: string | null
+          residential_address?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          school_email?: string | null
+          ssnit_number?: string | null
+          start_date?: string | null
+          tin_number?: string | null
           updated_at?: string
         }
         Update: {
           branch_id?: string
+          church_denomination?: string | null
+          contract_end_date?: string | null
           created_at?: string
+          date_of_birth?: string | null
           department?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
           employment_status?: string
+          employment_type?: string | null
+          gender?: string | null
           id?: string
           name?: string
+          national_id?: string | null
+          personal_email?: string | null
           phone?: string | null
           position?: string | null
+          preferred_name?: string | null
+          probation_end_date?: string | null
           proposed_by?: string | null
+          qualifications?: string | null
           rejection_reason?: string | null
+          residential_address?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          school_email?: string | null
+          ssnit_number?: string | null
+          start_date?: string | null
+          tin_number?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3281,17 +3332,34 @@ export type Database = {
         }
         Returns: {
           branch_id: string
+          church_denomination: string | null
+          contract_end_date: string | null
           created_at: string
+          date_of_birth: string | null
           department: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
           employment_status: string
+          employment_type: string | null
+          gender: string | null
           id: string
           name: string
+          national_id: string | null
+          personal_email: string | null
           phone: string | null
           position: string | null
+          preferred_name: string | null
+          probation_end_date: string | null
           proposed_by: string | null
+          qualifications: string | null
           rejection_reason: string | null
+          residential_address: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          school_email: string | null
+          ssnit_number: string | null
+          start_date: string | null
+          tin_number: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -4602,17 +4670,34 @@ export type Database = {
         }
         Returns: {
           branch_id: string
+          church_denomination: string | null
+          contract_end_date: string | null
           created_at: string
+          date_of_birth: string | null
           department: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
           employment_status: string
+          employment_type: string | null
+          gender: string | null
           id: string
           name: string
+          national_id: string | null
+          personal_email: string | null
           phone: string | null
           position: string | null
+          preferred_name: string | null
+          probation_end_date: string | null
           proposed_by: string | null
+          qualifications: string | null
           rejection_reason: string | null
+          residential_address: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          school_email: string | null
+          ssnit_number: string | null
+          start_date: string | null
+          tin_number: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -4776,17 +4861,34 @@ export type Database = {
         Args: { p_employee_id: string; p_reason: string }
         Returns: {
           branch_id: string
+          church_denomination: string | null
+          contract_end_date: string | null
           created_at: string
+          date_of_birth: string | null
           department: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
           employment_status: string
+          employment_type: string | null
+          gender: string | null
           id: string
           name: string
+          national_id: string | null
+          personal_email: string | null
           phone: string | null
           position: string | null
+          preferred_name: string | null
+          probation_end_date: string | null
           proposed_by: string | null
+          qualifications: string | null
           rejection_reason: string | null
+          residential_address: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          school_email: string | null
+          ssnit_number: string | null
+          start_date: string | null
+          tin_number: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -4897,17 +4999,34 @@ export type Database = {
         Args: { p_employee_id: string; p_status: string }
         Returns: {
           branch_id: string
+          church_denomination: string | null
+          contract_end_date: string | null
           created_at: string
+          date_of_birth: string | null
           department: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
           employment_status: string
+          employment_type: string | null
+          gender: string | null
           id: string
           name: string
+          national_id: string | null
+          personal_email: string | null
           phone: string | null
           position: string | null
+          preferred_name: string | null
+          probation_end_date: string | null
           proposed_by: string | null
+          qualifications: string | null
           rejection_reason: string | null
+          residential_address: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          school_email: string | null
+          ssnit_number: string | null
+          start_date: string | null
+          tin_number: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -5054,24 +5173,58 @@ export type Database = {
       }
       update_employee_profile: {
         Args: {
+          p_church_denomination?: string
+          p_contract_end_date?: string
+          p_date_of_birth?: string
           p_department: string
+          p_emergency_contact_name?: string
+          p_emergency_contact_phone?: string
           p_employee_id: string
+          p_employment_type?: string
+          p_gender?: string
+          p_national_id?: string
+          p_personal_email?: string
           p_phone: string
           p_position: string
+          p_preferred_name?: string
+          p_probation_end_date?: string
+          p_qualifications?: string
+          p_residential_address?: string
+          p_school_email?: string
+          p_ssnit_number?: string
+          p_start_date?: string
+          p_tin_number?: string
         }
         Returns: {
           branch_id: string
+          church_denomination: string | null
+          contract_end_date: string | null
           created_at: string
+          date_of_birth: string | null
           department: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
           employment_status: string
+          employment_type: string | null
+          gender: string | null
           id: string
           name: string
+          national_id: string | null
+          personal_email: string | null
           phone: string | null
           position: string | null
+          preferred_name: string | null
+          probation_end_date: string | null
           proposed_by: string | null
+          qualifications: string | null
           rejection_reason: string | null
+          residential_address: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          school_email: string | null
+          ssnit_number: string | null
+          start_date: string | null
+          tin_number: string | null
           updated_at: string
         }
         SetofOptions: {
