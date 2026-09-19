@@ -1642,3 +1642,36 @@ lower-paid staff. Lower priority and also unmodeled: bonus income
 reportedly carries its own flat 5% final-tax treatment (up to 15% of
 annual basic). Both need confirmation from TCS's accountant or GRA
 directly before any code changes.
+
+## 2026-09-19 — Payroll → Setup banner still said "placeholder" after the GRA fix
+
+The statutory-rates banner on `payroll.pay-config.tsx` still read
+"Placeholder figures — verify against SSNIT / GRA before running real
+payroll," left over from before `20260918130000_paye_bands_gra_2024.sql`
+corrected `paye_bands` against GRA's real published table — a stale
+warning actively contradicting what was now true in the database.
+
+Reworded exactly per the requested wording, deliberately not
+overstating certainty: "SSNIT/Tier 2 rates confirmed against TCS's
+actual payroll practice; PAYE bands sourced from GRA's published table
+(gra.gov.gh) — see docs/CONSTRAINTS.md for the one noted ambiguity
+(top-band threshold) and the still-open overtime/bonus tax treatment
+question." This is "verified against the best available source, two
+specific tracked caveats," not "fully verified, zero open questions" —
+matches how `docs/CONSTRAINTS.md` itself now describes the same state
+(previous entry).
+
+Verified with a real browser pass this time — the dev machine's swap had
+been expanded and had headroom again, unlike the last several rounds.
+One snag worth remembering: the first Playwright attempt filled the
+login form immediately after `page.goto(..., { waitUntil: "load" })`
+and the fields showed empty in the resulting screenshot — a race between
+Playwright's `fill()` and this SSR app's client-side hydration attaching
+React's controlled-input state after the DOM nodes already existed.
+Adding a short wait after `goto()` before filling fixed it. Logged in as
+`dev-manager@tcs.test`, opened `/payroll/pay-config`, confirmed via the
+rendered page text that the new wording is present, the old "Placeholder
+figures" text is gone, and there were zero console/page errors.
+`tsc --noEmit` clean except the same pre-existing, unrelated `__root.tsx`
+error. `eslint` (scoped + full-repo, ~21s) clean except the same
+pre-existing baseline issues. `vite build` exit 0.

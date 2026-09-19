@@ -69,8 +69,10 @@ function PayrollSetupPage() {
             graduated band
             {bands.length === 1 ? "" : "s"}. <br />
             <span className="text-amber-600 dark:text-amber-500">
-              Placeholder figures — verify against SSNIT / GRA before running real payroll (see
-              docs/CONSTRAINTS.md).
+              SSNIT/Tier 2 rates confirmed against TCS's actual payroll practice; PAYE bands sourced
+              from GRA's published table (gra.gov.gh) — see docs/CONSTRAINTS.md for the one noted
+              ambiguity (top-band threshold) and the still-open overtime/bonus tax treatment
+              question.
             </span>
           </p>
         ) : (
