@@ -1805,3 +1805,29 @@ zero console/page errors across both sessions. `tsc --noEmit` clean
 except the same pre-existing `__root.tsx` error. Full-repo `eslint`
 clean except the same pre-existing baseline issues (8–10s). `vite build`
 exit 0.
+
+## 2026-09-19 — Closed the Expenses nav/RLS gap flagged above
+
+Quick follow-up: added `/expenses` to `app-sidebar.tsx`'s
+`FINANCE_GATED_URLS`, the same Manager/Accountant/Auditor filter list
+already governing Accounting/Payroll/Banking/Purchasing/Employees/Login
+Accounts — `expenses_select`'s RLS has always been that exact role set,
+the nav link just never matched it. An Attendant no longer sees a link
+to a page that would only ever render empty for them; Finance &
+Accounting's header now correctly disappears for that role too (it was
+Expenses's only remaining item there), via the "hide a section header
+with nothing visible in it" rule from the reorg above — no special-
+casing needed, that rule already covered this once the item itself was
+gated.
+
+Verified with a real browser pass as `dev-attendant@tcs.test`: sidebar
+now shows only Dashboard, Procurement & Stores (collapsed), and
+Settings — no Expenses link, no Finance & Accounting header, zero
+console errors. Left untouched, deliberately out of scope for this
+targeted fix: the Dashboard's own "Expenses this Month" KPI isn't
+role-gated the way Cash on Hand/Pending Approvals/Latest Payroll Run
+are — it still shows a real (if RLS-empty) figure to Attendant. That's
+a separate widget-level gap, not the nav-link visibility this fix was
+about. `tsc --noEmit` clean except the same pre-existing `__root.tsx`
+error. Full-repo `eslint` clean except the same pre-existing baseline
+issues. `vite build` exit 0.

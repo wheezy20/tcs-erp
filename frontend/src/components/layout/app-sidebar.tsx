@@ -78,12 +78,15 @@ export const navSections: { key: string; label: string; dormant?: boolean; items
 
 // Every route gated behind the same Manager/Accountant/Auditor view as
 // Reports — each route's own guard + RLS on its tables is the real
-// enforcement, this only hides the link. Expenses is deliberately not in
-// this list (unchanged from before this reorg — see docs/JOURNAL.md for
-// the pre-existing nav/RLS mismatch this surfaced, not fixed here).
+// enforcement, this only hides the link. Expenses joined this list
+// `20260919` — expenses_select's RLS is the same Manager/Accountant/
+// Auditor gate as everything else here, but the nav link stayed visible
+// to Attendant regardless, leaving a permanently empty page instead of
+// the link just not being there (see docs/JOURNAL.md).
 const FINANCE_GATED_URLS = new Set([
   "/reports",
   "/accounting",
+  "/expenses",
   "/payroll",
   "/banking",
   "/purchasing",
