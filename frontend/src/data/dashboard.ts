@@ -2,10 +2,13 @@ import { useMemo } from "react";
 
 import { useAccounts } from "@/data/accounts-store";
 import { canViewFinancials, useAuth } from "@/data/auth-store";
+import { splitPendingConfigs, useEmployees } from "@/data/employees-store";
 import { useExpenses } from "@/data/expenses-store";
 import { useInventory, effectiveThreshold, hasCost } from "@/data/inventory-store";
 import { invoiceTotals, type Invoice } from "@/data/invoices";
 import { ledgerForAccount, useJournalEntries } from "@/data/journal-store";
+import { periodLabel } from "@/data/payroll-format";
+import { usePayroll } from "@/data/payroll-store";
 import { posTotals, type PosSale } from "@/data/pos";
 import { usePosSales } from "@/data/pos-store";
 import { useSales } from "@/data/sales-store";
@@ -24,6 +27,15 @@ export const currency = (value: number) => formatMoney(value, 0);
 
 export const currencyPrecise = (value: number) =>
   formatMoney(value, getSettings().localisation.decimals);
+
+export type DashboardKpi = {
+  label: string;
+  value: number;
+  delta: number;
+  hint: string;
+  invertDelta: boolean;
+  unavailable: boolean;
+};
 
 /** The real current date (UTC, YYYY-MM-DD), computed fresh on every call —
  * never a frozen value. This used to be a fixed literal ("2026-07-28")
@@ -79,6 +91,8 @@ export function useDashboard() {
   const { staff } = useAuth();
   const { accounts } = useAccounts();
   const { entries: journalEntries } = useJournalEntries();
+  const { employees, configs } = useEmployees();
+  const { runs } = usePayroll();
   // Subscribe to settings so currency/format changes re-render the numbers.
   useDocumentSettings();
 
@@ -148,6 +162,24 @@ export function useDashboard() {
       canReadLedger && cashAccount
         ? (ledgerForAccount(journalEntries, cashAccount).at(-1)?.balance ?? 0)
         : 0;
+
+    // Same "pending" definition employees.index.tsx's own summary card
+    // uses: a still-pending new-hire record, plus any standalone pay
+    // change proposal (a bundled new-hire's pending config is counted via
+    // its employee record, not twice). `employees`/`employee_pay_config`
+    // share the same RLS role gate as journal_entries/accounts above, so
+    // this reuses canReadLedger rather than a second role check.
+    const pendingEmployees = employees.filter((e) => e.status === "Pending Approval");
+    const pendingConfigsAll = configs.filter((c) => c.approvalStatus === "Pending Approval");
+    const { standalone: standalonePendingConfigs } = splitPendingConfigs(
+      employees,
+      pendingConfigsAll,
+    );
+    const pendingApprovalsCount = pendingEmployees.length + standalonePendingConfigs.length;
+
+    // payroll_runs is only ordered by year server-side — month needs its
+    // own tie-break to find the true latest run within a year.
+    const latestRun = [...runs].sort((a, b) => b.year - a.year || b.month - a.month)[0] ?? null;
 
     // A voided expense is an erasure — it never happened, so it must not
     // count toward either month's total.
@@ -265,6 +297,33 @@ export function useDashboard() {
 
     const monthDelta = delta(monthSales, lastMonthSales);
 
-    return { kpis, revenueSeries, lowStock, recentTransactions, monthDelta };
-  }, [invoices, sales, products, defaultThreshold, expenses, staff, accounts, journalEntries]);
+    return {
+      kpis,
+      revenueSeries,
+      lowStock,
+      recentTransactions,
+      monthDelta,
+      pendingApprovals: pendingApprovalsCount,
+      latestPayrollRun:
+        canReadLedger && latestRun
+          ? { id: latestRun.id, label: periodLabel(latestRun), status: latestRun.status }
+          : null,
+      // Employees/employee_pay_config/payroll_runs share the exact same
+      // Manager/Accountant/Auditor RLS gate as journal_entries/accounts
+      // (canReadLedger, above) — one flag covers both new widgets.
+      canSeeHrPayrollWidgets: canReadLedger,
+    };
+  }, [
+    invoices,
+    sales,
+    products,
+    defaultThreshold,
+    expenses,
+    staff,
+    accounts,
+    journalEntries,
+    employees,
+    configs,
+    runs,
+  ]);
 }

@@ -1675,3 +1675,133 @@ figures" text is gone, and there were zero console/page errors.
 `tsc --noEmit` clean except the same pre-existing, unrelated `__root.tsx`
 error. `eslint` (scoped + full-repo, ~21s) clean except the same
 pre-existing baseline issues. `vite build` exit 0.
+
+## 2026-09-19 — Sidebar/Dashboard/Reports reorganized around Finance & HR, not retail
+
+"The app still reads as a retail ERP rather than a school tool" — a
+navigation-wide reorg, planned and confirmed before any code (four
+files touched, all nav-adjacent). Full plan and the two open judgment
+calls (add new HR/Payroll dashboard widgets? extend search to index
+staff?) were put to Eyram before building; both landed on the
+recommended option.
+
+### Sidebar (`components/layout/app-sidebar.tsx`)
+
+Flat 17-item list → `navSections`: **Finance & Accounting**
+(Accounting, Expenses, Banking, Reports), **HR & Payroll** (Employees,
+Payroll, Login Accounts), **Procurement & Stores · not yet in use**
+(Customers, Inventory, Sales & Invoicing, Pro-forma Invoices, Customer
+Deposits, POS, End of Day, Purchasing — collapsed by default, muted
+text when expanded), with Dashboard standing alone at the top and
+Settings pinned to the bottom behind its own divider. Verified the
+proposed grouping against the code rather than assuming it was right:
+Accounting/Payroll/Banking/Purchasing/Reports/Employees/Login Accounts
+already share one `canViewFinancials` gate, which happens to line up
+exactly with the Finance+HR split — a good sign the grouping matches
+how the app already models itself, not just how it looks.
+
+A collapsed dormant section auto-opens if the current route is inside
+it (a bookmark or deep link into Inventory shouldn't hide the very nav
+entry explaining where you are). Icon-rail (fully collapsed) mode skips
+grouping entirely and renders every item flat, same as before this
+change — no room for section labels there anyway. A section header now
+hides itself when none of its items are visible for the current role
+(previously each item just vanished one-by-one from a flat list) —
+built as a general rule, not a special case, so e.g. an Attendant sees
+no "HR & Payroll" header at all rather than an empty one.
+
+Considered and rejected retrofitting the full shadcn `Sidebar`/
+`SidebarGroup` primitive set already vendored in `components/ui/
+sidebar.tsx` but never wired up (no `SidebarProvider`, no consumer) —
+`AppSidebar` is hand-rolled and works today; pulling in an unused
+context system for a cosmetic reorg risked the collapse/mobile-drawer
+behavior that already works, for no real benefit over plain local
+`useState`.
+
+**Found, not fixed**: Expenses isn't in the sidebar's role-filter list,
+so it stays visible to Attendant even though `expenses_select`'s RLS
+(Manager/Accountant/Auditor only) already blocks Attendant from reading
+it — a pre-existing nav/RLS mismatch this reorg surfaced (Finance &
+Accounting shrinks to just "Expenses" for that role) but didn't
+introduce or fix. Flagged for a separate look.
+
+`docs/DESIGN.md` gained a bullet documenting `navSections` as the
+established convention: the next real module (Transport, Kitchen,
+Asset Management, Analytics & BI, ...) gets its own top-level section
+the same way, once it's an actual route — never an empty nav entry
+pointing nowhere just to reserve the shape.
+
+### Dashboard (`routes/index.tsx`, `data/dashboard.ts`)
+
+Of 5 KPIs, 3 were retail (Today's Sales, This Month's Sales, Inventory
+Value) and the two widgets below (12-month revenue chart, "Recent
+transactions") were 100% retail — and there was no Payroll/Accounting
+widget at all, not "deprioritized," genuinely absent. Cash on Hand and
+Expenses this Month now lead a 4-up primary row; the 3 retail KPIs plus
+the revenue chart, Low stock products, and Recent transactions all moved
+into one `border-dashed` "Store & Sales · not yet in use" block, always
+visible but visually demoted (not collapsed — a dashboard is a
+glance-once-per-visit read, unlike the sidebar, so hiding a chart behind
+a click seemed like the wrong tradeoff here even though it was the right
+one for nav).
+
+Filled the resulting gap (confirmed with Eyram first) with two new
+small widgets built from data that already existed elsewhere:
+**Pending approvals** (`useEmployees()` + `splitPendingConfigs()`,
+exactly the same count `employees.index.tsx`'s own summary card
+computes) and **Latest payroll run** (`usePayroll()`'s `runs`, sorted by
+year then month client-side since the query only orders by year
+server-side — a real gap that would have silently returned the wrong
+"latest" run within a year otherwise). Both gated behind the same
+`canViewFinancials` check as Cash on Hand (`canSeeHrPayrollWidgets`),
+showing "Visible to Manager, Accountant and Auditor" rather than a
+misleading 0/blank for Attendant.
+
+### Reports (`routes/reports.tsx`)
+
+Of 11 reports, only Expenses Summary runs on data TCS has today —
+everything else (Sales Summary, Profit & Margin, Operating Margin,
+Product Performance, Inventory Valuation, Discounts Given, Payment
+Methods, Returns & Exchanges) reads Sales/POS/Inventory. Debtors &
+Receivables and VAT Summary are the interesting edge case: conceptually
+relevant to a school (fees owed, tax) but built entirely on the
+Sales/Invoicing domain today, so they'd render empty for TCS right now
+for a data-model reason, not a conceptual one — grouped with the rest
+rather than promoted, since promoting them today would just show an
+empty report with no explanation why. Applied the identical collapsed-
+by-default grouping to the report picker (same "flat list of buttons"
+shape as the sidebar) via `DORMANT_REPORT_IDS`, same auto-open-if-
+active behavior. Changed the default active report from Sales Summary
+to Expenses Summary. Reworded the page header, the role-gate empty-state
+header, and the `<head>` meta description — all three led with "Sales,
+profit, ... inventory" and never mentioned Expenses despite it being the
+one populated report.
+
+### Global search (`components/layout/topbar.tsx`)
+
+Placeholder was `"Search customers, products, invoices…"` — already
+slightly wrong (the search also matches expenses and suppliers, neither
+mentioned) on top of being retail-first. Changed to `"Search expenses,
+customers, invoices…"`, accurate to what's actually searched, leading
+with the finance-relevant one. Confirmed with Eyram: not extending
+search to index Employees/Staff as part of this pass (a real feature
+gap, flagged, bigger scope than a wording fix) — the new placeholder
+doesn't claim staff are searchable, since they aren't.
+
+### Verification
+
+Real browser pass as both `dev-manager@tcs.test` and
+`dev-attendant@tcs.test` (memory pressure had eased since the last
+couple of rounds — full pass this time, not a data trace). Confirmed:
+all three sections render with the right items and the right collapsed/
+expanded default state; expanding "Procurement & Stores" reveals its
+items in muted styling; the dormant report group and its auto-open-on-
+active behavior both work; the new Pending Approvals/Latest Payroll Run
+widgets show real data (a leftover test payroll run from an earlier
+session's verification, "August 2030 · Posted," rendered correctly);
+Attendant's dashboard correctly grays out all three HR/Finance-gated
+widgets and the HR & Payroll section header is fully absent, not empty;
+zero console/page errors across both sessions. `tsc --noEmit` clean
+except the same pre-existing `__root.tsx` error. Full-repo `eslint`
+clean except the same pre-existing baseline issues (8–10s). `vite build`
+exit 0.

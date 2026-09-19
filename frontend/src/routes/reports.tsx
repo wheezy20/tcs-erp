@@ -14,6 +14,7 @@ import {
   BadgePercent,
   BarChart3,
   Boxes,
+  ChevronDown,
   Coins,
   CreditCard,
   Printer,
@@ -75,18 +76,38 @@ export const Route = createFileRoute("/reports")({
       {
         name: "description",
         content:
-          "Sales, profit, receivables, VAT and inventory reporting built from live TCS data.",
+          "Expense tracking and financial reporting, plus store analytics once retail modules are in use.",
       },
       { property: "og:title", content: "Reports — TCS" },
       {
         property: "og:description",
         content:
-          "Sales, profit, receivables, VAT and inventory reporting built from live TCS data.",
+          "Expense tracking and financial reporting, plus store analytics once retail modules are in use.",
       },
     ],
   }),
   component: ReportsPage,
 });
+
+// Every report except Expenses Summary reads from Sales/POS/Inventory —
+// the same modules the sidebar's "Procurement & Stores · not yet in use"
+// section covers (20260919). Debtors & Receivables and VAT Summary are
+// conceptually finance-relevant to a school (fees owed, tax) but as built
+// today both compute strictly from the Sales/Invoicing domain, so they'd
+// render empty for TCS right now — grouped with the rest until a real
+// school-fees or tax data model feeds them instead.
+const DORMANT_REPORT_IDS = new Set([
+  "sales-summary",
+  "profit",
+  "operating-margin",
+  "debtors",
+  "products",
+  "valuation",
+  "discounts",
+  "vat",
+  "payments",
+  "returns",
+]);
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -128,7 +149,8 @@ function ReportsPage() {
   const canViewReports = canViewFinancials(currentStaff?.role);
 
   const [filters, setFilters] = useState<ReportFilters>(defaultFilters);
-  const [active, setActive] = useState("sales-summary");
+  const [active, setActive] = useState("expenses");
+  const [storesOpen, setStoresOpen] = useState(false);
   const data = useReports(filters);
   const settings = useDocumentSettings();
 
@@ -170,7 +192,7 @@ function ReportsPage() {
       <>
         <PageHeader
           title="Reports"
-          description="Sales, profit, receivables, VAT and inventory reporting."
+          description="Expense tracking, financial reporting, and store analytics once retail modules are in use."
         />
         <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 py-24 text-center">
           <BarChart3 className="size-8 text-muted-foreground" />
@@ -189,7 +211,7 @@ function ReportsPage() {
     <>
       <PageHeader
         title="Reports"
-        description="Every figure is calculated from the same records that drive Inventory, Customers, Sales and POS."
+        description="Every figure is calculated from the same records that drive Expenses, Accounting and (once in use) Inventory, Customers, Sales and POS."
         actions={
           <>
             <Button variant="outline" className="gap-2" onClick={() => window.print()}>
@@ -299,28 +321,45 @@ function ReportsPage() {
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         {/* -------------------------------------------------- report picker */}
         <nav className="card-surface h-fit p-2 lg:sticky lg:top-24">
-          <ul className="grid gap-1 sm:grid-cols-2 lg:grid-cols-1">
-            {reports.map((r) => {
-              const Icon = r.icon;
-              const isActive = r.id === report.id;
-              return (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    onClick={() => setActive(r.id)}
-                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-                      isActive
-                        ? "bg-primary/10 font-medium text-primary"
-                        : "text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <Icon className="size-4 shrink-0" />
-                    <span className="truncate">{r.label}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <ReportPickerList
+            reports={reports.filter((r) => !DORMANT_REPORT_IDS.has(r.id))}
+            activeId={report.id}
+            onSelect={setActive}
+          />
+
+          {/* Same "collapsed by default, forced open if it holds the active
+              report" treatment as the sidebar's dormant section — everything
+              here reads from Sales/POS/Inventory, none of it populated for
+              TCS yet (see DORMANT_REPORT_IDS above). */}
+          {(() => {
+            const storeReports = reports.filter((r) => DORMANT_REPORT_IDS.has(r.id));
+            if (storeReports.length === 0) return null;
+            const hasActive = storeReports.some((r) => r.id === report.id);
+            const open = storesOpen || hasActive;
+            return (
+              <div className="mt-2 border-t pt-2">
+                <button
+                  type="button"
+                  onClick={() => setStoresOpen((o) => !o)}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground"
+                >
+                  <span className="truncate">Store & Sales · not yet in use</span>
+                  <ChevronDown
+                    className={`size-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {open && (
+                  <div className="mt-1 opacity-80">
+                    <ReportPickerList
+                      reports={storeReports}
+                      activeId={report.id}
+                      onSelect={setActive}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </nav>
 
         {/* --------------------------------------------------- active report */}
@@ -1357,6 +1396,41 @@ function useReportDefs(d: ReportsData, goTo: (id: string) => void): ReportDef[] 
 }
 
 /* -------------------------------------------------------------- primitives */
+
+function ReportPickerList({
+  reports,
+  activeId,
+  onSelect,
+}: {
+  reports: ReportDef[];
+  activeId: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <ul className="grid gap-1 sm:grid-cols-2 lg:grid-cols-1">
+      {reports.map((r) => {
+        const Icon = r.icon;
+        const isActive = r.id === activeId;
+        return (
+          <li key={r.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(r.id)}
+              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                isActive
+                  ? "bg-primary/10 font-medium text-primary"
+                  : "text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              <Icon className="size-4 shrink-0" />
+              <span className="truncate">{r.label}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 function Field({
   label,

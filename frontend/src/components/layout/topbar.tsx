@@ -165,7 +165,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search customers, products, invoices…"
+          placeholder="Search expenses, customers, invoices…"
           className="h-10 rounded-xl pl-9"
           aria-label="Search records"
           aria-expanded={Boolean(results)}

@@ -343,6 +343,21 @@ depend on them holding true for every new table/function added.
   genuinely needs to vary per-deploy without a rebuild would have to be
   read from the Worker `env` in `src/server.ts` and passed down — nothing
   does today.
+- **The sidebar is grouped by what TCS actually uses, not a flat list**
+  (`20260919`, `components/layout/app-sidebar.tsx`'s `navSections`).
+  Dashboard stands alone at the top; Finance & Accounting and HR & Payroll
+  are always-expanded sections; Procurement & Stores — every route this
+  fork inherited that TCS doesn't run yet (Customers, Inventory, Sales &
+  Invoicing, Pro-forma Invoices, Customer Deposits, POS, End of Day,
+  Purchasing) — is its own collapsed-by-default, muted-style section, so a
+  dormant module stays fully reachable without competing for attention.
+  Settings is pinned to the bottom, its own divider, matching the same
+  pattern reused in the Reports report-picker (`routes/reports.tsx`,
+  `DORMANT_REPORT_IDS`) and the Dashboard's "Store & Sales" block
+  (`routes/index.tsx`). **The next real module** (Transport, Kitchen,
+  Asset Management, Analytics & BI, or anything else TCS eventually
+  needs) gets its own new top-level section here the same way, once it's
+  an actual route — never an empty/placeholder nav entry pointing nowhere.
 
 ## Branding
 
