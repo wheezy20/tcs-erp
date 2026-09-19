@@ -228,20 +228,27 @@ export function useDashboard() {
           ? "Live balance of the ledger's Cash on Hand account"
           : "Visible to Manager, Accountant and Auditor",
         invertDelta: false,
-        // Only this KPI can ever be role-gated — Attendant genuinely can't
-        // read the ledger this figure now comes from, and showing a
-        // silent 0 (indistinguishable from "no cash at all") would be
-        // exactly the kind of quietly-wrong number this rewrite exists to
-        // stop producing.
+        // Attendant genuinely can't read the ledger this figure comes
+        // from, and showing a silent 0 (indistinguishable from "no cash
+        // at all") would be exactly the kind of quietly-wrong number this
+        // rewrite exists to stop producing. Expenses this Month, below,
+        // is gated the same way for the same reason — expenses_select's
+        // RLS is the identical Manager/Accountant/Auditor set.
         unavailable: !canReadLedger,
       },
       {
         label: "Expenses this Month",
         value: monthExpenses,
         delta: delta(monthExpenses, lastMonthExpenses),
-        hint: `${monthExpenseRows.length} expense${monthExpenseRows.length === 1 ? "" : "s"} recorded`,
+        hint: canReadLedger
+          ? `${monthExpenseRows.length} expense${monthExpenseRows.length === 1 ? "" : "s"} recorded`
+          : "Visible to Manager, Accountant and Auditor",
         invertDelta: true,
-        unavailable: false,
+        // expenses_select's RLS is Manager/Accountant/Auditor only — an
+        // Attendant's `expenses` array here is always empty, not "really
+        // zero", so this must read as unavailable rather than GH₵0 the
+        // same way Cash on Hand does above.
+        unavailable: !canReadLedger,
       },
     ];
 

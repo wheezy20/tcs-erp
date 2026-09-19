@@ -1831,3 +1831,32 @@ a separate widget-level gap, not the nav-link visibility this fix was
 about. `tsc --noEmit` clean except the same pre-existing `__root.tsx`
 error. Full-repo `eslint` clean except the same pre-existing baseline
 issues. `vite build` exit 0.
+
+## 2026-09-19 — Role-gated the Dashboard's Expenses this Month KPI
+
+Second follow-up from the same reorg: the "Expenses this Month" card
+wasn't gated the way Cash on Hand (and the two new HR/Payroll widgets)
+were, so an Attendant saw a real-looking GH₵0 figure instead of the
+"unavailable" treatment — indistinguishable from a genuinely-zero month,
+when what was actually happening is `expenses_select`'s RLS (Manager/
+Accountant/Auditor only) returning an empty array to that role.
+
+`data/dashboard.ts`: added `unavailable: !canReadLedger` to the
+Expenses this Month KPI, same flag Cash on Hand already uses (same role
+set, `expenses_select` and the ledger tables share the identical RLS
+gate), and its hint now reads "Visible to Manager, Accountant and
+Auditor" when gated instead of "N expenses recorded" against an array
+that's empty for the wrong reason. `KpiCard` in `routes/index.tsx`
+already renders `unavailable` as "—" with no code changes needed there
+— this was purely a missing flag on one KPI definition, not a rendering
+gap. Updated the neighboring comment on Cash on Hand, which used to
+claim "only this KPI can ever be role-gated" — no longer true now that
+a second one is.
+
+Verified with a real browser pass as both `dev-attendant@tcs.test`
+(now shows "—" / "Visible to Manager, Accountant and Auditor", matching
+Cash on Hand/Pending Approvals/Latest Payroll Run exactly) and
+`dev-manager@tcs.test` (unchanged: real figure, "0 expenses recorded").
+Zero console errors either session. `tsc --noEmit` clean except the
+same pre-existing `__root.tsx` error. Full-repo `eslint` clean except
+the same pre-existing baseline issues. `vite build` exit 0.
