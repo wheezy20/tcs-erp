@@ -2441,3 +2441,109 @@ touches a column already live in production needs either
 pre-existing value being renamed, or (equivalently) temporarily holding
 back later migrations and reconstructing that intermediate state by hand
 — a plain `db reset` isn't sufficient evidence for this class of change.
+
+## 2026-09-24 (later) — HR beyond payroll, Phase 4: document generation
+
+Built document generation for Appointment Letters, Probation Letters,
+and Contracts (Teaching/Non-Teaching, auto-detected from position).
+Presented the full schema/lifecycle/template/merge-field plan before
+writing any code, per the established phase rhythm; Eyram confirmed all
+three proposed defaults (HR records contract acceptance manually rather
+than a new self-service signing flow; templates get their own dedicated
+page rather than folding into Payroll Setup; the four templates ship
+seeded with real starter prose rather than skeletal placeholders).
+
+**Generalized the originally-planned single-purpose "employee contracts"
+table into `employee_generated_documents`** with a `document_kind`
+column (`Appointment Letter` / `Probation Letter` / `Contract-Teaching` /
+`Contract-Non-Teaching`), since all three document types share identical
+lifecycle mechanics and an identical generation mechanism — see
+docs/DESIGN.md's new bullet for the full schema, the partial-unique-index
+enforcement of "at most one Issued document per employee per kind," and
+why Contract splits into two templates while the other two don't.
+
+**The one new fact needed for Contract auto-detection**:
+`positions.is_teaching` — nothing distinguished job function on that list
+before. Backfilled `true` for every position with "TEACH" in the name
+(Head Teacher, Class Teacher, Subject Teacher, Teaching Assistant,
+Assistant Head Teacher — 5 of the 16 seeded positions), so existing staff
+don't all silently default to Non-Teaching until someone manually reviews
+every row. The resolution happens twice on purpose — once client-side (to
+pick which template to render) and once again inside
+`generate_employee_document()` (to decide what gets stored) — the server
+never trusts the client's classification.
+
+**The real obstacle, found only by actually running the generation flow
+in a browser**: every attempt failed silently with a toast —
+"Attempting to parse an unsupported color function 'oklch'" — because
+this app's theme (`styles.css`) defines its colors as `oklch()` custom
+properties, which html2canvas (jsPDF's `.html()` rendering backend)
+can't parse. Two attempts before the real fix:
+1. First guess: maybe html2canvas was walking oklch-styled ambient page
+   CSS through inheritance — tried rendering inside an isolated
+   `<iframe>` with no stylesheet of its own. Didn't help.
+2. Read jsPDF's own source to find out why: `.html()`'s internal
+   `toContainer()` step clones the source element and re-parents the
+   clone into the app's *real* `document.body` before calling
+   html2canvas at all — so an iframe source doesn't matter, the render
+   always happens back in the live, oklch-themed page. html2canvas then
+   clones the *entire* document again internally regardless of which
+   specific element it's asked to render, confirmed by its own debug log
+   ("Starting document clone with size 1280x4076" — full viewport
+   dimensions, not the 700px-wide letter content).
+3. **Real fix**: html2canvas's own `onclone(document)` hook, passed
+   through jsPDF's `html2canvas` option, runs against the clone right
+   before rendering — used to inject a blanket
+   `*, *::before, *::after { color/background-color/border-color: ...
+   !important; }` override, safe here specifically because this
+   feature's template HTML never uses Tailwind classes or the app's
+   custom properties at all (plain tags, inline styles). Verified with a
+   real generated PDF fetched via its signed URL: `200`,
+   `content-type: application/pdf`, 92,855 bytes, correct `%PDF-` magic
+   bytes — not just "a request succeeded," an actually-openable document.
+
+**Letterhead reuses `settings-store.ts`'s `DocumentSettings.company`** —
+the same client-side source `invoice-pdf.ts` already reads — rather than
+adding a school-identity table; `branches` has no such fields (checked
+directly: it's a 4-column location label, not a company-identity
+record), and this renders client-side anyway, same trust level as an
+invoice.
+
+Frontend: `generated-documents-store.ts` (RPC calls + signed-URL reads,
+no direct table writes — same shape as every other RPC-only table this
+session), `contract-templates-store.ts`, `lib/pdf/contract-pdf.ts`
+(merge-field builder + the render function above), a new "HR letters &
+contracts" card on the employee profile page (three generate buttons,
+grouped-by-kind document list, Issue/Discard/Record-acceptance actions),
+and a new dedicated `/employees/document-templates` page (one big
+textarea per category, merge-field tokens listed as reference), linked
+from the Employees list page's header. `positions`' settings chip on
+Payroll Setup gained a Teaching/Non-Teaching toggle — extended the
+existing generic `RefListSection`/`RefListChip` components with an
+optional prop rather than forking them, and added a standalone
+`setPositionIsTeaching()` function in `org-lists-store.ts` rather than
+folding `is_teaching` into the shared `update()` used by
+departments/qualifications too, since TypeScript correctly rejects an
+update payload key that doesn't exist on every table in that shared
+function's type union.
+
+**Verified with a real end-to-end browser pass** (after fixing the
+oklch issue above): generated an Appointment Letter and fetched its
+signed URL directly (real PDF, confirmed above); generated a Contract
+for a Teaching employee (Class Teacher) → correctly labeled
+`Contract-Teaching`, never `Contract-Non-Teaching`; generated a Contract
+for a Non-Teaching employee (Accountant) → correctly labeled
+`Contract-Non-Teaching`; issued v1, then generated and issued v2 of the
+same Appointment Letter → v1 correctly flipped to `Superseded`; recorded
+an acceptance signature on the Issued v2 → showed "Accepted by …";
+discarded a still-Draft Contract → fully removed. `dev-auditor@tcs.test`:
+sees the whole section and can open the signed View PDF links, but no
+Generate/Issue/Discard buttons anywhere — correct read-only. Template
+editor: all four categories render with real seeded prose, the Probation
+Letter template contains `{{probation_end_date}}`, an edit saved and
+persisted across reload. `tsc`, `eslint`, `vite build`, and
+`check-duplicate-function-overloads.sh` all clean at the existing
+baseline.
+
+Phase 5 (email infrastructure) remains the last piece of the original
+five-phase plan.

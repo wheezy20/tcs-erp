@@ -40,6 +40,7 @@ import { Route as CustomersIndexRouteImport } from './routes/customers.index'
 import { Route as CustomersCustomerIdRouteImport } from './routes/customers.$customerId'
 import { Route as EmployeesIndexRouteImport } from './routes/employees.index'
 import { Route as EmployeesEmployeeIdRouteImport } from './routes/employees.$employeeId'
+import { Route as EmployeesDocumentTemplatesRouteImport } from './routes/employees.document-templates'
 import { Route as EndOfDayIndexRouteImport } from './routes/end-of-day.index'
 import { Route as EndOfDayDepositsRouteImport } from './routes/end-of-day.deposits'
 import { Route as EndOfDayHistoryRouteImport } from './routes/end-of-day.history'
@@ -228,6 +229,12 @@ const EmployeesEmployeeIdRoute = EmployeesEmployeeIdRouteImport.update({
   path: '/$employeeId',
   getParentRoute: () => EmployeesRoute,
 } as any)
+const EmployeesDocumentTemplatesRoute =
+  EmployeesDocumentTemplatesRouteImport.update({
+    id: '/document-templates',
+    path: '/document-templates',
+    getParentRoute: () => EmployeesRoute,
+  } as any)
 const EndOfDayIndexRoute = EndOfDayIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -409,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/employees/$employeeId': typeof EmployeesEmployeeIdRoute
+  '/employees/document-templates': typeof EmployeesDocumentTemplatesRoute
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
@@ -462,6 +470,7 @@ export interface FileRoutesByTo {
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/employees/$employeeId': typeof EmployeesEmployeeIdRoute
+  '/employees/document-templates': typeof EmployeesDocumentTemplatesRoute
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
@@ -526,6 +535,7 @@ export interface FileRoutesById {
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
   '/customers/$customerId': typeof CustomersCustomerIdRoute
   '/employees/$employeeId': typeof EmployeesEmployeeIdRoute
+  '/employees/document-templates': typeof EmployeesDocumentTemplatesRoute
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
@@ -591,6 +601,7 @@ export interface FileRouteTypes {
     | '/customer-deposits/$depositId'
     | '/customers/$customerId'
     | '/employees/$employeeId'
+    | '/employees/document-templates'
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
@@ -644,6 +655,7 @@ export interface FileRouteTypes {
     | '/customer-deposits/$depositId'
     | '/customers/$customerId'
     | '/employees/$employeeId'
+    | '/employees/document-templates'
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
@@ -707,6 +719,7 @@ export interface FileRouteTypes {
     | '/customer-deposits/$depositId'
     | '/customers/$customerId'
     | '/employees/$employeeId'
+    | '/employees/document-templates'
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
@@ -992,6 +1005,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmployeesEmployeeIdRouteImport
       parentRoute: typeof EmployeesRoute
     }
+    '/employees/document-templates': {
+      id: '/employees/document-templates'
+      path: '/document-templates'
+      fullPath: '/employees/document-templates'
+      preLoaderRoute: typeof EmployeesDocumentTemplatesRouteImport
+      parentRoute: typeof EmployeesRoute
+    }
     '/end-of-day/': {
       id: '/end-of-day/'
       path: '/'
@@ -1246,11 +1266,13 @@ const BankingRouteWithChildren =
 
 interface EmployeesRouteChildren {
   EmployeesEmployeeIdRoute: typeof EmployeesEmployeeIdRoute
+  EmployeesDocumentTemplatesRoute: typeof EmployeesDocumentTemplatesRoute
   EmployeesIndexRoute: typeof EmployeesIndexRoute
 }
 
 const EmployeesRouteChildren: EmployeesRouteChildren = {
   EmployeesEmployeeIdRoute: EmployeesEmployeeIdRoute,
+  EmployeesDocumentTemplatesRoute: EmployeesDocumentTemplatesRoute,
   EmployeesIndexRoute: EmployeesIndexRoute,
 }
 

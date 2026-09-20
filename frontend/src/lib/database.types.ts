@@ -496,6 +496,41 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_templates: {
+        Row: {
+          category: string
+          created_at: string
+          html_body: string
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          html_body?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          html_body?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_templates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_deposits: {
         Row: {
           amount: number
@@ -973,6 +1008,79 @@ export type Database = {
           {
             foreignKeyName: "employee_documents_uploaded_by_fkey"
             columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_generated_documents: {
+        Row: {
+          acceptance_signature_name: string | null
+          accepted_at: string | null
+          created_at: string
+          created_by: string
+          document_kind: string
+          employee_id: string
+          id: string
+          issued_at: string | null
+          issued_by: string | null
+          merge_data: Json
+          status: string
+          storage_path: string
+          superseded_at: string | null
+          version: number
+        }
+        Insert: {
+          acceptance_signature_name?: string | null
+          accepted_at?: string | null
+          created_at?: string
+          created_by?: string
+          document_kind: string
+          employee_id: string
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          merge_data: Json
+          status?: string
+          storage_path: string
+          superseded_at?: string | null
+          version: number
+        }
+        Update: {
+          acceptance_signature_name?: string | null
+          accepted_at?: string | null
+          created_at?: string
+          created_by?: string
+          document_kind?: string
+          employee_id?: string
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          merge_data?: Json
+          status?: string
+          storage_path?: string
+          superseded_at?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_generated_documents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_generated_documents_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_generated_documents_issued_by_fkey"
+            columns: ["issued_by"]
             isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
@@ -2428,6 +2536,7 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          is_teaching: boolean
           name: string
           position: number
         }
@@ -2435,6 +2544,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_teaching?: boolean
           name: string
           position?: number
         }
@@ -2442,6 +2552,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_teaching?: boolean
           name?: string
           position?: number
         }
@@ -4480,6 +4591,10 @@ export type Database = {
       }
       delete_payslip: { Args: { p_payslip_id: string }; Returns: undefined }
       delete_product: { Args: { p_id: string }; Returns: undefined }
+      discard_draft_document: {
+        Args: { p_document_id: string }
+        Returns: undefined
+      }
       exclude_employee_from_run: {
         Args: { p_employee_id: string; p_reason?: string; p_run_id: string }
         Returns: {
@@ -4500,6 +4615,36 @@ export type Database = {
       expense_category_account: {
         Args: { p_branch_id: string; p_category: string }
         Returns: string
+      }
+      generate_employee_document: {
+        Args: {
+          p_document_kind: string
+          p_employee_id: string
+          p_merge_data: Json
+          p_storage_path: string
+        }
+        Returns: {
+          acceptance_signature_name: string | null
+          accepted_at: string | null
+          created_at: string
+          created_by: string
+          document_kind: string
+          employee_id: string
+          id: string
+          issued_at: string | null
+          issued_by: string | null
+          merge_data: Json
+          status: string
+          storage_path: string
+          superseded_at: string | null
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_generated_documents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       generate_onboarding_token: {
         Args: { p_employee_id: string; p_ttl_days?: number }
@@ -4557,6 +4702,10 @@ export type Database = {
       }
       is_active_staff: { Args: never; Returns: boolean }
       is_valid_onboarding_token: { Args: { p_token: string }; Returns: boolean }
+      issue_employee_document: {
+        Args: { p_document_id: string }
+        Returns: undefined
+      }
       match_statement_line: {
         Args: { p_journal_line_id: string; p_line_id: string }
         Returns: {
@@ -5144,6 +5293,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      record_document_acceptance: {
+        Args: { p_document_id: string; p_signature_name: string }
+        Returns: undefined
       }
       record_invoice_payment: {
         Args: {

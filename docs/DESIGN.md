@@ -381,6 +381,74 @@ depend on them holding true for every new table/function added.
   weaken the one two-person control that field exists to protect; HR
   reads the reviewed submission and proposes the pay config the normal
   way through the existing UI.
+- **Document generation (`20260924`): one generalized lifecycle table for
+  Appointment Letters, Probation Letters, and Contracts, not three.** All
+  three share identical mechanics — Draft → Issued → Superseded, old
+  versions archived not deleted, an HTML template with `{{merge_field}}`
+  placeholders rendered client-side via jsPDF's `.html()` — so
+  `employee_generated_documents` (named distinctly from `employee_documents`,
+  20260920's candidate-upload table — these are system-generated official
+  records, a different kind of thing) carries a `document_kind` column
+  rather than being three separate tables. A partial unique index
+  (`employee_id, document_kind where status = 'Issued'`) enforces "at most
+  one currently-Issued document per employee per kind" at the DB level;
+  `issue_employee_document()` must demote the existing Issued row to
+  Superseded before promoting the new one, in that order, or the index
+  itself rejects the promotion. No recruitment-stage trigger exists in
+  this system and none was added here — all three are generated on demand
+  from the employee profile, never tied to a status transition.
+  `contract_templates` holds one editable HTML body per of four
+  categories (`Appointment Letter`, `Probation Letter`,
+  `Contract-Teaching`, `Contract-Non-Teaching`) — Contract splits into two
+  templates because Teaching vs. Non-Teaching content genuinely differs
+  (GES curriculum language vs. generic duties), the other two don't.
+  Editing a template never touches an already-Issued document, which is a
+  frozen, already-rendered PDF in storage by then; only a future
+  generation picks up the change. Teaching/Non-Teaching auto-detection
+  needed one new fact nothing tracked before: `positions.is_teaching`
+  (backfilled `true` for every existing position with "TEACH" in the
+  name). The resolution happens **twice, deliberately**: once client-side
+  (to pick which of the two Contract templates to actually render) and
+  once again inside `generate_employee_document()` itself (to decide what
+  `document_kind` gets stored) — the server never trusts the client's
+  choice, it independently re-derives Teaching/Non-Teaching from the same
+  `positions.is_teaching` lookup, so a stale frontend cache can't misfile
+  which category a contract is recorded under.
+  **Letterhead reuses `settings-store.ts`'s existing `DocumentSettings.company`**
+  (name/address/phone/email) — the exact same client-side source
+  `invoice-pdf.ts` already reads — rather than adding a school-identity
+  table; `branches` has no such fields (it's a location label, not a
+  company-identity record), and this generation happens client-side
+  anyway, same trust level as an invoice PDF.
+  **The real jsPDF `.html()` obstacle, found only by actually running
+  it**: this app's global stylesheet defines its theme colors as
+  `oklch()` custom properties, and html2canvas (the library jsPDF's
+  `.html()` renders through) can't parse that color function at all —
+  every generation attempt failed silently with a toast
+  ("Attempting to parse an unsupported color function 'oklch'") until
+  this was root-caused. The first fix attempt (render inside an isolated
+  `<iframe>`, away from the app's global CSS) didn't work: jsPDF's own
+  `.html()` implementation clones the source element and re-parents the
+  clone into the *real* `document.body` before ever calling html2canvas
+  (confirmed by reading jsPDF's own source, not guessed), and html2canvas
+  then clones the *entire* live document again internally regardless —
+  so the app's oklch-themed page is always in scope no matter where the
+  original element lived. The actual fix uses html2canvas's own
+  `onclone(document)` hook (passed through jsPDF's `html2canvas` option)
+  to inject a blanket `*, *::before, *::after { color/background-color/
+  border-color: <plain value> !important; }` rule into the clone right
+  before rendering — safe here specifically because this feature's
+  template HTML never uses Tailwind classes or these custom properties at
+  all (plain tags and inline styles only), so neutralizing them has no
+  visible effect on the letter itself.
+  **Contract acceptance is HR-recorded, not self-service.** After
+  discussion, `acceptance_signature_name`/`accepted_at` exist on
+  `employee_generated_documents` and get filled by
+  `record_document_acceptance()` — but there is no new tokenized public
+  signing flow. HR receives a signature by whatever means (paper, verbal,
+  email) and types the name in afterward. A full self-service signing
+  link (mirroring Phase 3's onboarding form) was considered and
+  explicitly deferred, not built partially.
 - **Approval workflow = an in-row state machine, not a parallel proposals
   table.** Three actions need Manager sign-off, proposed by an Accountant:
   creating an employee, changing basic salary, changing bank/account

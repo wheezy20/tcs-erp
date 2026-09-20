@@ -83,8 +83,23 @@ import {
   type OnboardingSubmission,
   type OnboardingTask,
 } from "@/data/onboarding-store";
+import {
+  discardDraftDocument,
+  generateEmployeeDocument,
+  issueGeneratedDocument,
+  listGeneratedDocuments,
+  recordDocumentAcceptance,
+  type GeneratedDocument,
+} from "@/data/generated-documents-store";
+import { listContractTemplates } from "@/data/contract-templates-store";
 import { usePayroll, type AllowanceType } from "@/data/payroll-store";
+import { getSettings } from "@/data/settings-store";
 import { useStaff } from "@/data/staff-store";
+import {
+  buildDocumentMergeData,
+  mergeTemplate,
+  renderMergedHtmlToPdfBlob,
+} from "@/lib/pdf/contract-pdf";
 import { getErrorMessage } from "@/lib/utils";
 
 export const Route = createFileRoute("/employees/$employeeId")({
@@ -181,6 +196,13 @@ function EmployeeProfilePage() {
               canWrite={canWrite}
             />
           )}
+
+          <GeneratedDocumentsSection
+            key={`gendocs-${emp.id}`}
+            employee={emp}
+            payConfig={current}
+            canWrite={canWrite}
+          />
 
           <PayConfigSection
             emp={emp}
@@ -1143,6 +1165,274 @@ function SubmissionReview({
       )}
       {s.reviewStatus === "Rejected" && s.rejectionReason && (
         <p className="mt-2 text-xs text-destructive">{s.rejectionReason}</p>
+      )}
+    </div>
+  );
+}
+
+/** Appointment Letters, Probation Letters, and Contracts — generated on
+ * demand, never tied to a status transition (this system has no
+ * recruitment-stage trigger). "Contract" resolves to Teaching/Non-Teaching
+ * client-side the same way the RPC does server-side (looking up the
+ * employee's current position against `positions.is_teaching`) so the
+ * rendered PDF's template matches what gets stored — the RPC re-derives
+ * this independently rather than trusting the client's choice, this is
+ * just picking which template to render, not the security boundary. */
+function GeneratedDocumentsSection({
+  employee,
+  payConfig,
+  canWrite,
+}: {
+  employee: Employee;
+  payConfig: PayConfig | undefined;
+  canWrite: boolean;
+}) {
+  const { items: positions } = usePositions();
+  const [documents, setDocuments] = useState<GeneratedDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generatingKind, setGeneratingKind] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function refresh() {
+    try {
+      setDocuments(await listGeneratedDocuments(employee.id));
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not load documents."));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee.id]);
+
+  async function onGenerate(kind: "Appointment Letter" | "Probation Letter" | "Contract") {
+    setGeneratingKind(kind);
+    try {
+      const templates = await listContractTemplates();
+      let category: string;
+      if (kind === "Contract") {
+        const match = positions.find((p) => p.name === employee.position);
+        category = match?.isTeaching ? "Contract-Teaching" : "Contract-Non-Teaching";
+      } else {
+        category = kind;
+      }
+      const template = templates.find((t) => t.category === category);
+      if (!template) throw new Error(`No template found for ${category}.`);
+
+      const mergeData = buildDocumentMergeData(employee, payConfig, getSettings().company);
+      const html = mergeTemplate(template.htmlBody, mergeData);
+      const pdfBlob = await renderMergedHtmlToPdfBlob(html);
+      await generateEmployeeDocument(employee.id, kind, pdfBlob, mergeData);
+      toast.success(`${kind} generated as a Draft`);
+      await refresh();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not generate that document."));
+    } finally {
+      setGeneratingKind(null);
+    }
+  }
+
+  async function onIssue(doc: GeneratedDocument) {
+    setBusyId(doc.id);
+    try {
+      await issueGeneratedDocument(doc.id);
+      toast.success("Document issued");
+      await refresh();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not issue that document."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function onDiscard(doc: GeneratedDocument) {
+    if (!window.confirm(`Discard this ${doc.documentKind} draft (v${doc.version})?`)) return;
+    setBusyId(doc.id);
+    try {
+      await discardDraftDocument(doc.id, doc.storagePath);
+      toast.success("Draft discarded");
+      await refresh();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not discard that draft."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function onRecordAcceptance(doc: GeneratedDocument, name: string) {
+    await recordDocumentAcceptance(doc.id, name);
+    await refresh();
+  }
+
+  const grouped = new Map<string, GeneratedDocument[]>();
+  for (const d of documents) {
+    if (!grouped.has(d.documentKind)) grouped.set(d.documentKind, []);
+    grouped.get(d.documentKind)?.push(d);
+  }
+
+  return (
+    <section className="card-surface p-6">
+      <h2 className="text-sm font-semibold">HR letters &amp; contracts</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Generated on demand, whenever it's the right moment — not tied to any status change.
+      </p>
+
+      {canWrite && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!!generatingKind}
+            onClick={() => onGenerate("Appointment Letter")}
+          >
+            {generatingKind === "Appointment Letter"
+              ? "Generating…"
+              : "Generate Appointment Letter"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!!generatingKind}
+            onClick={() => onGenerate("Probation Letter")}
+          >
+            {generatingKind === "Probation Letter" ? "Generating…" : "Generate Probation Letter"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!!generatingKind}
+            onClick={() => onGenerate("Contract")}
+          >
+            {generatingKind === "Contract" ? "Generating…" : "Generate Contract"}
+          </Button>
+        </div>
+      )}
+
+      <div className="mt-5 space-y-4">
+        {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {!loading && documents.length === 0 && (
+          <p className="text-sm text-muted-foreground">No documents generated yet.</p>
+        )}
+        {[...grouped.entries()].map(([kind, docs]) => (
+          <div key={kind}>
+            <p className="text-xs font-semibold text-muted-foreground">{kind}</p>
+            <div className="mt-1.5 space-y-1.5">
+              {docs.map((doc) => (
+                <GeneratedDocumentRow
+                  key={doc.id}
+                  doc={doc}
+                  canWrite={canWrite}
+                  busy={busyId === doc.id}
+                  onIssue={() => onIssue(doc)}
+                  onDiscard={() => onDiscard(doc)}
+                  onRecordAcceptance={(name) => onRecordAcceptance(doc, name)}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GeneratedDocumentRow({
+  doc,
+  canWrite,
+  busy,
+  onIssue,
+  onDiscard,
+  onRecordAcceptance,
+}: {
+  doc: GeneratedDocument;
+  canWrite: boolean;
+  busy: boolean;
+  onIssue: () => void;
+  onDiscard: () => void;
+  onRecordAcceptance: (name: string) => Promise<void>;
+}) {
+  const [signing, setSigning] = useState(false);
+  const [signatureName, setSignatureName] = useState("");
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="font-medium">v{doc.version}</span>
+          <Badge variant={doc.status === "Issued" ? "secondary" : "outline"}>{doc.status}</Badge>
+          {doc.signedUrl && (
+            <a
+              href={doc.signedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline underline-offset-2"
+            >
+              View PDF
+            </a>
+          )}
+        </div>
+        {doc.status === "Draft" && canWrite && (
+          <div className="flex items-center gap-2">
+            <Button size="sm" disabled={busy} onClick={onIssue}>
+              Issue
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={onDiscard}>
+              Discard
+            </Button>
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Created {new Date(doc.createdAt).toLocaleString()}
+        {doc.createdByName ? ` · ${doc.createdByName}` : ""}
+        {doc.issuedAt && (
+          <>
+            {" "}
+            · Issued {new Date(doc.issuedAt).toLocaleString()}
+            {doc.issuedByName ? ` by ${doc.issuedByName}` : ""}
+          </>
+        )}
+        {doc.supersededAt && <> · Superseded {new Date(doc.supersededAt).toLocaleDateString()}</>}
+      </p>
+      {doc.acceptanceSignatureName ? (
+        <p className="text-xs text-muted-foreground">
+          Accepted by {doc.acceptanceSignatureName}
+          {doc.acceptedAt ? ` on ${new Date(doc.acceptedAt).toLocaleDateString()}` : ""}
+        </p>
+      ) : (
+        doc.status === "Issued" &&
+        canWrite &&
+        (signing ? (
+          <div className="flex items-center gap-2">
+            <Input
+              value={signatureName}
+              onChange={(e) => setSignatureName(e.target.value)}
+              placeholder="Typed name"
+              className="w-48"
+            />
+            <Button
+              size="sm"
+              disabled={!signatureName.trim()}
+              onClick={async () => {
+                await onRecordAcceptance(signatureName);
+                setSigning(false);
+                setSignatureName("");
+              }}
+            >
+              Save
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSigning(false)}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => setSigning(true)}>
+            Record acceptance
+          </Button>
+        ))
       )}
     </div>
   );

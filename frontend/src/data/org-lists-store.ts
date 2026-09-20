@@ -22,12 +22,28 @@ export type RefListItem = {
   name: string;
   position: number;
   isActive: boolean;
+  /** Only meaningful for `positions` (20260924) — undefined for
+   * departments/qualifications, which have no such column. Drives
+   * Contract generation's Teaching-vs-Non-Teaching auto-detection. */
+  isTeaching?: boolean;
 };
 
-type Row = { id: string; name: string; position: number; is_active: boolean };
+type Row = {
+  id: string;
+  name: string;
+  position: number;
+  is_active: boolean;
+  is_teaching?: boolean;
+};
 
 function mapRow(row: Row): RefListItem {
-  return { id: row.id, name: row.name, position: row.position, isActive: row.is_active };
+  return {
+    id: row.id,
+    name: row.name,
+    position: row.position,
+    isActive: row.is_active,
+    isTeaching: row.is_teaching,
+  };
 }
 
 type State = { items: RefListItem[]; loading: boolean; error: string | null };
@@ -109,7 +125,7 @@ function makeRefListStore(table: "positions" | "departments" | "qualifications")
     await reload();
   }
 
-  return { useList, create, update, remove };
+  return { useList, create, update, remove, reload };
 }
 
 const positionsStore = makeRefListStore("positions");
@@ -120,6 +136,19 @@ export const usePositions = positionsStore.useList;
 export const createPosition = positionsStore.create;
 export const updatePosition = positionsStore.update;
 export const deletePosition = positionsStore.remove;
+
+/** `is_teaching` only exists on `positions` (20260924) — a standalone
+ * function rather than folding it into the generic `update()` above,
+ * since that function is shared with departments/qualifications, which
+ * have no such column. */
+export async function setPositionIsTeaching(id: string, isTeaching: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("positions")
+    .update({ is_teaching: isTeaching })
+    .eq("id", id);
+  if (error) throw error;
+  await positionsStore.reload();
+}
 
 export const useDepartments = departmentsStore.useList;
 export const createDepartment = departmentsStore.create;

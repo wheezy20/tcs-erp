@@ -31,6 +31,7 @@ import {
   deleteDepartment,
   deletePosition,
   deleteQualification,
+  setPositionIsTeaching,
   updateDepartment,
   updatePosition,
   updateQualification,
@@ -89,13 +90,15 @@ function PayrollSetupPage() {
       <PaymentProvidersSection providers={providers} canWrite={canWrite} />
       <RefListSection
         title="Positions"
-        hint="Drives the position dropdown on the employee flow. Stored uppercase."
+        hint="Drives the position dropdown on the employee flow, and Contract generation's Teaching/Non-Teaching auto-detection. Stored uppercase."
         placeholder="e.g. Sports Coordinator"
         items={positions}
         canWrite={canWrite}
         onCreate={createPosition}
         onToggle={(id, isActive) => updatePosition(id, { isActive })}
         onDelete={deletePosition}
+        showTeachingToggle
+        onToggleTeaching={setPositionIsTeaching}
       />
       <RefListSection
         title="Departments"
@@ -130,6 +133,8 @@ function RefListSection({
   onCreate,
   onToggle,
   onDelete,
+  showTeachingToggle,
+  onToggleTeaching,
 }: {
   title: string;
   hint: string;
@@ -139,6 +144,8 @@ function RefListSection({
   onCreate: (name: string) => Promise<void>;
   onToggle: (id: string, isActive: boolean) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  showTeachingToggle?: boolean;
+  onToggleTeaching?: (id: string, isTeaching: boolean) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -171,6 +178,8 @@ function RefListSection({
               canWrite={canWrite}
               onToggle={onToggle}
               onDelete={onDelete}
+              showTeachingToggle={showTeachingToggle}
+              onToggleTeaching={onToggleTeaching}
             />
           ))}
         </div>
@@ -200,17 +209,32 @@ function RefListChip({
   canWrite,
   onToggle,
   onDelete,
+  showTeachingToggle,
+  onToggleTeaching,
 }: {
   item: RefListItem;
   canWrite: boolean;
   onToggle: (id: string, isActive: boolean) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  showTeachingToggle?: boolean;
+  onToggleTeaching?: (id: string, isTeaching: boolean) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   async function toggle() {
     setBusy(true);
     try {
       await onToggle(item.id, !item.isActive);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not update that."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function toggleTeaching() {
+    if (!onToggleTeaching) return;
+    setBusy(true);
+    try {
+      await onToggleTeaching(item.id, !item.isTeaching);
     } catch (error) {
       toast.error(getErrorMessage(error, "Could not update that."));
     } finally {
@@ -236,6 +260,19 @@ function RefListChip({
       }`}
     >
       {item.name}
+      {showTeachingToggle && (
+        <button
+          type="button"
+          disabled={busy || !canWrite}
+          onClick={toggleTeaching}
+          className={`rounded-full px-1.5 py-0.5 text-xs ${
+            item.isTeaching ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+          }`}
+          title="Click to toggle Teaching / Non-Teaching"
+        >
+          {item.isTeaching ? "Teaching" : "Non-Teaching"}
+        </button>
+      )}
       {canWrite && (
         <>
           <button

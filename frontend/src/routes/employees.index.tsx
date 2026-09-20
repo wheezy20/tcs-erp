@@ -103,7 +103,16 @@ function EmployeesListPage() {
       <PageHeader
         title="Employees"
         description="Everyone TCS pays. New records and salary / bank changes need Manager approval."
-        actions={canWrite ? <ProposeEmployeeDialog /> : undefined}
+        actions={
+          canWrite ? (
+            <>
+              <Button variant="outline" asChild>
+                <Link to="/employees/document-templates">Document templates</Link>
+              </Button>
+              <ProposeEmployeeDialog />
+            </>
+          ) : undefined
+        }
       />
 
       {isManager && pendingCount > 0 && (
