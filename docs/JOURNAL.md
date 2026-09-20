@@ -2359,3 +2359,85 @@ database: both `employees.qualifications` and the submission's own
 comma-joined text. `tsc`, `eslint`, `vite build`, and
 `check-duplicate-function-overloads.sh` all clean at the existing
 baseline.
+
+## 2026-09-24 — `20260922100000_onboarding_review_fixes.sql` failed against production; fixed and properly re-verified
+
+`20260922100000`'s "ID Copy" -> "National ID" rename failed with a check
+constraint violation when Eyram ran it against the real, already-deployed
+production database. Rolled back cleanly (transactional), so production
+was untouched — but the migration itself was wrong, and a fresh local
+`db reset` had never caught it because it couldn't have: every
+`employee_documents` row used in local testing was inserted *after* all
+migrations had already applied, so the constraint was already sitting in
+its final state by the time anything named "ID Copy" existed anywhere.
+The bad transition itself was never exercised locally, only against a
+database that had *actually lived through* Phase 2 and Phase 3 with a
+real "ID Copy" upload sitting in it already.
+
+Two bugs, not one, both in the same handful of lines — worth recording
+both since the first "fix" attempt was itself wrong in a related way:
+
+1. **First attempt**: widen the constraint, *then* rename the data. Still
+   wrong — the "widened" constraint dropped `'ID Copy'` from the allowed
+   list entirely (swapped for `'National ID'`), so *adding* that
+   constraint fails immediately against the still-unrenamed pre-existing
+   row. Postgres validates a new `check` against every existing row
+   unless declared `not valid`, and swapping one allowed value for
+   another is not a superset of what's already there.
+2. **Real fix**: there is no ordering of "swap the constraint" plus
+   "rename the data" that works in a single step here — it needs the
+   standard expand/migrate/contract shape for a live enum-value rename:
+   widen the constraint to accept **both** `'ID Copy'` and
+   `'National ID'` at once, rename the data (now legal either way under
+   the expanded constraint), then contract the constraint back down to
+   its final form once nothing uses `'ID Copy'` anymore.
+
+**Verified properly this time** — against a database that actually has
+the failure precondition, not a fresh reset: temporarily moved
+`20260922`/`20260923` out of `supabase/migrations/`, ran `db reset` (applies
+cleanly through Phase 3), inserted a real `employee_documents` row with
+`document_type = 'ID Copy'` directly via `psql` (simulating the row that
+existed in production), then:
+- Confirmed the *original* buggy statement order reproduces the exact
+  reported error, verbatim, against this seeded row.
+- Confirmed the *first fix attempt* (widen-then-rename, no `'ID Copy'`
+  kept in the interim list) fails too, with a different but equally real
+  error — `ADD CONSTRAINT` itself rejected by the pre-existing row.
+- Restored to the same seeded state and applied the real fix via
+  `npx supabase migration up --local` (applies one pending migration
+  against existing database state, the same way `db push` would against
+  a real project, rather than a full reset) — applied cleanly. Confirmed
+  the row ended up `'National ID'`, the checklist item ended up
+  `'National ID'`, and the constraint's *final* form correctly excludes
+  `'ID Copy'` again (the contract step actually ran, not just the
+  expand step).
+- Applied `20260923` on top via the same `migration up` mechanism —
+  clean.
+- Full `db reset` from scratch afterward to confirm the whole sequence
+  still works end to end with no regression from the fix.
+  `check-duplicate-function-overloads.sh` clean at every step above.
+  `tsc`/`eslint`/`vite build` unaffected (frontend wasn't touched).
+
+**What I did not do, and can't**: actually run `supabase db push` against
+the real production project. This local environment has never had
+production credentials or a linked project — every verification this
+entire session has been against the local Docker stack, and
+CLAUDE.md is explicit that pushing to the real hosted project is Eyram's
+own step, with his own credentials, not something to run on his behalf.
+The local reproduction above is the closest verification available
+short of that: the exact failure precondition (a real pre-existing
+`'ID Copy'` row, not a freshly-seeded one), the exact CLI mechanism
+(`migration up`, matching what `db push` does against existing state),
+and confirmation that both the original bug and the first wrong fix
+attempt are now understood and ruled out, not just patched over.
+
+**Lesson for future data-value renames on a column already in
+production**: a fresh `supabase db reset` only proves a migration is
+internally consistent against data the *same reset* creates — it can't
+catch a bug that only manifests against data created by an *earlier*
+deployment. Verifying a rename/constraint-tightening migration that
+touches a column already live in production needs either
+`supabase migration up` against a database seeded with the specific
+pre-existing value being renamed, or (equivalently) temporarily holding
+back later migrations and reconstructing that intermediate state by hand
+— a plain `db reset` isn't sufficient evidence for this class of change.

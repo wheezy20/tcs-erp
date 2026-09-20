@@ -3,6 +3,40 @@
 --
 -- 1. "ID Copy" -> "National ID", matching employees.national_id's own
 --    naming. Renaming a live catalog row + its document_type value.
+--
+-- This failed against production on first attempt (rolled back cleanly,
+-- transactional) with a check constraint violation on the rename UPDATE.
+-- The first fix attempt (widen the constraint, then rename) was still
+-- wrong: the "widened" constraint dropped 'ID Copy' from the allowed list
+-- entirely (replaced by 'National ID'), so *adding* that constraint
+-- itself fails immediately against any pre-existing 'ID Copy' row —
+-- Postgres validates a new CHECK against every existing row unless
+-- declared NOT VALID, and swapping one allowed value for another is
+-- still not a superset of what's already there. There is no ordering of
+-- "swap the constraint" + "rename the data" that works in one step; it's
+-- an expand/migrate/contract, same as any live enum-value rename:
+--   1. Expand the constraint to accept BOTH 'ID Copy' and 'National ID'
+--      at once (a true superset of old and new).
+--   2. Rename the data — now legal under the expanded constraint either
+--      way.
+--   3. Contract the constraint back down, dropping 'ID Copy' now that no
+--      row uses it.
+-- Neither bug was caught by a fresh `db reset` locally, because every
+-- employee_documents row used in testing was inserted after all
+-- migrations had already applied — the constraint was already in its
+-- final state by the time anything named 'ID Copy' existed, so this
+-- transition was never actually exercised. Verified this time against a
+-- local DB seeded with a real pre-existing 'ID Copy' row before this
+-- migration runs (via `supabase migration up`, which applies a single
+-- pending migration the same way `db push` does, rather than a full
+-- reset).
+alter table public.employee_documents drop constraint employee_documents_document_type_check;
+alter table public.employee_documents add constraint employee_documents_document_type_check
+  check (document_type in (
+    'ID Copy', 'National ID', 'SSNIT Card', 'TIN Copy', 'Academic Certs', 'Passport Photos',
+    'Guarantor Form', 'Medical Clearance', 'Background Check', 'Other'
+  ));
+
 update public.onboarding_checklist_items set name = 'National ID' where name = 'ID Copy';
 update public.employee_documents set document_type = 'National ID' where document_type = 'ID Copy';
 
