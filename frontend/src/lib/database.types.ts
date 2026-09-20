@@ -934,6 +934,51 @@ export type Database = {
           },
         ]
       }
+      employee_documents: {
+        Row: {
+          document_type: string
+          employee_id: string
+          id: string
+          notes: string | null
+          storage_path: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          document_type: string
+          employee_id: string
+          id?: string
+          notes?: string | null
+          storage_path: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Update: {
+          document_type?: string
+          employee_id?: string
+          id?: string
+          notes?: string | null
+          storage_path?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_documents_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_pay_config: {
         Row: {
           account_no: string | null

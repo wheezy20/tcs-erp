@@ -1992,3 +1992,71 @@ Phases 2–5 (document storage, onboarding + the tokenized public form,
 contract generation, email infrastructure) are separate follow-up
 sessions, each with their own plan-to-verification pass, per the phasing
 laid out when the full plan was presented.
+
+## 2026-09-20 — HR beyond payroll, Phase 2: document storage for onboarding uploads
+
+Built the private storage bucket + metadata table for onboarding personal
+documents (national ID, certificates, photo), applying the receipts-bucket
+lesson (`20260918110000`) from the very first commit instead of retrofitting
+it later — see docs/DESIGN.md's new "Document storage applies the
+receipts-bucket lesson" bullet for the exact shape.
+
+`20260920100000_employee_documents.sql`: `onboarding-documents` bucket
+created with `public = false`; four `storage.objects` policies mirroring
+`receipts_select`/`insert`/`update`/`delete` exactly (select Manager/
+Accountant/Auditor, write Manager/Accountant). `employee_documents` table
+(employee_id, document_type, storage_path, uploaded_by, uploaded_at,
+notes) with the same RLS shape as `employee_allowances` — plain RLS
+writes, not a SECURITY DEFINER RPC, not approval-gated, no audit_log
+trigger. `document_type` is a checked enum (`National ID` / `Certificate`
+/ `Photo` / `Other`) rather than free text, matching the small,
+school-controlled scope of what onboarding actually asks for.
+
+**Held back on purpose, not stubbed**: the plan called for an `anon`
+INSERT policy scoped to a valid onboarding token embedded in the object
+path, prepping this bucket for Phase 3's public form. Building that policy
+now was impossible, not just premature — its `with check` needs to look up
+the token in `onboarding_tokens`, a table that won't exist until Phase 3,
+and Postgres fails a `create policy` referencing an undefined table
+outright. So there is currently no `anon` access to this bucket at all;
+that policy arrives together with `onboarding_tokens` in Phase 3's own
+migration, never as a dormant no-op sitting in the schema in the meantime.
+
+Frontend: new `employee-documents-store.ts` (`listEmployeeDocuments`,
+`uploadEmployeeDocument`, `deleteEmployeeDocument`), all reads through
+`createSignedUrls()`, never `getPublicUrl()`. New `DocumentsSection` on
+the employee profile page (`employees.$employeeId.tsx`) — upload form
+(type + file + notes) gated `canWrite`, a list of uploaded documents with
+a signed "View" link, delete gated `canWrite`. Placed directly after the
+new HR-details card.
+
+**Verified with a real browser pass**, specifically targeting the two
+things this phase was about — bucket privacy and the RLS matrix:
+- Logged in as `dev-manager@tcs.test`, uploaded a test file, confirmed the
+  row and its signed "View" link appeared, and confirmed the signed URL
+  itself resolves (`200`).
+- Fetched the *same object* through Storage's `/object/public/<path>`
+  endpoint directly (no signed token) — got back `404 Bucket not found`.
+  This is the same test used to verify the receipts fix, and the same
+  signature: Storage doesn't even acknowledge a non-public bucket exists
+  through that route, rather than a generic 403.
+- `dev-auditor@tcs.test`: sees the Documents section and the View link,
+  no Upload button — correct read-only.
+- `dev-accountant@tcs.test`: sees and can use the Upload button, and
+  successfully deleted the manager's test row (used to confirm delete
+  permission and to clean up the test data in the same step).
+- `dev-attendant@tcs.test`: hits the pre-existing "Employees isn't
+  available for this role" guard before ever reaching the Documents
+  section — confirms Attendant has no path to this data at all, not just
+  an empty result.
+- Cross-checked directly against the database afterwards: `storage.buckets`
+  shows `onboarding-documents` / `public = f`, and `employee_documents` is
+  empty (the test row was actually deleted through the UI, not just
+  hidden client-side).
+- `tsc --noEmit` clean except the same pre-existing `__root.tsx` error.
+  `eslint` clean except the same pre-existing baseline (13 problems,
+  full repo). `vite build` exit 0. `check-duplicate-function-overloads.sh`
+  reported none.
+
+Phases 3–5 (onboarding checklist + the tokenized public form, contract
+generation, email infrastructure) remain separate follow-up sessions.

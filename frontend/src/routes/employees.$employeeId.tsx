@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -57,6 +57,14 @@ import {
   type PayConfig,
   type PaymentMethod,
 } from "@/data/employees-store";
+import {
+  deleteEmployeeDocument,
+  listEmployeeDocuments,
+  uploadEmployeeDocument,
+  DOCUMENT_TYPES,
+  type DocumentType,
+  type EmployeeDocument,
+} from "@/data/employee-documents-store";
 import { activeNames, useDepartments, usePositions } from "@/data/org-lists-store";
 import { usePayroll, type AllowanceType } from "@/data/payroll-store";
 import { useStaff } from "@/data/staff-store";
@@ -140,6 +148,12 @@ function EmployeeProfilePage() {
           <HrDetailsSection
             key={`hr-${emp.id}`}
             emp={emp}
+            canWrite={canWrite && emp.status !== "Rejected"}
+          />
+
+          <DocumentsSection
+            key={`docs-${emp.id}`}
+            employeeId={emp.id}
             canWrite={canWrite && emp.status !== "Rejected"}
           />
 
@@ -561,6 +575,149 @@ function HrDetailsSection({ emp, canWrite }: { emp: Employee; canWrite: boolean 
           </Button>
         </div>
       )}
+    </section>
+  );
+}
+
+function DocumentsSection({ employeeId, canWrite }: { employeeId: string; canWrite: boolean }) {
+  const [docs, setDocs] = useState<EmployeeDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [documentType, setDocumentType] = useState<DocumentType>(DOCUMENT_TYPES[0]);
+  const [file, setFile] = useState<File | null>(null);
+  const [notes, setNotes] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function refresh() {
+    try {
+      setDocs(await listEmployeeDocuments(employeeId));
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not load documents."));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId]);
+
+  async function upload() {
+    if (!file) return;
+    setUploading(true);
+    try {
+      await uploadEmployeeDocument(employeeId, documentType, file, notes);
+      setFile(null);
+      setNotes("");
+      toast.success("Document uploaded");
+      await refresh();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not upload document."));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function remove(doc: EmployeeDocument) {
+    setDeletingId(doc.id);
+    try {
+      await deleteEmployeeDocument(doc);
+      toast.success("Document deleted");
+      await refresh();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not delete document."));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  return (
+    <section className="card-surface p-6">
+      <h2 className="text-sm font-semibold">Documents</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        National ID, certificates, photo. Stored privately — links below are time-limited signed
+        URLs, never a public link.
+      </p>
+
+      {canWrite && (
+        <div className="mt-5 grid gap-3 sm:grid-cols-[160px_1fr_1fr_auto] sm:items-end">
+          <div className="space-y-2">
+            <Label>Type</Label>
+            <Select value={documentType} onValueChange={(v) => setDocumentType(v as DocumentType)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DOCUMENT_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>File</Label>
+            <Input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Notes (optional)</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <Button onClick={upload} disabled={!file || uploading}>
+            {uploading ? "Uploading…" : "Upload"}
+          </Button>
+        </div>
+      )}
+
+      <div className="mt-5 space-y-2">
+        {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {!loading && docs.length === 0 && (
+          <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
+        )}
+        {docs.map((doc) => (
+          <div
+            key={doc.id}
+            className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+          >
+            <div className="min-w-0">
+              <div className="font-medium">{doc.documentType}</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {new Date(doc.uploadedAt).toLocaleString()}
+                {doc.uploadedByName ? ` · ${doc.uploadedByName}` : ""}
+                {doc.notes ? ` · ${doc.notes}` : ""}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {doc.signedUrl && (
+                <a
+                  href={doc.signedUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline underline-offset-2"
+                >
+                  View
+                </a>
+              )}
+              {canWrite && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={deletingId === doc.id}
+                  onClick={() => remove(doc)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

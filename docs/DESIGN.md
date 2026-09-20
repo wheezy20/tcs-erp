@@ -265,6 +265,33 @@ depend on them holding true for every new table/function added.
   remember to flip in sync with the date; the departure-flavored values
   overlap with the explicitly-deferred Leave/Exit & Offboarding domains
   (see `docs/CONSTRAINTS.md`) and aren't solved by this table.
+- **Document storage applies the receipts-bucket lesson from the first
+  commit, not as a retrofit.** `onboarding-documents` (`20260920`) is
+  `public = false` from its `insert into storage.buckets` — there is no
+  "start public, fix later" phase the way `receipts` briefly had. Reads
+  go through `supabase.storage.from(...).createSignedUrls()`
+  (`employee-documents-store.ts`), never `getPublicUrl()`. Verified the
+  same way the receipts fix was verified: fetching the bucket's
+  `/object/public/<path>` endpoint directly returns `404 Bucket not
+  found` (Storage refuses to serve a non-public bucket through that route
+  at all, rather than a generic 403), while the signed URL for the same
+  object resolves normally. `employee_documents` (metadata: employee_id,
+  document_type, storage_path, uploaded_by, uploaded_at, notes) is a
+  plain RLS-gated table shaped exactly like `employee_allowances` — select
+  Manager/Accountant/Auditor, insert/update/delete Manager/Accountant, not
+  approval-gated, no audit_log trigger (matches `employee_allowances`,
+  not `employees`/`employee_pay_config` — audit_log is reserved for
+  approval-state transitions, not every plain insert). Deliberately flat,
+  no version history: that shape belongs to the *contract* lifecycle
+  (Draft/Issued/Superseded, still to be built) which is a genuinely
+  different problem and its own table, not a reuse of this one.
+  A tokenized `anon` INSERT policy for this bucket — the public onboarding
+  form's upload path — was scoped out on purpose rather than stubbed: it
+  needs to look up its token in a table (`onboarding_tokens`) that doesn't
+  exist until the onboarding-checklist phase, and referencing a
+  nonexistent table in a policy fails the migration outright, so this
+  isn't a dormant no-op sitting in the schema today. It arrives together
+  with `onboarding_tokens` in that phase's own migration.
 - **Approval workflow = an in-row state machine, not a parallel proposals
   table.** Three actions need Manager sign-off, proposed by an Accountant:
   creating an employee, changing basic salary, changing bank/account
