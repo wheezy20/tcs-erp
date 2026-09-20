@@ -14,8 +14,34 @@ const ONBOARDING_DOCUMENTS_BUCKET = "onboarding-documents";
  * not how long a normal viewing session lasts. */
 const DOCUMENT_URL_EXPIRY_SECONDS = 60 * 60;
 
-export type DocumentType = "National ID" | "Certificate" | "Photo" | "Other";
-export const DOCUMENT_TYPES: DocumentType[] = ["National ID", "Certificate", "Photo", "Other"];
+// Widened 20260921 (Phase 3) from a 4-value placeholder guess to the real
+// 8 document-backed onboarding checklist item names, once the actual
+// 18-item tracker (not just the Apps Script source) showed what's really
+// asked for — see onboarding-store.ts and the Phase 3 migration. These
+// names double as onboarding_checklist_items.name for document-backed
+// items, so approve_onboarding_submission() can write document_type
+// straight from the checklist item with no separate mapping table.
+export type DocumentType =
+  | "ID Copy"
+  | "SSNIT Card"
+  | "TIN Copy"
+  | "Academic Certs"
+  | "Passport Photos"
+  | "Guarantor Form"
+  | "Medical Clearance"
+  | "Background Check"
+  | "Other";
+export const DOCUMENT_TYPES: DocumentType[] = [
+  "ID Copy",
+  "SSNIT Card",
+  "TIN Copy",
+  "Academic Certs",
+  "Passport Photos",
+  "Guarantor Form",
+  "Medical Clearance",
+  "Background Check",
+  "Other",
+];
 
 export type EmployeeDocument = {
   id: string;

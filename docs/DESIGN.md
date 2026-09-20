@@ -292,6 +292,95 @@ depend on them holding true for every new table/function added.
   nonexistent table in a policy fails the migration outright, so this
   isn't a dormant no-op sitting in the schema today. It arrives together
   with `onboarding_tokens` in that phase's own migration.
+- **Onboarding checklist: manual vs. derived items, and the first
+  anon-writable path in the app (`20260921`).** 18 real checklist items
+  (from the live ACCEPTED_STAFF_ONBOARDING tracker, not just the Apps
+  Script source) split into two kinds on `onboarding_checklist_items` —
+  `is_derived = false` (a human does something; toggled through
+  `toggle_onboarding_task()`, never a raw table write) and
+  `is_derived = true` (the fact already lives elsewhere in this schema;
+  a trigger recomputes it, never manually toggleable). Two collapses from
+  the original four named derived signals to two catalog items: "Bank
+  Details Form" and "Payroll Added" are the identical predicate (an
+  Active `employee_pay_config` row exists) under two names, and "Staff
+  Email Created"/"Staff ID Issued" were both specified against the same
+  compound condition (a linked `staff` row exists AND
+  `employees.school_email` is set) — this schema has no way to
+  distinguish those as separate facts, so two catalog rows that always
+  flip together would double-count one signal with zero added
+  information. `employees.onboarding_completed_at` is set once, by
+  trigger, when every *active* item is done, and is **never cleared** —
+  a catalog item added or reactivated later, or a manual item someone
+  unchecks afterward, doesn't retroactively "unfinish" someone already
+  onboarded. Deactivating a catalog item can *newly* satisfy that
+  condition for employees stuck only on it, so deactivation also
+  triggers a completion recheck.
+  Known, accepted scope limits (not oversights): task rows are snapshotted
+  once, at the employee's Active transition (or a manual
+  `initialize_onboarding_checklist()` re-run) — a catalog item added or
+  reactivated afterward does not retroactively appear on someone already
+  mid-checklist. There's also no "revoke an unexpired token" RPC and no
+  uniqueness constraint limiting one open token per employee — expiry is
+  the only staleness mechanism; resending just generates another token.
+  Both are deliberate simplicity choices for a first version, not gaps
+  that block shipping.
+  `employee_documents.document_type` (20260920) was widened from a
+  4-value placeholder guess to the real 8 document-backed item names once
+  this tracker showed what's actually asked for — those names double as
+  `document_type` values, so `approve_onboarding_submission()` writes
+  straight from the checklist item name with no separate mapping table.
+  The **tokenized public form** (`/onboarding/$token`, auth-free in
+  `__root.tsx` same as `/login`) is the first place this app accepts an
+  anon write. The security shape, end to end:
+  - **Generation** (`generate_onboarding_token()`, Manager/Accountant,
+    Active employees only) mints 32 bytes from pgcrypto's
+    `gen_random_bytes()` (a CSPRNG), returns the 64-hex-char raw token to
+    the caller **exactly once**, and stores only its SHA-256 hash
+    (`employee_onboarding_tokens.token_hash`, unique). There is no way to
+    recover a usable token from the database afterwards, including for a
+    Manager reading the table directly.
+  - **Expiry** (`expires_at`, default 14 days) is checked on every use by
+    both `is_valid_onboarding_token()` and `submit_onboarding_form()`.
+  - **Single-use** is enforced with a row lock, not a bare
+    `used_at is null` check: `submit_onboarding_form()` does
+    `select ... for update` on the token row before anything else, then
+    re-checks `used_at is null` inside the same transaction before
+    setting it. A concurrent second submission for the same token blocks
+    on that lock until the first commits, then finds it already used —
+    there's no window where two submissions can both pass validation for
+    one token.
+  - **Storage uploads happen before the RPC call**, while the token is
+    still unused — the frontend uploads each file first, collects the
+    resulting paths, then calls `submit_onboarding_form()` last (the
+    step that actually consumes the token). The `onboarding_documents_anon_insert`
+    storage policy checks the token embedded in the object path
+    (`onboarding/{token}/...`) via `is_valid_onboarding_token()` — a
+    SECURITY DEFINER function returning only a boolean. Anon is never
+    granted a direct read policy on `employee_onboarding_tokens` itself;
+    a raw `select` policy narrow enough for the storage check to work
+    would also hand back `employee_id`/`created_by`/`created_at` for
+    every unexpired token to anyone who could enumerate the bucket path
+    space, which the boolean function never does.
+  - **What anon can never do**: read `employee_onboarding_tokens` or
+    `employee_onboarding_submissions` (no grant, no policy); write to
+    `employees`/`employee_pay_config`/`employee_documents` directly (no
+    grant — only `approve_onboarding_submission()` touches those, and
+    only after a human review); or resubmit through a used/expired token.
+    The only two anon-reachable surfaces in the schema are the one
+    storage insert policy above and three SECURITY DEFINER functions
+    (`is_valid_onboarding_token`, `get_onboarding_context`,
+    `submit_onboarding_form`), each doing its own token check internally.
+  **Approval deliberately does not touch `employee_pay_config`.** The
+  submission's bank/account fields are stored for HR's reference only —
+  `approve_onboarding_submission()` copies personal-fact fields (DOB,
+  national ID, emergency contact, address, qualifications — the same set
+  `update_employee_profile()` already owns) and the uploaded documents,
+  but leaves bank/account changes behind the existing Accountant-proposes/
+  Manager-approves gate (`20260909130000`). Auto-applying a
+  candidate-submitted bank detail on a single approval would quietly
+  weaken the one two-person control that field exists to protect; HR
+  reads the reviewed submission and proposes the pay config the normal
+  way through the existing UI.
 - **Approval workflow = an in-row state machine, not a parallel proposals
   table.** Three actions need Manager sign-off, proposed by an Accountant:
   creating an employee, changing basic salary, changing bank/account

@@ -979,6 +979,200 @@ export type Database = {
           },
         ]
       }
+      employee_onboarding_submissions: {
+        Row: {
+          account_no: string | null
+          bank_name: string | null
+          contract_accepted: boolean
+          date_of_birth: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          employee_id: string
+          gender: string | null
+          id: string
+          national_id: string | null
+          payment_method: string | null
+          personal_email: string | null
+          qualifications: string | null
+          rejection_reason: string | null
+          residential_address: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          signature_name: string | null
+          submitted_at: string
+          token_id: string
+          uploaded_documents: Json
+        }
+        Insert: {
+          account_no?: string | null
+          bank_name?: string | null
+          contract_accepted?: boolean
+          date_of_birth?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          employee_id: string
+          gender?: string | null
+          id?: string
+          national_id?: string | null
+          payment_method?: string | null
+          personal_email?: string | null
+          qualifications?: string | null
+          rejection_reason?: string | null
+          residential_address?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          signature_name?: string | null
+          submitted_at?: string
+          token_id: string
+          uploaded_documents?: Json
+        }
+        Update: {
+          account_no?: string | null
+          bank_name?: string | null
+          contract_accepted?: boolean
+          date_of_birth?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          employee_id?: string
+          gender?: string | null
+          id?: string
+          national_id?: string | null
+          payment_method?: string | null
+          personal_email?: string | null
+          qualifications?: string | null
+          rejection_reason?: string | null
+          residential_address?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          signature_name?: string | null
+          submitted_at?: string
+          token_id?: string
+          uploaded_documents?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_onboarding_submissions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_submissions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_submissions_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "employee_onboarding_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_onboarding_tasks: {
+        Row: {
+          checklist_item_id: string
+          completed: boolean
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          employee_id: string
+          id: string
+        }
+        Insert: {
+          checklist_item_id: string
+          completed?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          employee_id: string
+          id?: string
+        }
+        Update: {
+          checklist_item_id?: string
+          completed?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          employee_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_onboarding_tasks_checklist_item_id_fkey"
+            columns: ["checklist_item_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_checklist_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_tasks_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_tasks_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_onboarding_tokens: {
+        Row: {
+          created_at: string
+          created_by: string
+          employee_id: string
+          expires_at: string
+          id: string
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          employee_id: string
+          expires_at: string
+          id?: string
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          employee_id?: string
+          expires_at?: string
+          id?: string
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_onboarding_tokens_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_tokens_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_pay_config: {
         Row: {
           account_no: string | null
@@ -1077,6 +1271,7 @@ export type Database = {
           id: string
           name: string
           national_id: string | null
+          onboarding_completed_at: string | null
           personal_email: string | null
           phone: string | null
           position: string | null
@@ -1109,6 +1304,7 @@ export type Database = {
           id?: string
           name: string
           national_id?: string | null
+          onboarding_completed_at?: string | null
           personal_email?: string | null
           phone?: string | null
           position?: string | null
@@ -1141,6 +1337,7 @@ export type Database = {
           id?: string
           name?: string
           national_id?: string | null
+          onboarding_completed_at?: string | null
           personal_email?: string | null
           phone?: string | null
           position?: string | null
@@ -1867,6 +2064,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      onboarding_checklist_items: {
+        Row: {
+          created_at: string
+          derivation_key: string | null
+          id: string
+          is_active: boolean
+          is_derived: boolean
+          name: string
+          position: number
+          requires_document: boolean
+        }
+        Insert: {
+          created_at?: string
+          derivation_key?: string | null
+          id?: string
+          is_active?: boolean
+          is_derived?: boolean
+          name: string
+          position?: number
+          requires_document?: boolean
+        }
+        Update: {
+          created_at?: string
+          derivation_key?: string | null
+          id?: string
+          is_active?: boolean
+          is_derived?: boolean
+          name?: string
+          position?: number
+          requires_document?: boolean
+        }
+        Relationships: []
       }
       paye_bands: {
         Row: {
@@ -3390,6 +3620,7 @@ export type Database = {
           id: string
           name: string
           national_id: string | null
+          onboarding_completed_at: string | null
           personal_email: string | null
           phone: string | null
           position: string | null
@@ -3413,6 +3644,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      approve_onboarding_submission: {
+        Args: { p_submission_id: string }
+        Returns: undefined
       }
       approve_pay_config: {
         Args: {
@@ -4233,6 +4468,22 @@ export type Database = {
         Args: { p_branch_id: string; p_category: string }
         Returns: string
       }
+      generate_onboarding_token: {
+        Args: { p_employee_id: string; p_ttl_days?: number }
+        Returns: {
+          expires_at: string
+          token: string
+        }[]
+      }
+      get_onboarding_context: {
+        Args: { p_token: string }
+        Returns: {
+          department: string
+          employee_name: string
+          employee_position: string
+          valid: boolean
+        }[]
+      }
       has_role: { Args: { p_roles: string[] }; Returns: boolean }
       import_bank_statement_lines: {
         Args: { p_bank_account_id: string; p_lines: Json }
@@ -4263,7 +4514,16 @@ export type Database = {
         Args: { p_employee_id: string; p_run_id: string }
         Returns: undefined
       }
+      initialize_onboarding_checklist: {
+        Args: { p_employee_id: string }
+        Returns: undefined
+      }
+      initialize_onboarding_tasks: {
+        Args: { p_employee_id: string }
+        Returns: undefined
+      }
       is_active_staff: { Args: never; Returns: boolean }
+      is_valid_onboarding_token: { Args: { p_token: string }; Returns: boolean }
       match_statement_line: {
         Args: { p_journal_line_id: string; p_line_id: string }
         Returns: {
@@ -4728,6 +4988,7 @@ export type Database = {
           id: string
           name: string
           national_id: string | null
+          onboarding_completed_at: string | null
           personal_email: string | null
           phone: string | null
           position: string | null
@@ -4813,6 +5074,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      recompute_derived_onboarding_task: {
+        Args: { p_derivation_key: string; p_employee_id: string }
+        Returns: undefined
+      }
+      recompute_onboarding_completion: {
+        Args: { p_employee_id: string }
+        Returns: undefined
       }
       record_bank_deposit: {
         Args: {
@@ -4919,6 +5188,7 @@ export type Database = {
           id: string
           name: string
           national_id: string | null
+          onboarding_completed_at: string | null
           personal_email: string | null
           phone: string | null
           position: string | null
@@ -4942,6 +5212,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      reject_onboarding_submission: {
+        Args: { p_reason?: string; p_submission_id: string }
+        Returns: undefined
       }
       reject_pay_config: {
         Args: { p_config_id: string; p_reason: string }
@@ -5057,6 +5331,7 @@ export type Database = {
           id: string
           name: string
           national_id: string | null
+          onboarding_completed_at: string | null
           personal_email: string | null
           phone: string | null
           position: string | null
@@ -5167,6 +5442,26 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      submit_onboarding_form: {
+        Args: {
+          p_account_no?: string
+          p_bank_name?: string
+          p_contract_accepted?: boolean
+          p_date_of_birth?: string
+          p_emergency_contact_name?: string
+          p_emergency_contact_phone?: string
+          p_gender?: string
+          p_national_id?: string
+          p_payment_method?: string
+          p_personal_email?: string
+          p_qualifications?: string
+          p_residential_address?: string
+          p_signature_name?: string
+          p_token: string
+          p_uploaded_documents?: Json
+        }
+        Returns: string
+      }
       submit_payroll_run_for_review: {
         Args: { p_run_id: string }
         Returns: {
@@ -5190,6 +5485,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      toggle_onboarding_task: {
+        Args: { p_completed: boolean; p_task_id: string }
+        Returns: undefined
       }
       unmatch_statement_line: {
         Args: { p_line_id: string }
@@ -5255,6 +5554,7 @@ export type Database = {
           id: string
           name: string
           national_id: string | null
+          onboarding_completed_at: string | null
           personal_email: string | null
           phone: string | null
           position: string | null

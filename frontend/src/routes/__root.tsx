@@ -145,7 +145,14 @@ function RootComponent() {
   // straight through to the app before they've set a password at all —
   // neither is right, this page needs to run outside AuthGate entirely and
   // control that transition itself.
-  const isAuthFreeRoute = pathname === "/login" || pathname === "/accept-invite";
+  // /onboarding/$token is the tokenized public onboarding form
+  // (20260921) — a candidate reaches it from a personalized link with no
+  // ERP account at all. AuthGate would just bounce them to /login, which
+  // is wrong for someone who was never meant to have a login in the
+  // first place; every real check happens server-side in the RPCs the
+  // page calls, not here.
+  const isAuthFreeRoute =
+    pathname === "/login" || pathname === "/accept-invite" || pathname.startsWith("/onboarding/");
 
   return (
     <QueryClientProvider client={queryClient}>

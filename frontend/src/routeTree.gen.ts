@@ -46,6 +46,7 @@ import { Route as EndOfDayHistoryRouteImport } from './routes/end-of-day.history
 import { Route as ExpensesIndexRouteImport } from './routes/expenses.index'
 import { Route as ExpensesExpenseIdRouteImport } from './routes/expenses.$expenseId'
 import { Route as InventoryIndexRouteImport } from './routes/inventory.index'
+import { Route as OnboardingTokenRouteImport } from './routes/onboarding.$token'
 import { Route as PayrollIndexRouteImport } from './routes/payroll.index'
 import { Route as PayrollRunIdRouteImport } from './routes/payroll.$runId'
 import { Route as PayrollPayConfigRouteImport } from './routes/payroll.pay-config'
@@ -257,6 +258,11 @@ const InventoryIndexRoute = InventoryIndexRouteImport.update({
   path: '/',
   getParentRoute: () => InventoryRoute,
 } as any)
+const OnboardingTokenRoute = OnboardingTokenRouteImport.update({
+  id: '/onboarding/$token',
+  path: '/onboarding/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PayrollIndexRoute = PayrollIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -406,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
+  '/onboarding/$token': typeof OnboardingTokenRoute
   '/payroll/$runId': typeof PayrollRunIdRoute
   '/payroll/pay-config': typeof PayrollPayConfigRoute
   '/payslips/$payslipId': typeof PayslipsPayslipIdRoute
@@ -458,6 +465,7 @@ export interface FileRoutesByTo {
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
+  '/onboarding/$token': typeof OnboardingTokenRoute
   '/payroll/$runId': typeof PayrollRunIdRoute
   '/payroll/pay-config': typeof PayrollPayConfigRoute
   '/payslips/$payslipId': typeof PayslipsPayslipIdRoute
@@ -521,6 +529,7 @@ export interface FileRoutesById {
   '/end-of-day/deposits': typeof EndOfDayDepositsRoute
   '/end-of-day/history': typeof EndOfDayHistoryRoute
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
+  '/onboarding/$token': typeof OnboardingTokenRoute
   '/payroll/$runId': typeof PayrollRunIdRoute
   '/payroll/pay-config': typeof PayrollPayConfigRoute
   '/payslips/$payslipId': typeof PayslipsPayslipIdRoute
@@ -585,6 +594,7 @@ export interface FileRouteTypes {
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
+    | '/onboarding/$token'
     | '/payroll/$runId'
     | '/payroll/pay-config'
     | '/payslips/$payslipId'
@@ -637,6 +647,7 @@ export interface FileRouteTypes {
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
+    | '/onboarding/$token'
     | '/payroll/$runId'
     | '/payroll/pay-config'
     | '/payslips/$payslipId'
@@ -699,6 +710,7 @@ export interface FileRouteTypes {
     | '/end-of-day/deposits'
     | '/end-of-day/history'
     | '/expenses/$expenseId'
+    | '/onboarding/$token'
     | '/payroll/$runId'
     | '/payroll/pay-config'
     | '/payslips/$payslipId'
@@ -751,6 +763,7 @@ export interface RootRouteChildren {
   CustomerDepositsDepositIdRoute: typeof CustomerDepositsDepositIdRoute
   CustomersCustomerIdRoute: typeof CustomersCustomerIdRoute
   ExpensesExpenseIdRoute: typeof ExpensesExpenseIdRoute
+  OnboardingTokenRoute: typeof OnboardingTokenRoute
   PayslipsPayslipIdRoute: typeof PayslipsPayslipIdRoute
   ProFormaProFormaIdRoute: typeof ProFormaProFormaIdRoute
   ProFormaNewRoute: typeof ProFormaNewRoute
@@ -1020,6 +1033,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/inventory/'
       preLoaderRoute: typeof InventoryIndexRouteImport
       parentRoute: typeof InventoryRoute
+    }
+    '/onboarding/$token': {
+      id: '/onboarding/$token'
+      path: '/onboarding/$token'
+      fullPath: '/onboarding/$token'
+      preLoaderRoute: typeof OnboardingTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/payroll/': {
       id: '/payroll/'
@@ -1366,6 +1386,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomerDepositsDepositIdRoute: CustomerDepositsDepositIdRoute,
   CustomersCustomerIdRoute: CustomersCustomerIdRoute,
   ExpensesExpenseIdRoute: ExpensesExpenseIdRoute,
+  OnboardingTokenRoute: OnboardingTokenRoute,
   PayslipsPayslipIdRoute: PayslipsPayslipIdRoute,
   ProFormaProFormaIdRoute: ProFormaProFormaIdRoute,
   ProFormaNewRoute: ProFormaNewRoute,

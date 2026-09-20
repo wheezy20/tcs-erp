@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -66,6 +67,16 @@ import {
   type EmployeeDocument,
 } from "@/data/employee-documents-store";
 import { activeNames, useDepartments, usePositions } from "@/data/org-lists-store";
+import {
+  approveOnboardingSubmission,
+  generateOnboardingToken,
+  listOnboardingSubmissions,
+  listOnboardingTasks,
+  rejectOnboardingSubmission,
+  toggleOnboardingTask,
+  type OnboardingSubmission,
+  type OnboardingTask,
+} from "@/data/onboarding-store";
 import { usePayroll, type AllowanceType } from "@/data/payroll-store";
 import { useStaff } from "@/data/staff-store";
 import { getErrorMessage } from "@/lib/utils";
@@ -156,6 +167,14 @@ function EmployeeProfilePage() {
             employeeId={emp.id}
             canWrite={canWrite && emp.status !== "Rejected"}
           />
+
+          {emp.status === "Active" && (
+            <OnboardingSection
+              key={`onboarding-${emp.id}`}
+              employeeId={emp.id}
+              canWrite={canWrite}
+            />
+          )}
 
           <PayConfigSection
             emp={emp}
@@ -718,6 +737,220 @@ function DocumentsSection({ employeeId, canWrite }: { employeeId: string; canWri
           </div>
         ))}
       </div>
+    </section>
+  );
+}
+
+function OnboardingSection({ employeeId, canWrite }: { employeeId: string; canWrite: boolean }) {
+  const [tasks, setTasks] = useState<OnboardingTask[]>([]);
+  const [submissions, setSubmissions] = useState<OnboardingSubmission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [newLink, setNewLink] = useState<{ token: string; expiresAt: string } | null>(null);
+
+  async function refresh() {
+    try {
+      const [t, s] = await Promise.all([
+        listOnboardingTasks(employeeId),
+        listOnboardingSubmissions(employeeId),
+      ]);
+      setTasks(t);
+      setSubmissions(s);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not load the onboarding checklist."));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId]);
+
+  async function onToggle(task: OnboardingTask) {
+    setTogglingId(task.id);
+    try {
+      await toggleOnboardingTask(task.id, !task.completed);
+      await refresh();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not update that item."));
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  async function onGenerate() {
+    setGenerating(true);
+    try {
+      setNewLink(await generateOnboardingToken(employeeId));
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not generate a link."));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function onApprove(id: string) {
+    try {
+      await approveOnboardingSubmission(id);
+      toast.success("Submission approved");
+      await refresh();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not approve that submission."));
+    }
+  }
+
+  async function onReject(id: string, reason: string) {
+    await rejectOnboardingSubmission(id, reason);
+    await refresh();
+  }
+
+  const doneCount = tasks.filter((t) => t.completed).length;
+  const onboardingLink =
+    newLink && typeof window !== "undefined"
+      ? `${window.location.origin}/onboarding/${newLink.token}`
+      : null;
+
+  return (
+    <section className="card-surface p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Onboarding checklist</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {loading ? "Loading…" : `${doneCount} of ${tasks.length} complete`}
+          </p>
+        </div>
+        {canWrite && (
+          <Button size="sm" variant="outline" onClick={onGenerate} disabled={generating}>
+            {generating ? "Generating…" : "Generate onboarding link"}
+          </Button>
+        )}
+      </div>
+
+      {onboardingLink && newLink && (
+        <div className="mt-4 rounded-md border border-amber-400/50 bg-amber-50 p-3 text-sm dark:bg-amber-950/30">
+          <p className="font-medium">
+            Send this link to the candidate now — it won't be shown again.
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <Input
+              readOnly
+              value={onboardingLink}
+              className="font-mono text-xs"
+              onFocus={(e) => e.target.select()}
+            />
+            <Button
+              size="sm"
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(onboardingLink);
+                toast.success("Link copied");
+              }}
+            >
+              Copy
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Expires {new Date(newLink.expiresAt).toLocaleString()}. Single-use — it stops working
+            the moment the candidate submits the form.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-5 space-y-1.5">
+        {tasks.map((task) => (
+          <div
+            key={task.id}
+            className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+          >
+            <label className="flex items-center gap-2">
+              <Checkbox
+                checked={task.completed}
+                disabled={!canWrite || task.item.isDerived || togglingId === task.id}
+                onCheckedChange={() => onToggle(task)}
+              />
+              <span className={task.completed ? "" : "text-muted-foreground"}>
+                {task.item.name}
+              </span>
+              {task.item.isDerived && (
+                <Badge variant="outline" className="text-xs">
+                  Auto
+                </Badge>
+              )}
+              {task.item.requiresDocument && (
+                <Badge variant="outline" className="text-xs">
+                  Document
+                </Badge>
+              )}
+            </label>
+            {task.completed && task.completedAt && (
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {new Date(task.completedAt).toLocaleDateString()}
+                {task.completedByName ? ` · ${task.completedByName}` : ""}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {submissions.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold">Onboarding form submissions</h3>
+          <div className="mt-3 space-y-3">
+            {submissions.map((s) => (
+              <div key={s.id} className="rounded-md border p-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{new Date(s.submittedAt).toLocaleString()}</span>
+                  <Badge
+                    variant={
+                      s.reviewStatus === "Approved"
+                        ? "secondary"
+                        : s.reviewStatus === "Rejected"
+                          ? "destructive"
+                          : "outline"
+                    }
+                  >
+                    {s.reviewStatus}
+                  </Badge>
+                </div>
+                <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                  {s.dateOfBirth && <div>DOB: {s.dateOfBirth}</div>}
+                  {s.nationalId && <div>National ID: {s.nationalId}</div>}
+                  {s.emergencyContactName && (
+                    <div>
+                      Emergency contact: {s.emergencyContactName} ({s.emergencyContactPhone})
+                    </div>
+                  )}
+                  {s.bankName && (
+                    <div>
+                      Bank: {s.bankName} · {s.accountNo}
+                    </div>
+                  )}
+                  {s.signatureName && <div>Signed: {s.signatureName}</div>}
+                  <div>{s.uploadedDocuments.length} document(s) uploaded</div>
+                </div>
+                {s.reviewStatus === "Pending Review" && canWrite && (
+                  <div className="mt-3 flex gap-2">
+                    <Button size="sm" onClick={() => onApprove(s.id)}>
+                      Approve
+                    </Button>
+                    <RejectButton
+                      title="Reject onboarding submission"
+                      onReject={(reason) => onReject(s.id, reason)}
+                      successMessage="Submission rejected"
+                    />
+                  </div>
+                )}
+                {s.reviewStatus === "Rejected" && s.rejectionReason && (
+                  <p className="mt-2 text-xs text-destructive">{s.rejectionReason}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

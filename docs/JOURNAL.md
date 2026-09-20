@@ -2060,3 +2060,131 @@ things this phase was about — bucket privacy and the RLS matrix:
 
 Phases 3–5 (onboarding checklist + the tokenized public form, contract
 generation, email infrastructure) remain separate follow-up sessions.
+
+## 2026-09-21 — HR beyond payroll, Phase 3: onboarding checklist + the tokenized public form
+
+Built the onboarding checklist (manual + derived items), the freeze-once
+`onboarding_completed_at`, and the tokenized public onboarding form — the
+first anon-writable path in this app. Full rationale is in docs/DESIGN.md's
+new "Onboarding checklist: manual vs. derived items, and the first
+anon-writable path" bullet; this entry covers what got built and how it
+was verified.
+
+**One deviation from the original plan**, based on the real
+ACCEPTED_STAFF_ONBOARDING tracker rather than just the Apps Script source:
+the 18 items split into manual (checkbox-toggled, `toggle_onboarding_task()`)
+and derived (trigger-computed, never toggleable) kinds. Two collapses from
+four named derived signals down to two catalog rows — "Bank Details Form"/
+"Payroll Added" are the same predicate under two names, and "Staff Email
+Created"/"Staff ID Issued" were both specified against the identical
+compound condition — this schema can't distinguish either pair as separate
+facts, so keeping four rows would double-count two signals with no added
+information. 14 manual + 2 derived = 16 catalog rows.
+
+`20260921100000_onboarding_checklist_and_public_form.sql`:
+`onboarding_checklist_items` (school-editable catalog, same shape as
+`positions`/`departments`), `employee_onboarding_tasks` (RPC-only writes,
+same "no direct RLS write policy" pattern as `employees`), `employee_onboarding_tokens`
+and `employee_onboarding_submissions` (the security-sensitive pair — see
+below), plus `employees.onboarding_completed_at`. Also widened
+`employee_documents.document_type` (20260920) from its 4-value placeholder
+guess to the real 8 document-backed item names, now that this data exists —
+those names double as `document_type` values written by
+`approve_onboarding_submission()`, no separate mapping table needed.
+
+**Derived-item mechanics**: `recompute_derived_onboarding_task()` is called
+by triggers on `employee_pay_config` (insert/update) and on `staff`/
+`employees.school_email` (insert/update), recomputing just the affected
+derived item for that employee. `initialize_onboarding_tasks()` snapshots
+every currently-active catalog item onto a newly-Active employee — fired
+by a widened trigger that covers both the normal `approve_employee()`
+transition (UPDATE) *and* a row inserted already Active (seed data, a
+future importer), since the latter never fires an "UPDATE OF
+employment_status" trigger at all. Caught this the hard way: the first
+`db reset` after writing the migration showed every seeded demo employee
+with only 2 of 16 tasks (the two derived ones, created by the pay-config/
+staff triggers firing off seed.sql's own inserts) — the migration's
+backfill loop had run before seed.sql existed (migrations apply before
+seeding, always), and the transition trigger was UPDATE-only so it never
+caught employees inserted directly as Active. Fixed by widening the
+trigger to `after insert or update of employment_status`; the backfill
+loop stays for its real purpose (a production deploy where Active
+employees already exist in the table when this migration runs).
+
+**The tokenized public form** — reviewed carefully since this is a new
+security surface for the app, not just a new feature:
+- `generate_onboarding_token()` (Manager/Accountant, Active employees
+  only) mints 32 bytes via pgcrypto's `gen_random_bytes()`, returns the
+  raw 64-hex-char token to the caller once, stores only its SHA-256 hash.
+- Expiry (14 days default) checked on every use.
+- Single-use closed with a row lock: `submit_onboarding_form()` does
+  `select ... for update` before checking `used_at`, so a concurrent
+  double-submit blocks on the lock rather than racing past the check.
+- Document uploads happen before the RPC call (token still unused at
+  upload time); the storage policy validates the token in the object path
+  via `is_valid_onboarding_token()`, a boolean-only SECURITY DEFINER
+  function — anon never gets a direct read policy on the tokens table
+  itself, which a naive "let anon read tokens so the storage policy can
+  check them" approach would have required.
+- `approve_onboarding_submission()` copies personal-fact fields (DOB,
+  national ID, emergency contact, address, qualifications) and uploaded
+  documents onto the real tables, but deliberately leaves
+  `employee_pay_config` alone — the submission's bank fields are for HR's
+  reference only, so the existing Accountant-proposes/Manager-approves
+  gate on bank/account changes isn't quietly bypassed by a single
+  onboarding-review approval.
+
+Frontend: new `onboarding-store.ts` (tasks, submissions, token
+generation/review — all RPC calls, no direct writes) and a new
+"Onboarding checklist" card on the employee profile page (Active
+employees only, since tasks only exist post-Active): checkbox list with
+"Auto"/"Document" badges, a one-time-reveal generated link with a copy
+button, and a submissions review list with Approve/Reject (reusing the
+existing `RejectButton` dialog). New public route
+`/onboarding/$token` (`onboarding.$token.tsx`) — added to `__root.tsx`'s
+auth-free allowlist alongside `/login`/`/accept-invite`, since a candidate
+here has no ERP account at all and every real check happens server-side.
+
+**Verified with a real end-to-end browser pass**, specifically targeting
+the anon path:
+- `dev-manager@tcs.test`: sees the checklist (1 of 16 complete —
+  seed data's pay config satisfies the one derived item), generates a
+  link, gets a one-time reveal with a working copy button.
+- `dev-auditor@tcs.test`: sees the same checklist read-only, no "Generate
+  onboarding link" button.
+- No login at all: opened the generated link, saw the real employee's
+  name/position/department, added a document, checked contract
+  acceptance, typed a signature, submitted — success page shown.
+- **Reused the identical link immediately after**: got "This link is
+  invalid or has expired" — single-use confirmed in a real browser, not
+  just at the SQL level.
+- Fetched the uploaded object through Storage's unsigned
+  `/object/public/...` endpoint directly: `400`/`Bucket not found`, same
+  signature as the Phase 2 receipts-style check.
+- `dev-manager@tcs.test` again: saw the Pending Review submission,
+  approved it — badge flipped to Approved.
+- Cross-checked the database afterwards: `employees.date_of_birth`/
+  `.national_id` updated from the submission, a real `employee_documents`
+  row created (`document_type = 'ID Copy'`, matching the checklist item
+  name), the token's `used_at` set, and — importantly — the "ID Copy"
+  checklist item itself is still unchecked: approving a submission gets
+  the data and files into the system, it does not silently mark a manual
+  item done. A human still has to look at the document and check the box.
+- Also verified directly at the SQL level before the browser pass: the
+  `toggle_onboarding_task()` guard rejects toggling a derived item
+  ("This item is tracked automatically and can't be toggled by hand"),
+  and `onboarding_completed_at` — once set by checking all 16 items —
+  stayed set after manually unchecking one item again (never cleared).
+- `tsc --noEmit` clean except the same pre-existing `__root.tsx` error.
+  `eslint` clean except the same pre-existing baseline (13 problems, full
+  repo). `vite build` exit 0. `check-duplicate-function-overloads.sh`
+  reported none.
+
+Known, accepted scope limits carried into Phase 4: no "revoke an
+unexpired token" RPC, no cap on multiple open tokens per employee
+(expiry is the only staleness mechanism), and no UI yet for editing the
+checklist catalog itself (adding/renaming/deactivating items is possible
+via direct SQL/a future Settings screen, not built here).
+
+Phases 4–5 (contract generation and lifecycle, email infrastructure)
+remain separate follow-up sessions.
