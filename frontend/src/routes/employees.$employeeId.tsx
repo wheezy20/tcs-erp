@@ -32,6 +32,7 @@ import {
   payOverrideFrom,
   type PayOverride,
 } from "@/components/employees/payment-fields";
+import { RefListMultiSelect } from "@/components/employees/ref-list-multi-select";
 import { RefListSelect } from "@/components/employees/ref-list-select";
 import { RejectButton } from "@/components/employees/reject-reason-dialog";
 import { actionLabel, summarizeAuditEntry, useEmployeeAuditHistory } from "@/data/audit-history";
@@ -66,7 +67,12 @@ import {
   type DocumentType,
   type EmployeeDocument,
 } from "@/data/employee-documents-store";
-import { activeNames, useDepartments, usePositions } from "@/data/org-lists-store";
+import {
+  activeNames,
+  useDepartments,
+  usePositions,
+  useQualifications,
+} from "@/data/org-lists-store";
 import {
   approveOnboardingSubmission,
   generateOnboardingToken,
@@ -323,6 +329,7 @@ const EMPLOYMENT_TYPES: EmploymentType[] = [
  * details and salary are deliberately not here — those stay in
  * PayConfigSection below, approval-gated. */
 function HrDetailsSection({ emp, canWrite }: { emp: Employee; canWrite: boolean }) {
+  const { items: qualificationItems } = useQualifications();
   const [dateOfBirth, setDateOfBirth] = useState(emp.dateOfBirth ?? "");
   const [gender, setGender] = useState(emp.gender ?? "");
   const [preferredName, setPreferredName] = useState(emp.preferredName ?? "");
@@ -338,7 +345,7 @@ function HrDetailsSection({ emp, canWrite }: { emp: Employee; canWrite: boolean 
     emp.emergencyContactPhone ?? "",
   );
   const [residentialAddress, setResidentialAddress] = useState(emp.residentialAddress ?? "");
-  const [qualifications, setQualifications] = useState(emp.qualifications ?? "");
+  const [qualifications, setQualifications] = useState<string[]>(emp.qualifications ?? []);
   const [ssnitNumber, setSsnitNumber] = useState(emp.ssnitNumber ?? "");
   const [tinNumber, setTinNumber] = useState(emp.tinNumber ?? "");
   const [churchDenomination, setChurchDenomination] = useState(emp.churchDenomination ?? "");
@@ -358,7 +365,6 @@ function HrDetailsSection({ emp, canWrite }: { emp: Employee; canWrite: boolean 
     emergencyContactName,
     emergencyContactPhone,
     residentialAddress,
-    qualifications,
     ssnitNumber,
     tinNumber,
     churchDenomination,
@@ -377,14 +383,21 @@ function HrDetailsSection({ emp, canWrite }: { emp: Employee; canWrite: boolean 
     emergencyContactName: emp.emergencyContactName ?? "",
     emergencyContactPhone: emp.emergencyContactPhone ?? "",
     residentialAddress: emp.residentialAddress ?? "",
-    qualifications: emp.qualifications ?? "",
     ssnitNumber: emp.ssnitNumber ?? "",
     tinNumber: emp.tinNumber ?? "",
     churchDenomination: emp.churchDenomination ?? "",
   };
-  const dirty = Object.keys(current).some(
-    (k) => current[k as keyof typeof current] !== original[k as keyof typeof original],
-  );
+  // Arrays compare by reference, not value, so qualifications gets its
+  // own set-equality check (order-insensitive — a multi-select's value is
+  // really a set) rather than joining the generic shallow-equal loop above.
+  const qualificationsDirty =
+    JSON.stringify([...qualifications].sort()) !==
+    JSON.stringify([...(emp.qualifications ?? [])].sort());
+  const dirty =
+    qualificationsDirty ||
+    Object.keys(current).some(
+      (k) => current[k as keyof typeof current] !== original[k as keyof typeof original],
+    );
 
   async function save() {
     setSaving(true);
@@ -578,11 +591,12 @@ function HrDetailsSection({ emp, canWrite }: { emp: Employee; canWrite: boolean 
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label>Qualifications</Label>
-          <Textarea
+          <RefListMultiSelect
+            options={activeNames(qualificationItems)}
             value={qualifications}
+            onChange={setQualifications}
             disabled={!canWrite}
-            rows={2}
-            onChange={(e) => setQualifications(e.target.value)}
+            placeholder="Select qualifications…"
           />
         </div>
       </div>
@@ -769,10 +783,14 @@ function OnboardingSection({ employeeId, canWrite }: { employeeId: string; canWr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId]);
 
-  async function onToggle(task: OnboardingTask) {
+  async function onToggle(
+    task: OnboardingTask,
+    providedVia?: "document" | "number",
+    providedNumber?: string,
+  ) {
     setTogglingId(task.id);
     try {
-      await toggleOnboardingTask(task.id, !task.completed);
+      await toggleOnboardingTask(task.id, !task.completed, providedVia, providedNumber);
       await refresh();
     } catch (err) {
       toast.error(getErrorMessage(err, "Could not update that item."));
@@ -861,37 +879,13 @@ function OnboardingSection({ employeeId, canWrite }: { employeeId: string; canWr
 
       <div className="mt-5 space-y-1.5">
         {tasks.map((task) => (
-          <div
+          <ChecklistTaskRow
             key={task.id}
-            className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
-          >
-            <label className="flex items-center gap-2">
-              <Checkbox
-                checked={task.completed}
-                disabled={!canWrite || task.item.isDerived || togglingId === task.id}
-                onCheckedChange={() => onToggle(task)}
-              />
-              <span className={task.completed ? "" : "text-muted-foreground"}>
-                {task.item.name}
-              </span>
-              {task.item.isDerived && (
-                <Badge variant="outline" className="text-xs">
-                  Auto
-                </Badge>
-              )}
-              {task.item.requiresDocument && (
-                <Badge variant="outline" className="text-xs">
-                  Document
-                </Badge>
-              )}
-            </label>
-            {task.completed && task.completedAt && (
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {new Date(task.completedAt).toLocaleDateString()}
-                {task.completedByName ? ` · ${task.completedByName}` : ""}
-              </span>
-            )}
-          </div>
+            task={task}
+            canWrite={canWrite}
+            busy={togglingId === task.id}
+            onToggle={onToggle}
+          />
         ))}
       </div>
 
@@ -900,58 +894,257 @@ function OnboardingSection({ employeeId, canWrite }: { employeeId: string; canWr
           <h3 className="text-sm font-semibold">Onboarding form submissions</h3>
           <div className="mt-3 space-y-3">
             {submissions.map((s) => (
-              <div key={s.id} className="rounded-md border p-3 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{new Date(s.submittedAt).toLocaleString()}</span>
-                  <Badge
-                    variant={
-                      s.reviewStatus === "Approved"
-                        ? "secondary"
-                        : s.reviewStatus === "Rejected"
-                          ? "destructive"
-                          : "outline"
-                    }
-                  >
-                    {s.reviewStatus}
-                  </Badge>
-                </div>
-                <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-                  {s.dateOfBirth && <div>DOB: {s.dateOfBirth}</div>}
-                  {s.nationalId && <div>National ID: {s.nationalId}</div>}
-                  {s.emergencyContactName && (
-                    <div>
-                      Emergency contact: {s.emergencyContactName} ({s.emergencyContactPhone})
-                    </div>
-                  )}
-                  {s.bankName && (
-                    <div>
-                      Bank: {s.bankName} · {s.accountNo}
-                    </div>
-                  )}
-                  {s.signatureName && <div>Signed: {s.signatureName}</div>}
-                  <div>{s.uploadedDocuments.length} document(s) uploaded</div>
-                </div>
-                {s.reviewStatus === "Pending Review" && canWrite && (
-                  <div className="mt-3 flex gap-2">
-                    <Button size="sm" onClick={() => onApprove(s.id)}>
-                      Approve
-                    </Button>
-                    <RejectButton
-                      title="Reject onboarding submission"
-                      onReject={(reason) => onReject(s.id, reason)}
-                      successMessage="Submission rejected"
-                    />
-                  </div>
-                )}
-                {s.reviewStatus === "Rejected" && s.rejectionReason && (
-                  <p className="mt-2 text-xs text-destructive">{s.rejectionReason}</p>
-                )}
-              </div>
+              <SubmissionReview
+                key={s.id}
+                submission={s}
+                canWrite={canWrite}
+                onApprove={() => onApprove(s.id)}
+                onReject={(reason) => onReject(s.id, reason)}
+              />
             ))}
           </div>
         </div>
       )}
     </section>
+  );
+}
+
+/** National ID / SSNIT Card / TIN Copy get a small "how was this
+ * satisfied" chooser instead of a plain checkbox — toggle_onboarding_task()
+ * requires one of document/number for these, so the UI has to collect it
+ * rather than send a bare true/false. Everything else keeps the plain
+ * checkbox it always had. */
+function ChecklistTaskRow({
+  task,
+  canWrite,
+  busy,
+  onToggle,
+}: {
+  task: OnboardingTask;
+  canWrite: boolean;
+  busy: boolean;
+  onToggle: (
+    task: OnboardingTask,
+    providedVia?: "document" | "number",
+    providedNumber?: string,
+  ) => void;
+}) {
+  const [choosing, setChoosing] = useState(false);
+  const [via, setVia] = useState<"document" | "number">("document");
+  const [numberValue, setNumberValue] = useState("");
+
+  const badges = (
+    <>
+      {task.item.isDerived && (
+        <Badge variant="outline" className="text-xs">
+          Auto
+        </Badge>
+      )}
+      {task.item.requiresDocument && (
+        <Badge variant="outline" className="text-xs">
+          Document
+        </Badge>
+      )}
+    </>
+  );
+
+  if (task.item.acceptsNumberInLieu && !task.completed && choosing) {
+    return (
+      <div className="flex flex-col gap-2 rounded-md border px-3 py-2 text-sm">
+        <span>{task.item.name}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={via} onValueChange={(v) => setVia(v as "document" | "number")}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="document">Document uploaded</SelectItem>
+              <SelectItem value="number">Type the number</SelectItem>
+            </SelectContent>
+          </Select>
+          {via === "number" && (
+            <Input
+              value={numberValue}
+              onChange={(e) => setNumberValue(e.target.value)}
+              placeholder="e.g. GHA-123456789-0"
+              className="w-56"
+            />
+          )}
+          <Button
+            size="sm"
+            disabled={busy || (via === "number" && !numberValue.trim())}
+            onClick={() => {
+              onToggle(task, via, via === "number" ? numberValue : undefined);
+              setChoosing(false);
+              setNumberValue("");
+            }}
+          >
+            Confirm
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setChoosing(false)}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (task.item.acceptsNumberInLieu && !task.completed) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+        <span className="flex items-center gap-2 text-muted-foreground">
+          {task.item.name}
+          {badges}
+        </span>
+        {canWrite && (
+          <Button size="sm" variant="outline" onClick={() => setChoosing(true)}>
+            Mark complete
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+      <label className="flex items-center gap-2">
+        <Checkbox
+          checked={task.completed}
+          disabled={!canWrite || task.item.isDerived || busy}
+          onCheckedChange={() => onToggle(task)}
+        />
+        <span className={task.completed ? "" : "text-muted-foreground"}>{task.item.name}</span>
+        {badges}
+        {task.completed && task.item.acceptsNumberInLieu && (
+          <Badge variant="outline" className="text-xs">
+            {task.providedVia === "number" ? `Number: ${task.providedNumber}` : "Document"}
+          </Badge>
+        )}
+      </label>
+      {task.completed && task.completedAt && (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {new Date(task.completedAt).toLocaleDateString()}
+          {task.completedByName ? ` · ${task.completedByName}` : ""}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Priority fix (20260922): the full submission — every field, every
+ * uploaded document with a working signed-URL link — has to be visible
+ * and reviewable BEFORE Approve/Reject can be clicked, not only
+ * afterward. This is the one path in the app anonymous strangers can
+ * write through; approving it blind defeated the point of having a
+ * review step at all. Same "show everything inline, right where the
+ * action is" shape as the pending pay-config proposal above. */
+function SubmissionReview({
+  submission: s,
+  canWrite,
+  onApprove,
+  onReject,
+}: {
+  submission: OnboardingSubmission;
+  canWrite: boolean;
+  onApprove: () => void;
+  onReject: (reason: string) => Promise<void>;
+}) {
+  return (
+    <div className="rounded-md border p-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">{new Date(s.submittedAt).toLocaleString()}</span>
+        <Badge
+          variant={
+            s.reviewStatus === "Approved"
+              ? "secondary"
+              : s.reviewStatus === "Rejected"
+                ? "destructive"
+                : "outline"
+          }
+        >
+          {s.reviewStatus}
+        </Badge>
+      </div>
+
+      <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+        <Field label="Date of birth" value={s.dateOfBirth ?? "—"} />
+        <Field label="Gender" value={s.gender ?? "—"} />
+        <Field label="National ID" value={s.nationalId ?? "—"} />
+        <Field label="Personal email" value={s.personalEmail ?? "—"} />
+        <Field
+          label="Emergency contact"
+          value={
+            s.emergencyContactName
+              ? `${s.emergencyContactName} (${s.emergencyContactPhone ?? "—"})`
+              : "—"
+          }
+        />
+        <Field label="Residential address" value={s.residentialAddress ?? "—"} />
+        <Field
+          label="Qualifications"
+          value={
+            s.qualifications && s.qualifications.length > 0 ? s.qualifications.join(", ") : "—"
+          }
+        />
+        <Field label="Payment method" value={s.paymentMethod ?? "—"} />
+        <Field
+          label={s.paymentMethod === "Mobile Money" ? "Mobile money network" : "Bank"}
+          value={s.bankName ?? "—"}
+        />
+        <Field
+          label={s.paymentMethod === "Mobile Money" ? "Wallet number" : "Account number"}
+          value={s.accountNo ?? "—"}
+        />
+        <Field label="Contract accepted" value={s.contractAccepted ? "Yes" : "No"} />
+        <Field label="Signed by" value={s.signatureName ?? "—"} />
+      </dl>
+
+      <div className="mt-3">
+        <p className="text-xs font-medium text-muted-foreground">
+          Uploaded documents ({s.uploadedDocuments.length})
+        </p>
+        {s.uploadedDocuments.length === 0 ? (
+          <p className="mt-1 text-xs text-muted-foreground">None.</p>
+        ) : (
+          <ul className="mt-1 space-y-1">
+            {s.uploadedDocuments.map((d, i) => (
+              <li key={i} className="text-xs">
+                {d.signedUrl ? (
+                  <a
+                    href={d.signedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline underline-offset-2"
+                  >
+                    {d.documentType}
+                  </a>
+                ) : (
+                  <span className="text-muted-foreground">
+                    {d.documentType} (preview unavailable)
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {s.reviewStatus === "Pending Review" && canWrite && (
+        <div className="mt-3 flex gap-2">
+          <Button size="sm" onClick={onApprove}>
+            Approve
+          </Button>
+          <RejectButton
+            title="Reject onboarding submission"
+            onReject={onReject}
+            successMessage="Submission rejected"
+          />
+        </div>
+      )}
+      {s.reviewStatus === "Rejected" && s.rejectionReason && (
+        <p className="mt-2 text-xs text-destructive">{s.rejectionReason}</p>
+      )}
+    </div>
   );
 }
 

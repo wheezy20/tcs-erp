@@ -55,7 +55,7 @@ export type Employee = {
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
   residentialAddress: string | null;
-  qualifications: string | null;
+  qualifications: string[] | null;
   ssnitNumber: string | null;
   tinNumber: string | null;
   churchDenomination: string | null;
@@ -393,7 +393,7 @@ export type EmployeeHrDetailsPatch = {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   residentialAddress?: string;
-  qualifications?: string;
+  qualifications?: string[];
   ssnitNumber?: string;
   tinNumber?: string;
   churchDenomination?: string;

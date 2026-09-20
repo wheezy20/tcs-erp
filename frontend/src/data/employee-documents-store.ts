@@ -21,8 +21,10 @@ const DOCUMENT_URL_EXPIRY_SECONDS = 60 * 60;
 // names double as onboarding_checklist_items.name for document-backed
 // items, so approve_onboarding_submission() can write document_type
 // straight from the checklist item with no separate mapping table.
+// "ID Copy" renamed to "National ID" (20260922) to match
+// employees.national_id's own naming.
 export type DocumentType =
-  | "ID Copy"
+  | "National ID"
   | "SSNIT Card"
   | "TIN Copy"
   | "Academic Certs"
@@ -32,7 +34,7 @@ export type DocumentType =
   | "Background Check"
   | "Other";
 export const DOCUMENT_TYPES: DocumentType[] = [
-  "ID Copy",
+  "National ID",
   "SSNIT Card",
   "TIN Copy",
   "Academic Certs",

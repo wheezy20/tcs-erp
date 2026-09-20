@@ -2188,3 +2188,174 @@ via direct SQL/a future Settings screen, not built here).
 
 Phases 4–5 (contract generation and lifecycle, email infrastructure)
 remain separate follow-up sessions.
+
+## 2026-09-22 — Onboarding review fixes from production testing
+
+Five fixes from a real walkthrough, one of them a priority correctness/
+security bug in the review flow itself.
+
+**Priority fix — the pending submission couldn't be reviewed before
+Approve.** `SubmissionReview`'s previous version rendered only a handful
+of fields (DOB, national ID, emergency contact, bank, signature) and a
+bare document *count* — gender, personal email, residential address,
+qualifications, and payment method were never rendered at all, and
+uploaded documents had no viewable link anywhere before clicking Approve.
+For the one path in this app anonymous strangers can write through, that
+meant the human review step was reviewing nothing. Root cause was
+frontend-only: the storage `onboarding_documents_select` RLS policy is
+already bucket-wide for Manager/Accountant/Auditor (not scoped to a
+specific object path), so an authenticated review session could always
+sign these paths — `listOnboardingSubmissions()` just never called
+`createSignedUrls()` on them. Fixed by signing every submission's
+document paths at read time and rendering the full field set (every
+`OnboardingSubmission` field, `?? "—"` for blanks) plus clickable signed
+links, in a new `SubmissionReview` component, matching the same
+"everything visible inline, right where the action is" shape the pending
+pay-config proposal already uses. Verified in a real browser: opened the
+submission review card *before* clicking Approve and confirmed gender,
+personal email, residential address, and qualifications were all visible
+in the card text, the uploaded document's link was present and signed
+(`token=` in the URL), and directly fetching that pre-approval link
+returned `200` — not just present in the DOM, actually resolving.
+
+**Gender dropdown on the public form.** Replaced the free-text `Input`
+with a `Select` (Male/Female) on `/onboarding/$token`, plus a server-side
+check constraint on `employee_onboarding_submissions.gender` — this is
+the anon-writable path, so the constraint isn't just a UI nicety.
+`employees.gender` itself (edited by HR through `HrDetailsSection`) stays
+free text; that field wasn't in scope for this fix and constraining it
+would break existing direct-edit behavior there. Worth revisiting later
+if that inconsistency becomes a real problem.
+
+**"ID Copy" renamed to "National ID"**, matching `employees.national_id`'s
+own naming — a data migration (`update ... set name = 'National ID'`),
+not a schema change, plus updating the one existing `employee_documents`
+row and the `document_type` check constraint to match, plus the frontend
+`DocumentType` union. Deliberately a new migration, not an edit to the
+Phase 3 migration that first seeded "ID Copy" — same "always fix forward"
+convention this repo already follows for same-day corrections
+(`ssnit_payable_description_fix`, etc.), even though nothing here had
+been committed yet.
+
+**National ID / SSNIT Card / TIN Copy now accept a document OR a typed
+number**, with which one actually recorded. New
+`onboarding_checklist_items.accepts_number_in_lieu` (true for these
+three), and `employee_onboarding_tasks.provided_via` /
+`.provided_number`. `toggle_onboarding_task()` (argument list changed,
+dropped and recreated) now requires one of `'document'`/`'number'` for
+these three when completing: `'document'` is checked against a real
+`employee_documents` row for that employee (raises a clear error
+otherwise — "upload one first, or record the number instead"),
+`'number'` requires a non-blank value and **also writes it onto the
+matching `employees` column** (`national_id`/`ssnit_number`/`tin_number`)
+so HR doesn't have to type the same number twice. Unchecking an item
+always clears `provided_via`/`provided_number` — if it's redone, that's a
+fresh choice, not a stale leftover. Frontend: `ChecklistTaskRow` now
+special-cases these three items with a small inline chooser (Select:
+document/number, a text input that appears for the number path, Confirm/
+Cancel) instead of a plain checkbox; a completed item shows a "Document"
+or "Number: <value>" badge. Verified all three guard paths directly at
+the SQL level (missing choice, document-without-a-file, and the
+success path) before the browser pass, then end-to-end in the browser:
+marked "National ID" done via document (one existed from the approved
+submission above) and "SSNIT Card" done via a typed number, confirmed
+both badges rendered, and confirmed `employees.ssnit_number` picked up
+the typed value in the database.
+
+All four verified together in one browser walkthrough (Manager generates
+a link → anon fills the form with the new gender dropdown, uploads a
+"National ID"-labeled document, submits → Manager reviews the full
+detail and a working document link *before* approving → Manager marks
+the two special checklist items via document/number). `tsc`, `eslint`,
+`vite build`, and `check-duplicate-function-overloads.sh` all clean at
+the existing baseline.
+
+**Qualifications multi-select — proposed, not yet built.** Eyram asked
+for qualifications to move from free text to a multi-select backed by a
+school-editable reference list (same "promote free-text to a curated
+list" pattern as `positions`/`departments`/`payment_providers`/
+`allowance_types`), with new entries added the same way those lists
+already are — a `positions`/`departments`-shaped table plus a
+`RefListSection` entry on the Payroll Setup page, not an inline
+add-while-picking affordance (checked: none of the existing single-select
+pickers have that either — `RefListSelect` only lets an out-of-list value
+round-trip with a "(not in list)" badge; adding a genuinely new option
+already only happens on that settings page). Proposed a 15-entry starter
+seed (WASSCE/SSSCE through Doctorate, NTC Teaching License, Early
+Childhood/Montessori certificates, and common support-role certs — First
+Aid, Food Handler's, Commercial Driving License, Professional Accounting,
+Security) for Eyram to review before building — `employees.qualifications`
+would become `text[]` (matching the `position`/`department` "list
+constrains the picker, not an FK" convention) and needs a genuine
+multi-select component, which nothing in this codebase has yet
+(`command.tsx`/`popover.tsx` exist and are the right building blocks —
+`product-search-select.tsx` is the closest existing single-select
+combobox to adapt). Not started pending that review.
+
+## 2026-09-23 — Qualifications: free text to a school-editable multi-select
+
+Built the piece deferred from 2026-09-22, after showing the proposed
+15-entry seed list for review.
+
+`20260923100000_qualifications_reference_list.sql`: new `qualifications`
+table, same shape/RLS as `positions`/`departments` (select M/Acc/Aud,
+write M/Acc) — minus the uppercase trigger, since these read as proper
+names/certifications rather than short codes. One addition beyond that
+precedent: a second `select` policy scoped `to anon using (is_active)`,
+since the public onboarding form needs the active list too. This isn't
+narrowed behind a SECURITY DEFINER function the way the tokenized-form
+security note insists on elsewhere — there's nothing sensitive in a
+qualification's name, position, or `is_active` flag to protect, so a
+direct RLS grant is the simpler, equally-safe choice; the earlier
+narrowing was specifically about not leaking `employee_id`/`created_by`
+alongside a boolean check, which doesn't apply here. Confirmed the two
+`select` policies don't cross-contaminate: `to anon` policies are scoped
+by Postgres role membership, so an authenticated Attendant session (which
+still shouldn't see this table) never picks up the anon-scoped policy —
+verified with `set role anon` in a rolled-back transaction.
+
+`employees.qualifications` and `employee_onboarding_submissions.qualifications`
+both changed `text` -> `text[]` (existing values wrapped in a
+single-element array, not discarded). `update_employee_profile()` and
+`submit_onboarding_form()` both had their `p_qualifications` parameter
+retyped the same way — an argument type change, so both were dropped
+before recreating, same as every other argument-list change this session.
+The array itself follows the exact same amend-in-place idiom as every
+other field on `update_employee_profile()`, just without the text-specific
+`nullif(trim())` dance: `coalesce(p_qualifications, qualifications)` —
+null leaves it unchanged, an explicit `'{}'` clears it.
+
+New `RefListMultiSelect` (`components/employees/ref-list-multi-select.tsx`),
+adapting `ProductSearchSelect`'s Command+Popover combobox shape to more
+than one selection, with removable badges and the same "(not in list)"
+round-trip treatment as `RefListSelect` for a stored value the active
+list no longer has. Deliberately no inline "add a new option" affordance
+in the picker itself — checked first, and none of the existing
+single-select pickers have that either; a new entry is always added on
+the Payroll Setup page's `RefListSection`, which now has a "Qualifications"
+entry alongside Positions/Departments. `org-lists-store.ts`'s
+`makeRefListStore()` factory (already parameterized by table name) just
+needed its type union widened to include `"qualifications"` — no new
+store plumbing required. Wired into both places `employees.qualifications`
+is written: `HrDetailsSection` (HR's direct edit) and the public
+onboarding form (candidate self-entry) — both read the same
+`useQualifications()` list, which correctly returns only active entries
+for an anon session and everything (for toggling inactive ones back on)
+for an authenticated Manager/Accountant/Auditor session, via RLS alone,
+no client-side branching needed.
+
+**Verified with two real browser passes**: Payroll Setup's Qualifications
+section renders the 15 seeded entries plus "NTC Teaching License", and
+adding a new one ("Custom Test Cert") through the existing Add flow
+worked immediately. On the employee profile, picking two qualifications
+in `HrDetailsSection`, saving, and reloading showed both persisted. On
+the public form, an anon session (no login at all) saw the same seeded
+list, picked one, and submitted; the Manager's pre-approval review card
+(from the priority fix two days ago) showed it correctly as joined text
+before Approve was ever clicked. Cross-checked directly against the
+database: both `employees.qualifications` and the submission's own
+`qualifications` column stored as real Postgres arrays
+(`{"Bachelor's Degree","Custom Test Cert"}`), not JSON strings or
+comma-joined text. `tsc`, `eslint`, `vite build`, and
+`check-duplicate-function-overloads.sh` all clean at the existing
+baseline.

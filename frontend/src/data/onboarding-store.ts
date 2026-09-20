@@ -26,6 +26,10 @@ export type ChecklistItem = {
   requiresDocument: boolean;
   isDerived: boolean;
   derivationKey: DerivationKey | null;
+  /** National ID / SSNIT Card / TIN Copy (20260922): completing the item
+   * accepts either a document already on file or a typed number instead —
+   * some people have lost the physical card but still know the number. */
+  acceptsNumberInLieu: boolean;
   position: number;
   isActive: boolean;
 };
@@ -39,6 +43,7 @@ function mapChecklistItem(row: ChecklistItemRow): ChecklistItem {
     requiresDocument: row.requires_document,
     isDerived: row.is_derived,
     derivationKey: row.derivation_key as DerivationKey | null,
+    acceptsNumberInLieu: row.accepts_number_in_lieu,
     position: row.position,
     isActive: row.is_active,
   };
@@ -59,6 +64,8 @@ export type OnboardingTask = {
   completed: boolean;
   completedAt: string | null;
   completedByName: string | null;
+  providedVia: "document" | "number" | null;
+  providedNumber: string | null;
   item: ChecklistItem;
 };
 
@@ -74,6 +81,8 @@ function mapTask(row: TaskRow): OnboardingTask {
     completed: row.completed,
     completedAt: row.completed_at,
     completedByName: row.completed_by_staff?.name ?? null,
+    providedVia: row.provided_via as "document" | "number" | null,
+    providedNumber: row.provided_number,
     item: mapChecklistItem(row.onboarding_checklist_items),
   };
 }
@@ -94,11 +103,22 @@ export async function listOnboardingTasks(employeeId: string): Promise<Onboardin
 }
 
 /** Manual items only — toggle_onboarding_task() itself rejects a derived
- * item server-side, this just avoids a round trip for the obvious case. */
-export async function toggleOnboardingTask(taskId: string, completed: boolean): Promise<void> {
+ * item server-side, this just avoids a round trip for the obvious case.
+ * `providedVia`/`providedNumber` only apply to items with
+ * `acceptsNumberInLieu` — the RPC requires one of the two when completing
+ * one of those, and validates a "document" claim against a real
+ * employee_documents row server-side. */
+export async function toggleOnboardingTask(
+  taskId: string,
+  completed: boolean,
+  providedVia?: "document" | "number",
+  providedNumber?: string,
+): Promise<void> {
   const { error } = await supabase.rpc("toggle_onboarding_task", {
     p_task_id: taskId,
     p_completed: completed,
+    p_provided_via: providedVia,
+    p_provided_number: providedNumber,
   });
   if (error) throw error;
 }
@@ -138,13 +158,22 @@ export type OnboardingSubmission = {
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
   residentialAddress: string | null;
-  qualifications: string | null;
+  qualifications: string[] | null;
   bankName: string | null;
   accountNo: string | null;
   paymentMethod: string | null;
   contractAccepted: boolean;
   signatureName: string | null;
-  uploadedDocuments: { document_type: string; storage_path: string }[];
+  /** `signedUrl` is populated by listOnboardingSubmissions() at read time —
+   * see signOnboardingSubmissionUrls() below. Priority fix (20260922): a
+   * pending submission previously showed only a document *count*, with no
+   * way to actually see what was uploaded before clicking Approve — the
+   * one path in this app anonymous strangers can write through was being
+   * approved blind. The storage `onboarding_documents_select` RLS policy
+   * (bucket-wide for Manager/Accountant/Auditor, not path-scoped) already
+   * allows signing these paths from an authenticated session; this was a
+   * frontend gap, not a missing permission. */
+  uploadedDocuments: { documentType: string; storagePath: string; signedUrl: string | null }[];
   submittedAt: string;
   reviewStatus: "Pending Review" | "Approved" | "Rejected";
   reviewedByName: string | null;
@@ -156,7 +185,26 @@ type SubmissionRow = Database["public"]["Tables"]["employee_onboarding_submissio
   reviewer: { name: string } | null;
 };
 
-function mapSubmission(row: SubmissionRow): OnboardingSubmission {
+const SUBMISSION_DOCUMENT_URL_EXPIRY_SECONDS = 60 * 60;
+
+async function signOnboardingSubmissionUrls(paths: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (paths.length === 0) return map;
+  const { data, error } = await supabase.storage
+    .from(ONBOARDING_DOCUMENTS_BUCKET)
+    .createSignedUrls(paths, SUBMISSION_DOCUMENT_URL_EXPIRY_SECONDS);
+  if (error) throw error;
+  for (const item of data) {
+    if (item.path && item.signedUrl && !item.error) map.set(item.path, item.signedUrl);
+  }
+  return map;
+}
+
+function mapSubmission(row: SubmissionRow, signedUrls: Map<string, string>): OnboardingSubmission {
+  const uploaded = (row.uploaded_documents ?? []) as {
+    document_type: string;
+    storage_path: string;
+  }[];
   return {
     id: row.id,
     employeeId: row.employee_id,
@@ -173,10 +221,11 @@ function mapSubmission(row: SubmissionRow): OnboardingSubmission {
     paymentMethod: row.payment_method,
     contractAccepted: row.contract_accepted,
     signatureName: row.signature_name,
-    uploadedDocuments: (row.uploaded_documents ?? []) as {
-      document_type: string;
-      storage_path: string;
-    }[],
+    uploadedDocuments: uploaded.map((d) => ({
+      documentType: d.document_type,
+      storagePath: d.storage_path,
+      signedUrl: signedUrls.get(d.storage_path) ?? null,
+    })),
     submittedAt: row.submitted_at,
     reviewStatus: row.review_status as OnboardingSubmission["reviewStatus"],
     reviewedByName: row.reviewer?.name ?? null,
@@ -194,7 +243,14 @@ export async function listOnboardingSubmissions(
     .eq("employee_id", employeeId)
     .order("submitted_at", { ascending: false });
   if (error) throw error;
-  return (data as unknown as SubmissionRow[]).map(mapSubmission);
+  const rows = data as unknown as SubmissionRow[];
+  const allPaths = rows.flatMap((r) =>
+    ((r.uploaded_documents ?? []) as { document_type: string; storage_path: string }[]).map(
+      (d) => d.storage_path,
+    ),
+  );
+  const signedUrls = await signOnboardingSubmissionUrls(allPaths);
+  return rows.map((r) => mapSubmission(r, signedUrls));
 }
 
 export async function approveOnboardingSubmission(submissionId: string): Promise<void> {
@@ -269,7 +325,7 @@ export type OnboardingFormPayload = {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   residentialAddress?: string;
-  qualifications?: string;
+  qualifications?: string[];
   bankName?: string;
   accountNo?: string;
   paymentMethod?: "Bank" | "Mobile Money";

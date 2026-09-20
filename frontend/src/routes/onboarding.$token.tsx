@@ -14,12 +14,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { RefListMultiSelect } from "@/components/employees/ref-list-multi-select";
 import { DOCUMENT_TYPES, type DocumentType } from "@/data/employee-documents-store";
 import {
   getOnboardingContext,
   submitOnboardingForm,
   uploadOnboardingDocument,
 } from "@/data/onboarding-store";
+import { activeNames, useQualifications } from "@/data/org-lists-store";
 import { getErrorMessage } from "@/lib/utils";
 
 // Public, unauthenticated route — reached from a personalized single-use
@@ -44,15 +46,16 @@ function PublicOnboardingPage() {
   const { token } = Route.useParams();
   const [context, setContext] = useState<Context | null>(null);
   const [loading, setLoading] = useState(true);
+  const { items: qualificationItems } = useQualifications();
 
   const [dateOfBirth, setDateOfBirth] = useState("");
-  const [gender, setGender] = useState("");
+  const [gender, setGender] = useState<"Male" | "Female" | "">("");
   const [nationalId, setNationalId] = useState("");
   const [personalEmail, setPersonalEmail] = useState("");
   const [emergencyContactName, setEmergencyContactName] = useState("");
   const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
   const [residentialAddress, setResidentialAddress] = useState("");
-  const [qualifications, setQualifications] = useState("");
+  const [qualifications, setQualifications] = useState<string[]>([]);
   const [bankName, setBankName] = useState("");
   const [accountNo, setAccountNo] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"Bank" | "Mobile Money" | "">("");
@@ -104,7 +107,7 @@ function PublicOnboardingPage() {
         emergencyContactName: emergencyContactName || undefined,
         emergencyContactPhone: emergencyContactPhone || undefined,
         residentialAddress: residentialAddress || undefined,
-        qualifications: qualifications || undefined,
+        qualifications: qualifications.length > 0 ? qualifications : undefined,
         bankName: bankName || undefined,
         accountNo: accountNo || undefined,
         paymentMethod: paymentMethod || undefined,
@@ -172,7 +175,15 @@ function PublicOnboardingPage() {
           </div>
           <div className="space-y-2">
             <Label>Gender</Label>
-            <Input value={gender} onChange={(e) => setGender(e.target.value)} />
+            <Select value={gender} onValueChange={(v) => setGender(v as "Male" | "Female")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Male">Male</SelectItem>
+                <SelectItem value="Female">Female</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label>National ID number</Label>
@@ -211,7 +222,12 @@ function PublicOnboardingPage() {
         </div>
         <div className="space-y-2">
           <Label>Qualifications</Label>
-          <Textarea value={qualifications} onChange={(e) => setQualifications(e.target.value)} />
+          <RefListMultiSelect
+            options={activeNames(qualificationItems)}
+            value={qualifications}
+            onChange={setQualifications}
+            placeholder="Select qualifications…"
+          />
         </div>
 
         <div className="rounded-md border p-4">

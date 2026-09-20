@@ -993,7 +993,7 @@ export type Database = {
           national_id: string | null
           payment_method: string | null
           personal_email: string | null
-          qualifications: string | null
+          qualifications: string[] | null
           rejection_reason: string | null
           residential_address: string | null
           review_status: string
@@ -1017,7 +1017,7 @@ export type Database = {
           national_id?: string | null
           payment_method?: string | null
           personal_email?: string | null
-          qualifications?: string | null
+          qualifications?: string[] | null
           rejection_reason?: string | null
           residential_address?: string | null
           review_status?: string
@@ -1041,7 +1041,7 @@ export type Database = {
           national_id?: string | null
           payment_method?: string | null
           personal_email?: string | null
-          qualifications?: string | null
+          qualifications?: string[] | null
           rejection_reason?: string | null
           residential_address?: string | null
           review_status?: string
@@ -1085,6 +1085,8 @@ export type Database = {
           created_at: string
           employee_id: string
           id: string
+          provided_number: string | null
+          provided_via: string | null
         }
         Insert: {
           checklist_item_id: string
@@ -1094,6 +1096,8 @@ export type Database = {
           created_at?: string
           employee_id: string
           id?: string
+          provided_number?: string | null
+          provided_via?: string | null
         }
         Update: {
           checklist_item_id?: string
@@ -1103,6 +1107,8 @@ export type Database = {
           created_at?: string
           employee_id?: string
           id?: string
+          provided_number?: string | null
+          provided_via?: string | null
         }
         Relationships: [
           {
@@ -1278,7 +1284,7 @@ export type Database = {
           preferred_name: string | null
           probation_end_date: string | null
           proposed_by: string | null
-          qualifications: string | null
+          qualifications: string[] | null
           rejection_reason: string | null
           residential_address: string | null
           reviewed_at: string | null
@@ -1311,7 +1317,7 @@ export type Database = {
           preferred_name?: string | null
           probation_end_date?: string | null
           proposed_by?: string | null
-          qualifications?: string | null
+          qualifications?: string[] | null
           rejection_reason?: string | null
           residential_address?: string | null
           reviewed_at?: string | null
@@ -1344,7 +1350,7 @@ export type Database = {
           preferred_name?: string | null
           probation_end_date?: string | null
           proposed_by?: string | null
-          qualifications?: string | null
+          qualifications?: string[] | null
           rejection_reason?: string | null
           residential_address?: string | null
           reviewed_at?: string | null
@@ -2067,6 +2073,7 @@ export type Database = {
       }
       onboarding_checklist_items: {
         Row: {
+          accepts_number_in_lieu: boolean
           created_at: string
           derivation_key: string | null
           id: string
@@ -2077,6 +2084,7 @@ export type Database = {
           requires_document: boolean
         }
         Insert: {
+          accepts_number_in_lieu?: boolean
           created_at?: string
           derivation_key?: string | null
           id?: string
@@ -2087,6 +2095,7 @@ export type Database = {
           requires_document?: boolean
         }
         Update: {
+          accepts_number_in_lieu?: boolean
           created_at?: string
           derivation_key?: string | null
           id?: string
@@ -2892,6 +2901,30 @@ export type Database = {
           },
         ]
       }
+      qualifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+        }
+        Relationships: []
+      }
       sale_lines: {
         Row: {
           category: string
@@ -3627,7 +3660,7 @@ export type Database = {
           preferred_name: string | null
           probation_end_date: string | null
           proposed_by: string | null
-          qualifications: string | null
+          qualifications: string[] | null
           rejection_reason: string | null
           residential_address: string | null
           reviewed_at: string | null
@@ -4995,7 +5028,7 @@ export type Database = {
           preferred_name: string | null
           probation_end_date: string | null
           proposed_by: string | null
-          qualifications: string | null
+          qualifications: string[] | null
           rejection_reason: string | null
           residential_address: string | null
           reviewed_at: string | null
@@ -5195,7 +5228,7 @@ export type Database = {
           preferred_name: string | null
           probation_end_date: string | null
           proposed_by: string | null
-          qualifications: string | null
+          qualifications: string[] | null
           rejection_reason: string | null
           residential_address: string | null
           reviewed_at: string | null
@@ -5338,7 +5371,7 @@ export type Database = {
           preferred_name: string | null
           probation_end_date: string | null
           proposed_by: string | null
-          qualifications: string | null
+          qualifications: string[] | null
           rejection_reason: string | null
           residential_address: string | null
           reviewed_at: string | null
@@ -5454,7 +5487,7 @@ export type Database = {
           p_national_id?: string
           p_payment_method?: string
           p_personal_email?: string
-          p_qualifications?: string
+          p_qualifications?: string[]
           p_residential_address?: string
           p_signature_name?: string
           p_token: string
@@ -5487,7 +5520,12 @@ export type Database = {
         }
       }
       toggle_onboarding_task: {
-        Args: { p_completed: boolean; p_task_id: string }
+        Args: {
+          p_completed: boolean
+          p_provided_number?: string
+          p_provided_via?: string
+          p_task_id: string
+        }
         Returns: undefined
       }
       unmatch_statement_line: {
@@ -5532,7 +5570,7 @@ export type Database = {
           p_position: string
           p_preferred_name?: string
           p_probation_end_date?: string
-          p_qualifications?: string
+          p_qualifications?: string[]
           p_residential_address?: string
           p_school_email?: string
           p_ssnit_number?: string
@@ -5561,7 +5599,7 @@ export type Database = {
           preferred_name: string | null
           probation_end_date: string | null
           proposed_by: string | null
-          qualifications: string | null
+          qualifications: string[] | null
           rejection_reason: string | null
           residential_address: string | null
           reviewed_at: string | null

@@ -8,6 +8,14 @@ import { supabase } from "@/lib/supabase";
 // M/Acc/Aud, plain RLS-gated writes for M/Acc, not approval-gated. Values
 // are stored UPPERCASE by a DB trigger; `employees.position` /
 // `.department` stay plain text (the list constrains the picker, no FK).
+//
+// `qualifications` (20260923) is the same shape, minus the uppercase
+// trigger (these read as proper names/certifications, not short codes) —
+// `employees.qualifications` / `employee_onboarding_submissions.qualifications`
+// are `text[]`, since unlike position/department this is a multi-select.
+// Also readable by `anon` (the public onboarding form needs the active
+// list to offer) — the only one of these three with an anon grant, since
+// it's the only one anon's own picker needs.
 
 export type RefListItem = {
   id: string;
@@ -25,7 +33,7 @@ function mapRow(row: Row): RefListItem {
 type State = { items: RefListItem[]; loading: boolean; error: string | null };
 
 /** Build a tiny external store for one reference table. */
-function makeRefListStore(table: "positions" | "departments") {
+function makeRefListStore(table: "positions" | "departments" | "qualifications") {
   let state: State = { items: [], loading: true, error: null };
   const listeners = new Set<() => void>();
 
@@ -106,6 +114,7 @@ function makeRefListStore(table: "positions" | "departments") {
 
 const positionsStore = makeRefListStore("positions");
 const departmentsStore = makeRefListStore("departments");
+const qualificationsStore = makeRefListStore("qualifications");
 
 export const usePositions = positionsStore.useList;
 export const createPosition = positionsStore.create;
@@ -116,6 +125,11 @@ export const useDepartments = departmentsStore.useList;
 export const createDepartment = departmentsStore.create;
 export const updateDepartment = departmentsStore.update;
 export const deleteDepartment = departmentsStore.remove;
+
+export const useQualifications = qualificationsStore.useList;
+export const createQualification = qualificationsStore.create;
+export const updateQualification = qualificationsStore.update;
+export const deleteQualification = qualificationsStore.remove;
 
 /** Active names in display order — what a picker should offer. */
 export function activeNames(items: RefListItem[]): string[] {

@@ -27,12 +27,16 @@ import {
 import {
   createDepartment,
   createPosition,
+  createQualification,
   deleteDepartment,
   deletePosition,
+  deleteQualification,
   updateDepartment,
   updatePosition,
+  updateQualification,
   useDepartments,
   usePositions,
+  useQualifications,
   type RefListItem,
 } from "@/data/org-lists-store";
 import { getErrorMessage } from "@/lib/utils";
@@ -51,6 +55,7 @@ function PayrollSetupPage() {
   const { providers } = usePaymentProviders();
   const { items: positions } = usePositions();
   const { items: departments } = useDepartments();
+  const { items: qualifications } = useQualifications();
 
   const activeRates = rates[0];
 
@@ -101,6 +106,16 @@ function PayrollSetupPage() {
         onCreate={createDepartment}
         onToggle={(id, isActive) => updateDepartment(id, { isActive })}
         onDelete={deleteDepartment}
+      />
+      <RefListSection
+        title="Qualifications"
+        hint="Drives the qualifications multi-select on HR Details and the public onboarding form."
+        placeholder="e.g. Postgraduate Diploma in Education (PGDE)"
+        items={qualifications}
+        canWrite={canWrite}
+        onCreate={createQualification}
+        onToggle={(id, isActive) => updateQualification(id, { isActive })}
+        onDelete={deleteQualification}
       />
     </div>
   );
