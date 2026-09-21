@@ -1,19 +1,38 @@
+import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
 import type { Employee, PayConfig } from "@/data/employees-store";
 import type { CompanyDetails } from "@/data/settings-store";
 
-// Contract/letter generation (Phase 4 of the HR expansion) uses jsPDF's
-// `.html()` render mode instead of invoice-pdf.ts's hand-positioned
-// `doc.text()`/`autoTable()` — appropriate for prose of unpredictable
-// length rather than a known tabular structure. `.html()` rasterizes a
-// real DOM node via html2canvas (already present as jsPDF's own
-// transitive dependency, confirmed in node_modules — no new install)
-// and embeds the result as an image, which sidesteps invoice-pdf.ts's
-// GH₵-glyph problem entirely: that file has to embed a custom Unicode
-// TTF because jsPDF's built-in vector fonts can't render U+20B5, but a
-// rasterized screenshot of the browser's own rendering has no such
-// limitation — the browser already draws ₵ correctly before capture.
+// Contract/letter generation (Phase 4 of the HR expansion) rasterizes a
+// real DOM node and embeds the result as an image — appropriate for prose
+// of unpredictable length rather than a known tabular structure, and it
+// sidesteps invoice-pdf.ts's GH₵-glyph problem entirely: that file has to
+// embed a custom Unicode TTF because jsPDF's built-in vector fonts can't
+// render U+20B5, but a rasterized screenshot of the browser's own
+// rendering has no such limitation — the browser already draws ₵
+// correctly before capture.
+//
+// This calls html2canvas directly (declared as a real dependency, not
+// left as jsPDF's undeclared transitive one) and does the PDF placement
+// itself via doc.addImage(), rather than using jsPDF's own `.html()`
+// convenience method. That method's internal `Worker.prototype.
+// toContainer` unconditionally wraps whatever you give it in jsPDF's own
+// hidden overlay div, hardcoded to `position: fixed; left: -100000px`
+// (see jspdf's own dist/jspdf.es.js) — fine for its default *vector*
+// text-embedding mode where a `CanvasRenderingContext2D`-shaped shim
+// records draw calls and jsPDF's Context2d translates them into PDF
+// operators. But that shim's translate/transform handling doesn't cancel
+// out html2canvas's own internal `ctx.translate(-x, -y)` compensation for
+// the target element's on-page position, so the whole -100000px overlay
+// offset leaks straight into the emitted PDF coordinates: confirmed by
+// inspecting the raw content stream of a "blank" generated PDF, which
+// contained real BT/Tj text operators in the right fill color, just all
+// positioned around x=-7317pt — off the left edge of an A4 page, hence
+// genuinely blank on open, not a rendering artifact. Calling html2canvas
+// ourselves against a real `<canvas>` avoids the shim (and the bug)
+// entirely: html2canvas's raster path is the well-tested standard use
+// case and handles arbitrary source-element positioning correctly.
 
 export type MergeData = Record<string, string>;
 
@@ -76,25 +95,28 @@ export function mergeTemplate(htmlBody: string, data: MergeData): string {
   return htmlBody.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => data[key] ?? "");
 }
 
-/** Renders already-merged HTML to a PDF Blob via an off-screen DOM node.
- * Always produces a Blob for upload — this feature has no "download only,
- * never stored" path, unlike a one-off invoice: every generated document
- * is a persistent record from its first commit (same reasoning as the
- * receipts-bucket / onboarding-documents fix applied to storage).
+const PDF_MARGIN_PT = 40;
+
+/** Renders already-merged HTML to a PDF Blob via an off-screen DOM node,
+ * rasterized with html2canvas and placed into the PDF with doc.addImage()
+ * — see the module-level comment for why this bypasses jsPDF's own
+ * `.html()` method. Always produces a Blob for upload — this feature has
+ * no "download only, never stored" path, unlike a one-off invoice: every
+ * generated document is a persistent record from its first commit (same
+ * reasoning as the receipts-bucket / onboarding-documents fix applied to
+ * storage).
+ *
+ * Paginates a tall render across multiple A4 pages by slicing the
+ * rendered canvas into page-height chunks — contracts can run longer
+ * than one page even though letters typically don't.
  *
  * `oklch()` workaround: this app's global stylesheet defines its theme
  * colors as `oklch()` custom properties (styles.css `:root`), which
  * html2canvas's CSS color parser can't handle — confirmed live, toast:
- * "Attempting to parse an unsupported color function 'oklch'". Tried
- * isolating the render target in its own `<iframe>` first, but jsPDF's
- * `.html()` doesn't actually render where you put the source element: it
- * clones it and re-parents the clone into the *real* `document.body`
- * before calling html2canvas (see `Worker.prototype.toContainer` in
- * jspdf's own source), and html2canvas then clones the *entire* document
- * again internally — so the app's own oklch-themed page is always in
- * scope regardless of where the original element lived. The fix has to
- * happen inside that clone: `onclone` is html2canvas's own hook for
- * exactly this, called with the cloned document just before rendering —
+ * "Attempting to parse an unsupported color function 'oklch'". `onclone`
+ * is html2canvas's own hook for this, called with the cloned document
+ * (html2canvas always clones the whole document to compute layout,
+ * regardless of where the source element lives) right before rendering —
  * used here to force every color-related property to plain, parseable
  * values, since none of this feature's own template HTML uses Tailwind
  * classes or these custom properties at all (it's plain tags and inline
@@ -110,29 +132,64 @@ export async function renderMergedHtmlToPdfBlob(html: string): Promise<Blob> {
   document.body.appendChild(container);
 
   try {
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    await doc.html(container, {
-      x: 40,
-      y: 40,
-      width: 515,
+    const canvas = await html2canvas(container, {
       windowWidth: 700,
-      html2canvas: {
-        onclone: (clonedDoc: Document) => {
-          const style = clonedDoc.createElement("style");
-          style.textContent = `
-            *, *::before, *::after {
-              color: #111111 !important;
-              background-color: #ffffff !important;
-              border-color: #cccccc !important;
-              outline-color: transparent !important;
-              box-shadow: none !important;
-              text-decoration-color: currentColor !important;
-            }
-          `;
-          clonedDoc.head.appendChild(style);
-        },
+      onclone: (clonedDoc: Document) => {
+        const style = clonedDoc.createElement("style");
+        style.textContent = `
+          *, *::before, *::after {
+            color: #111111 !important;
+            background-color: #ffffff !important;
+            border-color: #cccccc !important;
+            outline-color: transparent !important;
+            box-shadow: none !important;
+            text-decoration-color: currentColor !important;
+          }
+        `;
+        clonedDoc.head.appendChild(style);
       },
     });
+
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const imageWidthPt = doc.internal.pageSize.getWidth() - PDF_MARGIN_PT * 2;
+    const pageHeightPt = doc.internal.pageSize.getHeight() - PDF_MARGIN_PT * 2;
+    const pxPerPt = canvas.width / imageWidthPt;
+    const pageHeightPx = pageHeightPt * pxPerPt;
+
+    let renderedPx = 0;
+    let firstPage = true;
+    while (renderedPx < canvas.height) {
+      const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceHeightPx;
+      const ctx = pageCanvas.getContext("2d");
+      if (!ctx) throw new Error("Could not get 2D context for PDF page slice");
+      ctx.drawImage(
+        canvas,
+        0,
+        renderedPx,
+        canvas.width,
+        sliceHeightPx,
+        0,
+        0,
+        canvas.width,
+        sliceHeightPx,
+      );
+
+      if (!firstPage) doc.addPage();
+      doc.addImage(
+        pageCanvas.toDataURL("image/png"),
+        "PNG",
+        PDF_MARGIN_PT,
+        PDF_MARGIN_PT,
+        imageWidthPt,
+        sliceHeightPx / pxPerPt,
+      );
+      renderedPx += sliceHeightPx;
+      firstPage = false;
+    }
+
     return doc.output("blob");
   } finally {
     document.body.removeChild(container);

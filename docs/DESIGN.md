@@ -385,7 +385,9 @@ depend on them holding true for every new table/function added.
   Appointment Letters, Probation Letters, and Contracts, not three.** All
   three share identical mechanics — Draft → Issued → Superseded, old
   versions archived not deleted, an HTML template with `{{merge_field}}`
-  placeholders rendered client-side via jsPDF's `.html()` — so
+  placeholders rasterized client-side via html2canvas and embedded into
+  the PDF with `doc.addImage()` (see the dedicated obstacle writeup below
+  for why this doesn't use jsPDF's own `.html()` method) — so
   `employee_generated_documents` (named distinctly from `employee_documents`,
   20260920's candidate-upload table — these are system-generated official
   records, a different kind of thing) carries a `document_kind` column
@@ -420,27 +422,54 @@ depend on them holding true for every new table/function added.
   table; `branches` has no such fields (it's a location label, not a
   company-identity record), and this generation happens client-side
   anyway, same trust level as an invoice PDF.
-  **The real jsPDF `.html()` obstacle, found only by actually running
-  it**: this app's global stylesheet defines its theme colors as
-  `oklch()` custom properties, and html2canvas (the library jsPDF's
-  `.html()` renders through) can't parse that color function at all —
-  every generation attempt failed silently with a toast
-  ("Attempting to parse an unsupported color function 'oklch'") until
-  this was root-caused. The first fix attempt (render inside an isolated
-  `<iframe>`, away from the app's global CSS) didn't work: jsPDF's own
-  `.html()` implementation clones the source element and re-parents the
-  clone into the *real* `document.body` before ever calling html2canvas
-  (confirmed by reading jsPDF's own source, not guessed), and html2canvas
-  then clones the *entire* live document again internally regardless —
-  so the app's oklch-themed page is always in scope no matter where the
-  original element lived. The actual fix uses html2canvas's own
-  `onclone(document)` hook (passed through jsPDF's `html2canvas` option)
-  to inject a blanket `*, *::before, *::after { color/background-color/
-  border-color: <plain value> !important; }` rule into the clone right
-  before rendering — safe here specifically because this feature's
-  template HTML never uses Tailwind classes or these custom properties at
-  all (plain tags and inline styles only), so neutralizing them has no
-  visible effect on the letter itself.
+  **Two real obstacles here, both found only by actually running the
+  feature and looking at the output, not by trusting a green toast.**
+  First: this app's global stylesheet defines its theme colors as
+  `oklch()` custom properties, and html2canvas can't parse that color
+  function at all — every generation attempt failed with a toast
+  ("Attempting to parse an unsupported color function 'oklch'"). The fix
+  is html2canvas's own `onclone(document)` hook, which forces a blanket
+  `*, *::before, *::after { color/background-color/border-color: <plain
+  value> !important; }` rule into its internal clone right before
+  rendering — safe here specifically because this feature's template HTML
+  never uses Tailwind classes or these custom properties at all (plain
+  tags and inline styles only), so neutralizing them has no visible
+  effect on the letter itself.
+  Second, worse bug, initially masked by the first fix: with the oklch
+  error gone, every generated PDF opened as genuinely blank — valid file,
+  correct size, correct `%PDF-` magic bytes (all confirmed at the time and
+  wrongly taken as proof of success), but no visible content, confirmed
+  only by actually opening one in a PDF viewer and by inspecting its raw
+  content stream. The stream showed real `BT`/`Tj` text operators in the
+  right fill color, just all positioned around x=-7317pt — off the left
+  edge of an A4 page. Root cause, found by reading jsPDF's own source:
+  `doc.html()`'s internal `Worker.prototype.toContainer` unconditionally
+  wraps whatever element you give it in jsPDF's own hidden overlay,
+  hardcoded to `position: fixed; left: -100000px` — fine for html2canvas's
+  normal *raster* use (a real `<canvas>`'s 2D context correctly cancels
+  that offset via its own `translate()`), but `doc.html()` defaults to
+  handing html2canvas a fake `Canvas` shim instead (`options.canvas =
+  options.canvas || this.canvas`) so that it can translate draw calls
+  directly into vector PDF operators rather than embedding a raster image.
+  That shim doesn't correctly cancel out html2canvas's internal position
+  compensation, so the -100000px overlay offset leaks straight into the
+  emitted coordinates. This is a `doc.html()` bug, not an oklch one, and
+  the earlier `onclone` fix never touched it because it only ran inside
+  html2canvas's rendering, never inside jsPDF's own coordinate math.
+  The real fix bypasses `doc.html()` entirely: call `html2canvas()`
+  directly against a real `<canvas>` (declared as a normal dependency now,
+  not left as jsPDF's undeclared transitive one), then place the result
+  into the PDF manually via `doc.addImage()`, slicing the canvas into
+  page-height chunks for documents taller than one A4 page (contracts can
+  run long even though letters typically don't). html2canvas's raster path
+  is the well-tested standard use case and handles arbitrary source-element
+  positioning correctly; the `onclone` oklch fix carries over unchanged
+  since it's html2canvas's own hook, independent of how the result gets
+  into the PDF. Verified this time by actually opening rendered PDFs (not
+  just checking file size/magic bytes) across all three document kinds,
+  and by artificially padding a template to force a two-page split and
+  confirming the page break lands cleanly with no blank gap or duplicated
+  content.
   **Contract acceptance is HR-recorded, not self-service.** After
   discussion, `acceptance_signature_name`/`accepted_at` exist on
   `employee_generated_documents` and get filled by

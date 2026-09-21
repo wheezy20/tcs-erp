@@ -2547,3 +2547,66 @@ baseline.
 
 Phase 5 (email infrastructure) remains the last piece of the original
 five-phase plan.
+
+## 2026-09-24 (fix) — Document generation shipped a blank PDF, masked by the oklch fix
+
+Production-style testing found every generated document (Appointment
+Letter, Probation Letter, Contract) opened as a genuinely blank
+single-page PDF — a valid file, correct size, correct `%PDF-` magic
+bytes, but no visible content. The earlier verification pass had checked
+exactly those things (file existed, right content-type, right byte
+count) and wrongly treated them as proof the PDF was correct; nobody had
+actually opened one in a viewer.
+
+Confirmed blank by opening a real generated PDF in a browser (not just
+checking headers/bytes). Inspected the raw PDF content stream directly
+(`qpdf --qdf`, grepping for `BT`/`Tj` text operators) and found real text
+draw commands, in the right fill color, all positioned around x=-7317pt —
+off the left edge of an A4 page. Not a rendering artifact: genuinely
+invisible because it was drawn off-page.
+
+Root-caused by reading jsPDF's own source (not guessed): `doc.html()`'s
+`Worker.prototype.toContainer` unconditionally wraps its target in
+jsPDF's own hidden overlay, hardcoded `position: fixed; left:
+-100000px`. That's harmless for html2canvas's normal raster path (a real
+`<canvas>`'s native 2D context correctly cancels the offset via its own
+`translate()`), but `doc.html()` defaults to handing html2canvas a fake
+`Canvas` shim instead so it can translate draw calls directly into
+vector PDF operators rather than a raster image — and that shim doesn't
+correctly cancel out html2canvas's internal position compensation, so
+the -100000px overlay offset leaks straight into the emitted PDF
+coordinates. This is a `doc.html()` bug, unrelated to the earlier oklch
+color-parsing issue; the previous `onclone` fix for that ran inside
+html2canvas's own rendering and never touched jsPDF's separate
+coordinate math, so it fixed one failure mode (a thrown error) while
+leaving a second, silent one (blank output) completely masked.
+
+Fix: stop using `doc.html()` entirely. Call `html2canvas()` directly
+against a real `<canvas>` element (added as a normal declared dependency
+— it had only ever been jsPDF's undeclared transitive one), then place
+the result into the PDF manually via `doc.addImage()`. Added manual
+pagination (slicing the canvas into page-height chunks) since this path
+no longer gets `doc.html()`'s automatic page-splitting for free —
+contracts can run longer than one page even though letters typically
+don't. The `onclone` oklch fix carries over unchanged, since it's
+html2canvas's own hook and applies regardless of how the raster result
+gets into the PDF afterward.
+
+Verified properly this time: opened real rendered PDFs (screenshotted in
+a PDF viewer, not just fetched) for all three document kinds —
+Appointment Letter, Probation Letter, Contract-Teaching — confirming
+legible letterhead, body text, and correct ₵ formatting. Separately
+inspected a Contract-Non-Teaching PDF's raw content stream to confirm
+text draw coordinates now fall inside the page. Forced a two-page split
+by temporarily padding a template with extra paragraphs (restored
+exactly afterward) and confirmed the page break lands cleanly, with the
+sentence continuing correctly across the boundary and no blank gap or
+duplicated content. `tsc`, `eslint`, `vite build`, and
+`check-duplicate-function-overloads.sh` all clean at the existing
+baseline.
+
+Lesson for this project specifically: "the file exists, has the right
+size, and has the right magic bytes" is not evidence a generated
+document is correct — only opening it and looking is. Applies to any
+future binary-output feature (exports, other document types), not just
+this one.
