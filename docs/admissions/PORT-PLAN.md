@@ -25,9 +25,10 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | # | Slice | Status | Depends on |
 |---|---|---|---|
 | 0 | Payroll regression carry-back (SQL probes for `create_payslip`) | not started | — |
-| 1 | Campuses: make a second branch safe, seed Main + Annex | built, awaiting Eyram's review (uncommitted) | — |
-| 1b | Admissions Officer role (fifth role; allowlist guards; read-exposure fixes) | not started | 1 |
-| 2 | Admissions grade reference data + capabilities layer | not started | 1b |
+| 1 | Campuses: make a second branch safe, seed Main + Annex | built, committed (3f40807) | — |
+| 1b-i | Allowlist guards, can_read_store(), staff read, list_staff_names(), compute_day_totals, regression matrix | built, awaiting Eyram's review (uncommitted) | 1 |
+| 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | not started | 1b-i |
+| 2 | Admissions grade reference data + capabilities layer | not started | 1b-ii |
 | 3 | Core admissions schema + staff RLS (no health, no documents) | not started | 2 |
 | 4 | Health info (health gate) + documents metadata + private bucket | not started | 3 |
 | 5 | Reference numbering + stage transitions + notes/document review RPCs | not started | 4 |
@@ -279,13 +280,16 @@ Role and capability matrix (decided except where marked):
 
 **Size:** one small frontend refactor (13 call sites to one helper), two seed edits and one probe. No migration.
 
-## Slice 1b — Admissions Officer role
+## Slice 1b-i — Allowlist guards (no new role yet)
 
-Added 2026-09-29 by Eyram's decision to create a fifth role (see "Decisions recorded"). It ships before any admissions table, so the role exists, and is proven to reach nothing, before it's given anything.
+The original slice 1b was split on 2026-09-29 into two: 1b-i (this slice, guards only) and 1b-ii (add the role). This slice rewrites the two denylist guards as allowlists and closes the read exposure before any new role exists, with no behaviour change for the four existing roles. Slice 1b-ii adds the Admissions Officer.
+
+### Split and decisions (2026-09-29)
+
+Eyram's confirmed decisions: (1) guard rewrites approved: a role outside the list gets `'This action is not available to your role'`, and Auditor keeps its read-only message; (2) staff read = `can_read_store()` or own-row form `(id = auth.uid() and is_active_staff())`; (3) `list_staff_names()` returns id and name for **ALL** staff, active or not; (4) officer reads branches; (5) no Admissions sidebar section until slice 7a; (6) route-guard allowlist for the officer; (7) hide the Settings tabs that read `business_settings` from the officer; (8) split 1b into 1b-i and 1b-ii. Decisions 4–7 are built in 1b-ii.
 
 **Delivers:**
 
-- **`staff.role` check constraint:** add `'Admissions Officer'` to `staff_role_check` (currently `Attendant`, `Manager`, `Accountant`, `Auditor`). Use drop-and-recreate in a new migration.
 - **Write guards become allowlists (D-1b-a, decided).** Today they're denylists, so a new role would inherit store write access automatically:
   - `can_write()` is currently `is_active_staff() and not has_role(['Accountant','Auditor'])`. It becomes `has_role(['Manager','Attendant'])`, the same meaning for the existing four roles. Without this change an Admissions Officer passes `can_write()` and gets INSERT/UPDATE on the 19 store tables listed below.
   - `require_writable_role()` currently rejects only Auditor. It becomes an allowlist of `Manager`, `Attendant` and `Accountant`, same meaning for the existing roles, plus an explicit rejection message for Admissions Officer. 28 RPCs call it (list below). The invoker ones then fall through to table RLS, which is now an allowlist too. The definer ones (`create_bank_account`, `void_invoice`, `void_sale`) already carry their own `has_role` allowlist.
@@ -293,29 +297,14 @@ Added 2026-09-29 by Eyram's decision to create a fifth role (see "Decisions reco
 - **Read-exposure fixes (D-1b-b, decided)** (see the audit table below):
   - The `is_active_staff()` read policies on store tables and on `business_settings` switch to an allowlist predicate, `can_read_store()` = `has_role(['Manager','Attendant','Accountant','Auditor'])`.
   - `branches` keeps `is_active_staff()`, so the officer can read it for the campus picker.
-  - The `staff` select policy moves to the same four-role allowlist.
-  - A narrow SECURITY DEFINER function, `list_staff_names()`, returns only `id` and `name` of active staff, for note authors and the like. It's executable by `authenticated` and revoked from `anon`.
-  - `compute_day_totals` gets a role allowlist.
-- **`supabase/functions/invite-staff/index.ts`:** add the role to `ALLOWED_ROLES`.
-- **`handle_new_staff_signup`:** confirm it passes the invited role through without defaulting or rejecting the new value, and add it where roles are enumerated.
-- **Frontend:**
-  - the role type (the TypeScript union, and the regenerated `database.types.ts` if the check is surfaced);
-  - the Settings → Staff role dropdown;
-  - sidebar and route gating, so an Admissions Officer sees only the Admissions section (empty until slice 7a) and Settings pages they're allowed, never store, finance, payroll or HR;
-  - any role-name `switch` or map (grep for `"Attendant"`).
-- **`scripts/seed-local-dev-staff.sh`:** a fifth dev account, `dev-admissions@tcs.test`, role Admissions Officer. Update CLAUDE.md's dev-accounts table too.
-- **`scripts/role-matrix.sh`:** six roles (anon, Attendant, Manager, Accountant, Auditor, Admissions Officer), with column width adjusted for the longer name. Update its header and `-- expect:` docs.
-- **Probe file:** `supabase/role-matrix/<migration>_admissions_officer_role.sql` proves the new role is **denied** on:
-  - finance: `accounts`, `journal_entries`, `expenses`, `bank_accounts`;
-  - payroll: `payroll_runs`, `payslips`, `employee_pay_config`, `create_payslip`;
-  - HR: `employees`, `employee_documents`, onboarding tables;
-  - store: `sales`, `invoices`, `customers`, `products`, `stock_movements`, `create_sale`, `create_invoice`, `create_customer_deposit`, `adjust_product_stock`;
-  - storage: the `receipts`, `onboarding-documents` and `employee-generated-documents` buckets.
+  - The `staff` select policy switches to own-row form: `can_read_store() or (id = auth.uid() and is_active_staff())` — inactive staff still see no one.
+  - A narrow SECURITY DEFINER function, `list_staff_names()`, returns only `id` and `name` of **ALL** staff (active or not), for note authors and the like. It's executable by `authenticated` and `service_role`, and revoked from `public` and `anon`.
+  - `compute_day_totals` gets a `can_read_store()` check.
+- **Probe file:** `supabase/role-matrix/<migration>_allowlist_guards_regression.sql` proves the four existing roles are unchanged (100 probes: 6 guard truth-table, 24 table-read, 38 write, 28 RPC, compute_day_totals). Output byte-identical on pre- and post-migration schema. Catalog diff: only the 23 select-policy changes, 2 new functions, 3 changed bodies; no existing grant changed.
+- **New-surface file:** `supabase/role-matrix/<migration>_allowlist_guards_new_surface.sql` (6 probes: can_read_store truth incl. inactive, list_staff_names all roles incl. inactive, anon denial), all match.
+- **DESIGN.md:** the guard predicates are documented as allowlists, `can_read_store()` is added, staff own-row form, `list_staff_names()`, and a one-line rule: guards are allowlists; never add a role by negation.
 
-  Each denial is a seeded read that must raise as "no rows visible", or a write that must fail. It also re-runs the existing guard probes to prove the four existing roles are unchanged.
-- **DESIGN.md:** the role list gains Admissions Officer, and the guard predicates are documented as allowlists.
-
-**Not included:** any admissions table or capability (slice 2 onward). The role has no admissions data to see until slice 3.
+**Not included:** the Admissions Officer role itself, any admissions table or capability (slice 2 onward). Slice 1b-ii adds the role. The role has no admissions data to see until slice 3.
 
 **Read exposure today: what a new role would reach through `is_active_staff()` and friends.** This is the live audit of the local DB (`pg_policies`, `pg_proc`), 2026-09-29.
 
@@ -328,24 +317,62 @@ Added 2026-09-29 by Eyram's decision to create a fifth role (see "Decisions reco
 | Own-row policy | `notifications` (`recipient_id = auth.uid()`) | Unchanged; harmless. |
 | `has_role([...])` allowlists | every finance, payroll, HR and onboarding table and every storage bucket policy | Already excluded. Nothing to change. |
 
-**TCS OS files to read:** `docs/admissions/02-stack-and-schema.md:804-911` (the coordinator permission bundle the role replaces); `migrations/0017_administration_group.py`, `0019_coordinator_groups.py`.
+**DESIGN.md conventions:** the RLS role model (this slice rewrites its predicates); explicit grants; `drop function` before changing an argument list (the predicates keep their signatures); identity columns unchanged; a new "Regression-proofing a guard change" note (generate a probe from catalog, run unchanged on old and new schema, require byte-identical output plus catalog diff; example files listed).
 
-**DESIGN.md conventions:** the RLS role model (this slice rewrites its predicates); explicit grants; `drop function` before changing an argument list (the predicates keep their signatures); identity columns unchanged.
-
-**Role matrix:** six columns. Every existing guard probe keeps its current result for the four existing roles, and Admissions Officer is ✗ on every finance, payroll, HR and store probe. anon is ✗ everywhere.
+**Role matrix:** five columns (anon, Attendant, Manager, Accountant, Auditor only). Every guard probe keeps its current result for the four existing roles after the rewrite. anon is ✗ everywhere. No Admissions Officer column yet (slice 1b-ii).
 
 **Anon surface:** none.
 
-**Decisions (all decided 2026-09-29, as recommended):**
+**Decisions (all decided 2026-09-29):**
 
 - **D-1b-a.** Allowlist guards, not added deny arrays, which would repeat the same trap for every future role.
-- **D-1b-b.** The officer reads `branches`, and reads staff names only through `list_staff_names()`. No `business_settings`, no store tables.
-- **D-1b-c.** Auditor reads admissions read-only; health only if granted.
-- **D-1b-d.** The role string is `Admissions Officer`.
+- **D-1b-b.** Built here: `can_read_store()`, the `staff` own-row read and `list_staff_names()`, so a role outside the four gets no store tables, no `business_settings` and no staff directory. The officer reading `branches` needs nothing new (`branches` keeps `is_active_staff()`).
+- **D-1b-c.** Auditor reads admissions read-only; health only if granted. Nothing to build until admissions tables exist (slices 3 and 4).
+- **D-1b-d.** The role string is `Admissions Officer`. Used in 1b-ii.
 
-Nothing is open before this slice starts.
+**Open item:** no route in the app has an access guard (no `beforeLoad`). Pages are protected only by sidebar visibility, some in-page checks, and RLS. 1b-ii adds a route-guard allowlist for the officer. Guards for the other roles aren't planned; see "Open unknowns".
 
-**Size:** one migration (check constraint, three predicates, about 24 policy swaps, one function), one Edge Function edit, a frontend role-type, dropdown and sidebar pass, and two script edits with about 25 probes. It's big but mechanical. If it overruns, split it: 1b-i (allowlist guards and probes, with no new role yet, so no behaviour change for the four existing roles) then 1b-ii (add the role).
+**Size:** one migration (two guards rewritten, one new predicate, 23 policy changes, two functions), no frontend changes yet, and about 100 probes split across two files. Mechanical. No behaviour change for the four existing roles; the probes prove it.
+
+## Slice 1b-ii — Admissions Officer role
+
+Adds the fifth role on top of 1b-i's allowlists. It ships before any admissions table, so the role exists, and is proven to reach nothing, before it's given anything.
+
+**Delivers:**
+
+- **`staff.role` check constraint:** add `'Admissions Officer'` to `staff_role_check` (drop and recreate, in a new migration).
+- **`handle_new_staff_signup`:** today it maps any role outside the four to `Attendant` (`if v_role not in ('Attendant','Manager','Accountant','Auditor') then v_role := 'Attendant'`). So an invited officer would silently get store access. Add `'Admissions Officer'` to that list.
+- **`supabase/functions/invite-staff/index.ts`:** add the role to `ALLOWED_ROLES`.
+- **Frontend:**
+  - the `StaffRole` union in `data/auth-store.ts`, and `STAFF_ROLES` in `routes/settings.tsx` (the role dropdown and the invite dialog);
+  - the "Roles & permissions" note in Settings, which names four roles;
+  - sidebar: hide the Stores section from the officer (Finance and HR are already hidden by `canViewFinancials`). No Admissions section until slice 7a (decision 5);
+  - Dashboard: hide the "Store & Sales" block from the officer;
+  - topbar: don't load or show the global search (customers, products, invoices, expenses, suppliers) for the officer;
+  - route guard (decision 6): an allowlist of routes for the officer in the app shell. Any other route redirects to `/`;
+  - Settings (decision 7): hide the tabs that read `business_settings` (Business, WHT, Notifications) from the officer;
+  - any other role-name `switch` or map (grep for `"Attendant"`).
+- **`scripts/seed-local-dev-staff.sh`:** a fifth dev account, `dev-admissions@tcs.test`, role Admissions Officer. Update CLAUDE.md's dev-accounts table too.
+- **`scripts/role-matrix.sh`:** six roles (anon, Attendant, Manager, Accountant, Auditor, Admissions Officer), with wider columns for the longer name. Update its header and `-- expect:` docs.
+- **Probes:**
+  - re-run 1b-i's regression file with the sixth column. The five existing columns must stay as recorded, and the officer is ✗ everywhere except `read branches` and the `staff` own-row probe;
+  - `supabase/role-matrix/<migration>_admissions_officer_role.sql` proves the officer is **denied** on finance (`accounts`, `journal_entries`, `expenses`, `bank_accounts`), payroll (`payroll_runs`, `payslips`, `employee_pay_config`, `create_payslip`), HR (`employees`, `employee_documents`, the onboarding tables) and the `receipts`, `onboarding-documents` and `employee-generated-documents` buckets. It also proves the officer gets `list_staff_names()`, reads `branches`, and sees only their own `staff` row;
+  - a probe that an invite with role `Admissions Officer` lands as that role.
+- **DESIGN.md:** the role list gains Admissions Officer.
+
+**Not included:** any admissions table or capability (slice 2 onward). The role has no admissions data to see until slice 3.
+
+**TCS OS files to read:** `docs/admissions/02-stack-and-schema.md:804-911` (the coordinator permission bundle the role replaces); `migrations/0017_administration_group.py`, `0019_coordinator_groups.py`.
+
+**DESIGN.md conventions:** the RLS role model; explicit grants; the CONSTRAINTS.md "Adding a role" procedure.
+
+**Role matrix:** six columns. The officer is ✗ on every finance, payroll, HR and store probe, ✓ on `branches` read, `list_staff_names()` and their own `staff` row. anon is ✗ everywhere.
+
+**Anon surface:** none.
+
+**Gates:** a new role and new permissions (the officer's `branches` read, the own `staff` row and `list_staff_names()`). All decided 2026-09-29 (D-1b-b, D-1b-d, decisions 4–7 above). The plan still stops for Eyram before building.
+
+**Size:** one small migration, one Edge Function line, a frontend pass (role type, dropdown, sidebar, Dashboard, topbar, route guard, Settings tabs), two script edits, and about 20 probes plus the six-column regression re-run.
 
 ## Slice 2 — Admissions grade reference data and the capabilities layer
 
@@ -1343,5 +1370,6 @@ The main session spot-checked these citations against the code on
   - onboarding's unchecked client-supplied `storage_path` in `submit_onboarding_form`;
   - `invite-staff`'s `Access-Control-Allow-Origin: *`.
 - **Slice 1 touches finance and POS stores** (13 call sites), which is outside admissions. It's included because adding Annex without it makes payroll and expense writes land on an undefined branch. The main session should get Eyram's OK that this fix belongs in Phase 2.
+- **No route has an access guard (open item, 2026-09-29).** There's no `beforeLoad` anywhere in `frontend/src/routes/`. Pages are protected only by sidebar visibility, some in-page checks, and RLS. Slice 1b-ii adds a route-guard allowlist for the Admissions Officer only. Guards for the existing roles (for example an Attendant opening a finance URL directly, which renders with empty or denied data) aren't planned. Eyram to decide whether and when.
 - **Don't run `pg_available_extensions` as proof of hosted support.** I only confirmed `pg_cron`, `pg_net`, `pgmq` and `http` are *available* locally. Whether they're enabled on the hosted project is for Eyram to check.
 - **I didn't read `templates/public/apply.html` in full**, only the draft, upload and Turnstile regions. The exact draft `data` key shape comes from the fact that the draft submit feeds `draft.data` straight into `ApplicationSerializer` (`views.py`, `ApplicationDraftSubmitView`). If the form stores extra UI-only keys, slice 10's shape needs to tolerate them.

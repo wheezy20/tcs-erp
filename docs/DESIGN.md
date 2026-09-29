@@ -30,7 +30,9 @@ depend on them holding true for every new table/function added.
 - **RLS is role-based**, checked via `has_role()` / `is_active_staff()`
   helper functions (never hand-rolled per-table logic). Four roles on
   `staff.role`, split from the original combined "Accountant/Auditor" by
-  `20260909090000_split_accountant_auditor_roles.sql`:
+  `20260909090000_split_accountant_auditor_roles.sql`. A fifth,
+  Admissions Officer (admissions only), is decided (CONSTRAINTS.md "Staff
+  roles") and lands in admissions slice 1b-ii:
   - **Manager** — full read/write/delete everywhere.
   - **Accountant** — Manager-equivalent write on the *finance modules*
     (Payroll, Accounting, Expenses); read-only elsewhere (everywhere the
@@ -38,11 +40,19 @@ depend on them holding true for every new table/function added.
   - **Auditor** — read-only everywhere the old combined role could read;
     no write access anywhere.
   - **Attendant** — Sales / POS / returns / invoices; no finance access.
-  Three predicate/guard functions carry this:
-  - `can_write()` = active staff AND not (Accountant or Auditor) — the
-    ordinary-table write predicate, i.e. "Manager + Attendant". Used in
-    every ordinary table's insert/update RLS policy.
-  - `require_writable_role()` — RPC guard that rejects **only Auditor**.
+
+  **Guards are allowlists; never grant or deny a role by negation.** A
+  denylist ("not Auditor") silently hands every future role whatever the
+  listed roles are kept out of. `can_write()` and
+  `require_writable_role()` were denylists until `20260929110000`.
+  The predicates and guards that carry the model:
+  - `can_write()` = `has_role(['Manager','Attendant'])`. The
+    ordinary-table write predicate, used in every store table's
+    insert/update policy (and `held_sales` delete).
+  - `require_writable_role()` — RPC guard: `require_staff()`, then
+    rejects anyone outside Manager, Attendant and Accountant. Auditor
+    gets "Auditor is read-only and cannot perform this action"; any other
+    role gets "This action is not available to your role".
     Accountant passes it; whether it can actually write is then decided by
     the target table's RLS (ordinary tables keep Accountant out via
     `can_write()`) or by `require_finance_writer()` (finance RPCs).
@@ -50,6 +60,20 @@ depend on them holding true for every new table/function added.
     Accountant. The guard at the top of every finance RPC
     (`create_expense`, `create_account`, `post_journal_entry`,
     `reverse_journal_entry`, `create_payroll_run`, `create_payslip`, …).
+  - `can_read_store()` = `has_role(['Manager','Attendant','Accountant','Auditor'])`.
+    The select predicate on the store, sales and settings tables
+    (`business_settings`, `customers`, `products`, `sales`, `invoices`,
+    the counters, …) that used `is_active_staff()` before
+    `20260929110000`. `branches` keeps `is_active_staff()`: every staff
+    role reads it. `staff_select` is `can_read_store() or (id = auth.uid()
+    and is_active_staff())`, because the app resolves the signed-in user
+    from their own `staff` row (`auth-store.ts`).
+  - `list_staff_names()` — SECURITY DEFINER, `require_staff()` first,
+    returns `id` and `name` of every staff row, active or not (so a
+    former member's name still resolves). Executable by `authenticated`
+    and `service_role`, not `anon`. It's how a role outside
+    `can_read_store()` shows staff names without reading `staff`.
+
   Finance-module tables: writes gated `has_role(['Manager','Accountant'])`,
   selects `has_role(['Manager','Accountant','Auditor'])`. Everywhere else
   the old combined role could read (Banking, Purchasing, Suppliers, the
@@ -652,6 +676,19 @@ depend on them holding true for every new table/function added.
   hits first, and payroll's unique `(branch_id, month, year)` could
   then split a month across campuses. Any seed that adds a branch must
   give it a `created_at` later than Main's. Both seed files check this.
+
+- **Regression-proofing a guard change (2026-09-29, slice 1b-i).** A
+  rewrite that must not change behaviour for existing roles gets a
+  generated regression probe file: one probe per policy, table and RPC
+  that uses the guard, generated from the live catalog. Run it unchanged
+  on the schema without the migration and with it, and require
+  byte-identical `role-matrix.sh` output (grid and error lines). Pair it
+  with a catalog diff (policies, function definitions and ACLs, table
+  ACLs and RLS flags, constraints, triggers) that shows only the intended
+  changes. Surface that exists only after the migration goes in a
+  separate probe file. Example:
+  `supabase/role-matrix/20260929110000_allowlist_guards_regression.sql`
+  and `…_new_surface.sql`.
 
 ## Branding
 

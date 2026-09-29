@@ -50,9 +50,10 @@ The HR items deferred in CONSTRAINTS.md stay deferred.
 
 ## Phase 2: Admissions (ported from TCS OS)
 
-**Status:** decision batches recorded 2026-09-29 (D-2g, D-1b-a, D-1b-b,
-D-1b-c, D-1b-d confirmed). Slice 1 (campuses) built, awaiting Eyram's
-review. Slice 1b (Admissions Officer role) not started.
+**Status:** slice 1 (campuses) committed (3f40807). Slice 1b split:
+1b-i (allowlist guards, can_read_store, list_staff_names, regression matrix)
+built awaiting review; 1b-ii (Admissions Officer role) not started.
+Decision batches recorded 2026-09-29 (D-2g, D-1b-a/b/c/d confirmed).
 
 Porting TCS OS's live admissions module: inquiries, applications,
 documents, decisions/offers/enrolment gating, reference numbering,

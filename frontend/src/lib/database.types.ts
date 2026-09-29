@@ -3846,6 +3846,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      can_read_store: { Args: never; Returns: boolean }
       can_write: { Args: never; Returns: boolean }
       cancel_bank_reconciliation: {
         Args: { p_reconciliation_id: string }
@@ -4705,6 +4706,13 @@ export type Database = {
       issue_employee_document: {
         Args: { p_document_id: string }
         Returns: undefined
+      }
+      list_staff_names: {
+        Args: never
+        Returns: {
+          id: string
+          name: string
+        }[]
       }
       match_statement_line: {
         Args: { p_journal_line_id: string; p_line_id: string }
