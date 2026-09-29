@@ -27,8 +27,9 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 0 | Payroll regression carry-back (SQL probes for `create_payslip`) | not started | — |
 | 1 | Campuses: make a second branch safe, seed Main + Annex | built, committed (3f40807) | — |
 | 1b-i | Allowlist guards, can_read_store(), staff read, list_staff_names(), compute_day_totals, regression matrix | committed (030234d) | 1 |
-| 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | built, awaiting Eyram's review (uncommitted) | 1b-i |
-| 2 | Admissions grade reference data + capabilities layer | not started | 1b-ii |
+| 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | committed (7e8de8d) | 1b-i |
+| 1c | Session timeout readable by every staff role | built, awaiting Eyram's review (uncommitted) | 1b-ii |
+| 2 | Admissions grade reference data + capabilities layer | not started | 1c |
 | 3 | Core admissions schema + staff RLS (no health, no documents) | not started | 2 |
 | 4 | Health info (health gate) + documents metadata + private bucket | not started | 3 |
 | 5 | Reference numbering + stage transitions + notes/document review RPCs | not started | 4 |
@@ -372,11 +373,11 @@ Adds the fifth role on top of 1b-i's allowlists. It ships before any admissions 
 
 **Open unknowns:**
 
-- **(a) Officer inactivity auto-logout never arms.** `InactivityWatcher` reads `business_settings.session_timeout_minutes` to set the timeout. The officer gets a 406 (RLS), so `sessionTimeoutMinutes` stays `null`, and `useInactivityLogout` treats `null` as "don't arm". Not blocking now (the officer can see no sensitive data yet) but must be fixed before slices 3–4 give the officer admissions or health data. The fix needs a new narrow read (e.g. a SECURITY DEFINER function returning only the timeout value) = a new permission, Eyram's decision.
-- **(b) Missing role defaults to Attendant.** `handle_new_staff_signup` still defaults a missing `role` metadata field to Attendant (seed paths and local-dev scripts rely on it). An explicit unlisted role is now rejected. Eyram to confirm the missing-role default is intended and safe.
+- **(a) Officer inactivity auto-logout never arms.** Addressed by slice 1c (uncommitted, awaiting Eyram's review): `get_session_timeout_minutes()` returns the timeout value to every staff role including the officer, bypassing the restriction on `business_settings`.
+- **(b) Missing role defaults to Attendant.** `handle_new_staff_signup` still defaults a missing `role` metadata field to Attendant (seed paths and local-dev scripts rely on it). An explicit unlisted role is now rejected. Tighten it (reject a missing role) once the seed paths (supabase/seed.sql, scripts/seed-local-dev-staff.sh) pass a role explicitly.
 - Route guards for the other four roles are still not built (existing open item).
 
-**Gates:** all permissions (the officer's `branches` read, own `staff` row and `list_staff_names()`) decided 2026-09-29 (D-1b-b, D-1b-d, decisions 4–7 above). Slice built and awaiting Eyram's review. No commit yet.
+**Gates:** all permissions (the officer's `branches` read, own `staff` row and `list_staff_names()`) decided 2026-09-29 (D-1b-b, D-1b-d, decisions 4–7 above). Committed (7e8de8d).
 
 **Size:** one small migration, one Edge Function line, a frontend pass (role type, dropdown, sidebar, Dashboard, topbar, route guard, Settings tabs), two script edits, a new 30-probe file, and the five existing probe files re-run with the sixth column.
 

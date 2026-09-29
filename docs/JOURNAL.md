@@ -3309,3 +3309,60 @@ this slice. The hosted project gets the 2026 set only when Eyram runs
 - No commit yet; this session's changes are uncommitted.
 - The hosted project gets the migration only when Eyram runs `npx supabase db push`.
 - The invite-staff Edge Function change takes effect in production only when Eyram runs `npx supabase functions deploy invite-staff`.
+
+## 2026-09-29 — Slice 1c: session timeout readable by every staff role
+
+Fixes the open item from slice 1b-ii: the Admissions Officer couldn't read
+`business_settings.session_timeout_minutes` directly, so the inactivity
+logout timer never armed. Created a narrow SECURITY DEFINER function
+`get_session_timeout_minutes()` that returns only that one value to any
+active staff member (including the officer), bypassing the Admissions Officer's
+restriction on `business_settings`.
+
+**Built:**
+
+- **Migration `supabase/migrations/20260929140000_session_timeout_read.sql`:**
+  - `get_session_timeout_minutes()`: SECURITY DEFINER, stable, calls
+    `require_staff()` first, returns `session_timeout_minutes` from
+    `business_settings` (id = 1). Granted to `authenticated` and
+    `service_role`; revoked from `public` and `anon`.
+- **Frontend `frontend/src/data/session-timeout-store.ts`:**
+  - Changed `load()` to call `supabase.rpc("get_session_timeout_minutes")`
+    instead of reading `business_settings` table directly. Updated comment
+    to explain why: not every role can read the table (Admissions Officer).
+- **Generated types `frontend/src/lib/database.types.ts`:**
+  - Added `get_session_timeout_minutes` function type.
+- **Role-matrix probe `supabase/role-matrix/20260929140000_session_timeout_read.sql`**
+  asserts: the function returns the configured value to all five staff roles
+  and not to anon; it fails when all staff are inactive; direct
+  `business_settings` read stays four roles (not the officer) and update
+  stays Manager only.
+
+**Verification (main session, reproduced independently by test-runner):**
+
+- The six existing probe files give byte-identical output, all six columns,
+  on the schema without and with the migration. The new file passes 4/4.
+- The catalog diff (policies, function definitions and ACLs, table
+  ACLs/RLS, constraints, triggers, buckets) shows only the new function and
+  its ACL. `has_function_privilege`: anon false, authenticated and
+  service_role true.
+- Browser (Playwright fake clock, local timeout set to 1 minute, then
+  restored to 15). On the committed code: the four existing roles were
+  still signed in at 50s and signed out by 75s; the officer was never
+  signed out. With this change, all five behave the same way.
+  - The four existing roles' request sets on `/` changed only by the added
+    `POST rpc/get_session_timeout_minutes`. Their one remaining
+    `business_settings` GET is `invoice-store`'s `vat_rate`, via the topbar
+    search.
+  - The officer's `business_settings` GET is gone.
+- As Manager, Settings → Security shows the value, and saving a new value
+  still works through the direct table update. The timer picks it up
+  without a page reload (`reload()`).
+- Lint, tsc, build and the overload check pass. The types regen adds only
+  the new function line.
+- code-reviewer: no blocking findings.
+
+**Pending:**
+
+- Eyram reviews the slice.
+- Not committed; `npx supabase db push` is Eyram's step.

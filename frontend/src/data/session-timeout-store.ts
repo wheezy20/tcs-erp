@@ -8,6 +8,9 @@ import { supabase } from "@/lib/supabase";
 // because every active staff member's own browser has to read the *same*
 // value a Manager set (frontend/src/hooks/use-inactivity-logout.ts), not
 // whatever was last saved in that one browser's own localStorage.
+// It's read through get_session_timeout_minutes() (20260929140000), not the
+// table, because not every role can read business_settings (the Admissions
+// Officer can't); the function returns this one value to any active staff.
 type State = {
   sessionTimeoutMinutes: number | null;
   loading: boolean;
@@ -24,14 +27,10 @@ function setState(next: State) {
 }
 
 async function load() {
-  const { data, error } = await supabase
-    .from("business_settings")
-    .select("session_timeout_minutes")
-    .eq("id", 1)
-    .single();
+  const { data, error } = await supabase.rpc("get_session_timeout_minutes");
   if (error) throw error;
   setState({
-    sessionTimeoutMinutes: Number(data.session_timeout_minutes),
+    sessionTimeoutMinutes: data === null ? null : Number(data),
     loading: false,
     error: null,
   });

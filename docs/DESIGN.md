@@ -75,6 +75,9 @@ depend on them holding true for every new table/function added.
     former member's name still resolves). Executable by `authenticated`
     and `service_role`, not `anon`. It's how a role outside
     `can_read_store()` shows staff names without reading `staff`.
+  - `get_session_timeout_minutes()` — the same pattern: SECURITY DEFINER,
+    `require_staff()` first, returns a single value from `business_settings`
+    to any active staff member (including roles that can't read the table).
 
   Finance-module tables: writes gated `has_role(['Manager','Accountant'])`,
   selects `has_role(['Manager','Accountant','Auditor'])`. Everywhere else

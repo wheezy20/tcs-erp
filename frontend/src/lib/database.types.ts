@@ -4663,6 +4663,7 @@ export type Database = {
           valid: boolean
         }[]
       }
+      get_session_timeout_minutes: { Args: never; Returns: number }
       has_role: { Args: { p_roles: string[] }; Returns: boolean }
       import_bank_statement_lines: {
         Args: { p_bank_account_id: string; p_lines: Json }
