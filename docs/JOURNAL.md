@@ -2753,3 +2753,90 @@ now codifies the rule: the anon surface is SECURITY DEFINER functions
 only, and new invoker RPCs `revoke execute … from public, anon`. It
 also records this measured baseline and the one deliberate anon table
 read (`qualifications_select_anon`).
+
+## 2026-09-29 — `deposit_number_counters` gets RLS and loses anon
+
+Closes the gap Stage 2 logged as an open CONSTRAINTS.md checkbox: the
+counter table behind customer-deposit numbers (`20260901100000`) had
+RLS off and full anon privileges. Eyram set the scope: one new
+migration, the same policies as `invoice_number_counters`, revoke anon,
+touch nothing else. This is the first slice run through the loop from
+Stage 2 (tcs-planner, build, test-runner, code-reviewer,
+docs-updater). This session loaded before `.claude/agents/` existed,
+so each step ran as a general-purpose agent following that agent's
+file.
+
+New migration `20260929100000_deposit_number_counters_rls.sql`:
+
+- enables RLS, with `deposit_number_counters_select`
+  (`is_active_staff()`), `_insert` (with check `can_write()`),
+  `_update` (`can_write()` for both using and check) and `_delete`
+  (`has_role(['Manager'])`). These match `invoice_number_counters`
+  apart from the names, with no `to` clause;
+- `revoke all on public.deposit_number_counters from anon`.
+
+The `authenticated` and `service_role` grants are untouched. Both
+counter tables' ACLs were already identical (`arwdDxtm`).
+
+Role matrix: `supabase/role-matrix/20260929100000_deposit_number_counters_rls.sql`,
+6 probes × 5 roles. **Before the migration** it showed 10 mismatch
+cells: anon ok on all direct counter access, Accountant and Auditor
+ok on direct insert/update, and Attendant, Accountant and Auditor ok
+on direct delete. **After**, it exits 0 with no mismatches:
+
+| Probe | Ok | Denied |
+|---|---|---|
+| counter select | all four staff roles | anon |
+| direct insert / update | Attendant, Manager | anon, Accountant, Auditor |
+| direct delete | Manager | everyone else |
+| `create_customer_deposit`, first-of-month insert path | Attendant, Manager | anon, Accountant, Auditor |
+| `create_customer_deposit`, on-conflict update path | Attendant, Manager | anon, Accountant, Auditor |
+
+Both `create_customer_deposit` probes assert the exact DEP number
+returned. Who can create deposits hasn't changed. Accountant is now
+stopped at the counter upsert (RLS), one statement earlier than
+before, when `customer_deposits`' insert policy stopped it. Auditor
+and anon are still stopped by `require_writable_role()`. Structural
+check after `db reset`: `relrowsecurity = t`, and anon has no
+select/insert/update/delete/truncate privilege. Anon-privileged
+tables drop from 15 to 14, all with RLS on (DESIGN.md's baseline is
+updated).
+
+test-runner: `tsc`, build, `db reset`, dev staff seed, and
+`check-duplicate-function-overloads.sh` all pass. Two failures have
+nothing to do with this slice and are left unfixed because they're
+outside its scope:
+
+- `npm run lint` is red on a prettier error already present at
+  `frontend/src/components/settings/accent-sync.tsx:32`.
+- The types regen diff isn't empty. The committed `database.types.ts`
+  came from an older Supabase CLI than the local 2.118.0, and the
+  difference is style only (`Args: never` becomes
+  `Record<PropertyKey, never>`; `normal_balance` shows as `never` in
+  Insert/Update). There's no schema difference and nothing about
+  `deposit_number_counters`. **Eyram decides whether to regenerate.**
+
+code-reviewer: nothing blocking, and no confirmation-gate items,
+because access only got narrower. Two wording fixes were applied to
+the migration's header comment. It no longer claims anon could
+"truncate through the Data API", and it now says the pro-forma counter
+precedent shares these policies but never revoked anon. Noticed but
+out of scope, so not fixed. These are possible later work, not
+decisions:
+
+- `pro_forma_invoice_number_counters`, `pro_forma_invoices` and
+  `pro_forma_invoice_lines` still give anon table privileges
+  (TRUNCATE included), though RLS blocks anon on every policy.
+- `authenticated` holds TRUNCATE (plus REFERENCES/TRIGGER) on both the
+  deposit and invoice counters. RLS doesn't cover TRUNCATE, but it
+  isn't reachable through PostgREST.
+- `20260814080000`'s comment says the invoice/sale counters have no
+  DELETE grant, but in the live database `authenticated` holds DELETE.
+- If a Manager deleted the current month's counter row, the next
+  deposit would collide on the `customer_deposits` primary key. That
+  blocks the insert and never duplicates a number. The same is true of
+  `invoice_number_counters`, and this table inherits it by parity.
+
+**Pending, Eyram's step after review and commit:** run
+`npx supabase db push` from the repo root against the linked TCS ERP
+project. Until then the hosted database still has the gap.

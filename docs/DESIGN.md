@@ -622,14 +622,20 @@ depend on them holding true for every new table/function added.
   Known baseline, measured 2026-09-29 and not retrofitted: 169 of 170
   public functions are anon-executable. The invoker ones are safe in
   practice because they call `require_staff()` first. `anon` also holds
-  privileges on 15 tables (Supabase default privileges). 14 have RLS on,
-  with every policy gated on `has_role()`, `is_active_staff()`, or
+  privileges on 14 tables (Supabase default privileges), all with RLS
+  on and every policy gated on `has_role()`, `is_active_staff()`, or
   `auth.uid()`, all of which anon fails, apart from
-  the deliberate `qualifications_select_anon` read above. The exception
-  is `deposit_number_counters`, which has RLS **off**, so `anon` and
-  every staff role (Auditor included) can insert/update/delete it
-  directly. That's a real gap, confirmed by a role-matrix probe and
-  tracked in CONSTRAINTS.md.
+  the deliberate `qualifications_select_anon` read above. Among them,
+  `pro_forma_invoice_number_counters`, `pro_forma_invoices` and
+  `pro_forma_invoice_lines` still carry anon table privileges
+  (TRUNCATE included). These are known leftovers that RLS blocks, not
+  retrofitted.
+  History: the 2026-09-29 measurement found 15 tables. The 15th,
+  `deposit_number_counters`, had RLS **off**, so `anon` and every staff
+  role (Auditor included) could insert/update/delete it directly,
+  which a role-matrix probe confirmed. `20260929100000` closed it: RLS
+  on, `invoice_number_counters`' policies, and `anon` revoked. See
+  CONSTRAINTS.md and JOURNAL.md.
 
 ## Branding
 

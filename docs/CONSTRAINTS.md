@@ -42,7 +42,7 @@ Things that shape how this gets built, not just what gets built.
       against the TCS OS originals. admissions.tcsch.edu.gh then
       redirects to this ERP. TCS OS is shut down only after both are
       done and confirmed.
-- [ ] **`deposit_number_counters` has RLS off** (`20260901100000`), and
+- [x] **`deposit_number_counters` has RLS off** (`20260901100000`), and
       Supabase's default privileges give `anon` full table privileges on
       it. So anyone holding the public anon key, and every staff role
       including Auditor, can insert/update/delete customer-deposit
@@ -53,6 +53,12 @@ Things that shape how this gets built, not just what gets built.
       revoke `anon`. It isn't fixed yet because it wasn't in that
       session's scope. It must be fixed before the ERP serves
       production traffic.
+      — done in the repo and locally, `20260929100000_deposit_number_counters_rls`
+      (2026-09-29): RLS on, the same four policies as
+      `invoice_number_counters`, and `anon` revoked. Verified by
+      `supabase/role-matrix/20260929100000_deposit_number_counters_rls.sql`
+      (no mismatches). The hosted project gets it only when Eyram runs
+      `npx supabase db push` (see docs/JOURNAL.md).
 
 ## Data safety
 
