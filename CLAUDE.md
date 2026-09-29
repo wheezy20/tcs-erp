@@ -103,6 +103,8 @@ Build work goes one slice at a time, in this order:
    code and docs together. Don't commit until asked, and don't start the
    next slice.
 
+Do not add Co-Authored-By or Claude-Session trailers to commit messages.
+
 **Human confirmation gates.** At any step, stop and get Eyram's explicit
 confirmation before building or continuing past:
 
