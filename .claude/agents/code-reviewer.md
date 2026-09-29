@@ -132,11 +132,16 @@ fine. Say which database object enforces the real one. Formatting
   `service_role` withheld only where it should be.
 - RLS through `has_role()` / `is_active_staff()` / `can_write()` /
   `require_writable_role()` / `require_finance_writer()`, never
-  hand-rolled per-table role logic. **Four roles only.** Admissions
-  capabilities (`can_decide`, grade bands, the health-data gate) are a
-  layer on top: they narrow or unlock admissions actions, never grant
-  anything outside admissions, and start ungranted. Flag a capability
-  that is granted by a migration default, or that acts like a fifth role.
+  hand-rolled per-table role logic. **Only the roles listed in
+  CONSTRAINTS.md "Staff roles"**. A new role is blocking unless that
+  section records Eyram's decision for it, and its slice follows the
+  "Adding a role" steps there. A new or changed guard written as a
+  denylist (`not has_role([...])`) is blocking, because a future role
+  would inherit access through it. Admissions capabilities (`can_decide`,
+  grade bands, the health-data gate) are a layer on top: they narrow or
+  unlock admissions actions, never grant anything outside admissions,
+  and start ungranted. Flag a capability that is granted by a migration
+  default, or that acts like a role.
 - Server-forced identity columns. Computed, never stored.
   Nullable-override-with-global-default. No update or delete after
   posted/closed. Effective-dated config. Multi-row RPC input as `jsonb`.
@@ -156,11 +161,15 @@ TCS OS lessons that carry over to admissions work:
   `file_size_limit`/`allowed_mime_types`. The bucket is the only layer
   that can't be bypassed.
 - Transactional email never blocks the request path.
-- Bulk sends are atomic per message, not per batch.
+- Bulk sends give every recipient row exactly one terminal status, and
+  pre-skip invalid addresses so one bad address can't fail a batch.
+  Resend's batch call is all-or-nothing per batch of 100 or fewer; see
+  PORT-PLAN.md.
 - A reference number is assigned by the database on every write path,
   including bulk ones. TCS OS lost reference numbers to a bulk
   `queryset.update()` that bypassed `save()`.
-- Grade-band access resolves live from the applicant's current grade,
+- Grade-band access resolves live from the grade applied for
+  (`year_group_applied_for`),
   never from a stored assignment.
 - Child health data sits behind its own gate. A role, `can_decide`,
   or a grade band never implies access to it.

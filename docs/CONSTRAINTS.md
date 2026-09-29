@@ -161,45 +161,90 @@ Things that shape how this gets built, not just what gets built.
   (`pays_ssnit`, `pays_tier2`, `pays_paye`), independently toggleable
   (renamed from `staff_pay_config` in `20260909130000`).
 
-## Staff roles (as of 20260909090000)
+## Staff roles (as of 20260909090000; fifth role decided 2026-09-29)
 
-Four roles on `staff.role`: **Manager** (full write everywhere),
-**Accountant** (Manager-equivalent write on Payroll / Accounting /
-Expenses; read-only elsewhere), **Auditor** (read-only everywhere the
-old combined role could read), **Attendant** (Sales / POS / invoices; no
-finance access). Enforced by RLS + the `can_write()` /
-`require_writable_role()` / `require_finance_writer()` predicates — see
-DESIGN.md. When adding a new table, decide which of these four it's for
-and gate it with the matching predicate; don't invent a fifth role or a
-per-table role check.
+Four roles are live on `staff.role`:
 
-**Admissions capabilities (decided 2026-09-29) — not a fifth role.**
-TCS OS's admissions has staff shapes the four roles don't express on
-their own: the `can_decide` holder, grade-band coordinators scoped to
-Preschool/Primary/JHS applicants, and the people allowed to see child
-health data. These are modelled as a **small capabilities layer on top
-of the four roles**, not as a new role:
+- **Manager:** full write everywhere.
+- **Accountant:** Manager-equivalent write on Payroll, Accounting and
+  Expenses; read-only elsewhere.
+- **Auditor:** read-only everywhere the old combined role could read.
+- **Attendant:** Sales, POS and invoices; no finance access.
 
-- a `can_decide` flag per staff member (who may record a decision /
-  generate an offer);
-- a list of grade bands per staff member (a coordinator sees and works
-  only applicants whose grade falls in their bands, resolved live from
-  the applicant's current grade, never stored per application);
-- a **separate gate for child health data**, independent of both of the
-  above. Holding a role, `can_decide`, or a grade band never implies
-  health-data access on its own.
+They're enforced by RLS plus the `can_write()`,
+`require_writable_role()` and `require_finance_writer()` predicates (see
+DESIGN.md). When adding a new table, decide which roles it's for and
+gate it with the matching predicate. Don't hand-roll a per-table role
+check.
 
-Why this isn't a fifth role: `staff.role` still answers "what kind of
-access does this person have across the whole ERP", and every existing
-predicate keeps working unchanged. The capabilities only **narrow or
-unlock specific admissions actions** for someone who already holds one
-of the four roles; they never grant anything outside admissions and
-never stand in for a role. Each capability is **ungranted by default**:
-granting one is a deliberate human decision, not a migration default
-(same rule TCS OS followed for `can_decide`, `can_view_health_info` and
-`can_send_bulk_email`). The exact shape (columns vs a side table, which
-role may hold which capability) is settled in
-`docs/admissions/PORT-PLAN.md` and recorded in DESIGN.md when built.
+**A fifth role, Admissions Officer, is decided (2026-09-29) but not
+built yet.** It's built in `docs/admissions/PORT-PLAN.md` slice 1b. This
+is a **deliberate, confirmed exception** to the earlier "don't invent a
+fifth role" rule, and it supersedes the same day's earlier decision to
+model admissions as capabilities on the four roles alone.
+
+The reason is that none of the four fits an admissions coordinator:
+
+- Attendant would bring store write access.
+- Accountant would bring payroll and finance write access.
+- Manager is everything.
+
+An Admissions Officer gets **baseline access to admissions tables
+only**, and nothing in finance, payroll, HR or the store. Attendant
+stays the store role.
+
+**Adding a role (this one, and any future one).** More roles are
+expected as the ERP grows to cover other school functions: academics,
+transport and so on. A new role is never added on a slice's own
+authority. It needs:
+
+1. **Eyram's explicit decision**, recorded in this section with its date
+   and the reason no existing role fits.
+2. **Its own slice**, before anything uses the role. That slice covers:
+   - the `staff_role_check` constraint;
+   - the guard predicates;
+   - `invite-staff`'s `ALLOWED_ROLES`;
+   - `handle_new_staff_signup`;
+   - the frontend role type, the Settings dropdown and sidebar gating;
+   - a dev account in `seed-local-dev-staff.sh`;
+   - a column in `scripts/role-matrix.sh`.
+3. **Allowlist guards, never denylists.** The live `can_write()` (not
+   Accountant or Auditor) and `require_writable_role()` (not Auditor)
+   are denylists, so a new role would silently inherit store write
+   access. The first new-role slice converts them to allowlists. After
+   that, every predicate names the roles it admits.
+4. **A read-exposure audit.** List every `is_active_staff()` policy and
+   staff-only function the new role would pass. That's 24 tables and
+   `compute_day_totals` as of 2026-09-29; the table is in PORT-PLAN.md
+   slice 1b. Decide each one.
+5. **Role-matrix probes proving the role is denied** everywhere outside
+   its module, and that every existing role's result is unchanged.
+
+**Admissions capabilities (decided 2026-09-29).** Capabilities narrow or
+unlock actions *inside* admissions, on top of the role:
+
+- **`can_decide`** (record a decision, generate an offer). Held by
+  Manager or Admissions Officer.
+- **Grade bands.** A coordinator sees and works only applicants whose
+  grade falls in their bands. Held by Admissions Officer only;
+  Accountant is excluded because that role carries payroll and finance
+  write access. Bands resolve live from the **grade applied for**
+  (`applications.year_group_applied_for`), never from the child's
+  current grade, and are never stored per application. That's what TCS
+  OS does (`admin.py:209`), confirmed as D-2c. A full officer is marked
+  by an explicit `all_grades` flag, which is exclusive with a band list
+  and also covers unbanded grades (D-2g, decided 2026-09-29).
+- **A separate gate for child health data.** Any role may hold it. It's
+  independent of the role, `can_decide` and grade bands: none of those
+  ever implies health-data access.
+
+Capabilities never grant anything outside admissions and never stand in
+for a role. Each is **ungranted by default**: granting one is a
+deliberate human decision by an active Manager, audited, never a
+migration default. That's the same rule TCS OS followed for
+`can_decide`, `can_view_health_info` and `can_send_bulk_email`. The
+storage shape (a side table) is decided and recorded in PORT-PLAN.md,
+and goes into DESIGN.md when built.
 
 ## Architecture
 

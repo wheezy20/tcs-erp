@@ -50,8 +50,9 @@ The HR items deferred in CONSTRAINTS.md stay deferred.
 
 ## Phase 2: Admissions (ported from TCS OS)
 
-**Status:** next, not started. No admissions code gets written until
-`docs/admissions/PORT-PLAN.md` exists and has been reviewed.
+**Status:** decision batches recorded 2026-09-29 (D-2g, D-1b-a, D-1b-b,
+D-1b-c, D-1b-d confirmed). Slice 1 (campuses) built, awaiting Eyram's
+review. Slice 1b (Admissions Officer role) not started.
 
 Porting TCS OS's live admissions module: inquiries, applications,
 documents, decisions/offers/enrolment gating, reference numbering,
@@ -64,8 +65,8 @@ reference docs are `~/projects/tcs-os/docs/admissions/`
 `03-build-order.md` for what shipped and why).
 
 - The slice-by-slice plan (each slice ships on its own, ending in
-  cutover) is `docs/admissions/PORT-PLAN.md`. It's written as its own
-  step and reviewed before any admissions code is built.
+  cutover) is `docs/admissions/PORT-PLAN.md`, drafted 2026-09-29. It's
+  reviewed before any admissions code is built.
 - **Real data:** TCS OS's ~3 real admissions records, plus any files
   attached to them in TCS OS's Storage, get **migrated by hand into
   this project's own hosted Supabase project**. This ERP never
@@ -78,9 +79,11 @@ reference docs are `~/projects/tcs-os/docs/admissions/`
   existing `branch_id` (decided 2026-09-29, see CONSTRAINTS.md). Seat
   capacity is per campus, and Annex only takes the grades TCS OS
   restricts it to.
-- **Roles stay four.** Admissions adds a small capabilities layer on
-  top: a `can_decide` flag, per-staff grade bands for coordinators, and
-  a separate gate for child health data. See CONSTRAINTS.md.
+- **A fifth role, Admissions Officer** (decided 2026-09-29), gives
+  access to admissions only. A capabilities layer (`can_decide`,
+  grade bands, a separate child-health gate) narrows access inside
+  admissions. More roles may be added as other modules are built. See
+  CONSTRAINTS.md "Staff roles" for how.
 - **No dual intake:** TCS OS and this ERP never both accept real
   submissions at once. See CONSTRAINTS.md.
 

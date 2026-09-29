@@ -94,7 +94,8 @@ Read them now, in full. Don't rely on what you remember from a previous run.
 - Never propose storing a derived value the database can compute
   (DESIGN.md "computed, never stored"), or a per-row assignment that
   could drift from live data. Grade-band coordinator scoping, for
-  example, resolves from the applicant's current grade.
+  example, resolves live from the grade applied for
+  (`year_group_applied_for`).
 - Never plan against real admissions record contents. The ~3 real TCS
   OS records hold child health data and are migrated by hand by Eyram.
   Fixtures are invented.
