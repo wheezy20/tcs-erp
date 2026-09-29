@@ -29,7 +29,14 @@ export function AccentSync() {
     if (!rgb) return;
     const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
     const foreground = luminance > 0.6 ? "oklch(0.2 0 0)" : "oklch(0.99 0 0)";
-    for (const token of ["--primary", "--accent", "--sidebar-primary", "--sidebar-accent", "--ring", "--chart-1"]) {
+    for (const token of [
+      "--primary",
+      "--accent",
+      "--sidebar-primary",
+      "--sidebar-accent",
+      "--ring",
+      "--chart-1",
+    ]) {
       root.style.setProperty(token, appearance.accent);
     }
     root.style.setProperty("--primary-foreground", foreground);

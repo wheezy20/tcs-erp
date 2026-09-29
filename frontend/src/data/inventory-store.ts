@@ -8,6 +8,7 @@ import {
   type Unit,
 } from "@/data/inventory";
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchRow } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 
 type ProductRow = Database["public"]["Tables"]["products"]["Row"];
@@ -118,21 +119,20 @@ async function nextProductSkus(prefix: string, count: number): Promise<string[]>
 let loadPromise: Promise<void> | null = null;
 
 async function loadInventory() {
-  const [branchResult, productsResult] = await Promise.all([
-    supabase.from("branches").select("*").limit(1).single(),
+  const [branch, productsResult] = await Promise.all([
+    getSchoolBranchRow(),
     supabase
       .from("products")
       .select("*, branches(name), stock_movements(*, staff(name))")
       .order("name"),
   ]);
 
-  if (branchResult.error) throw branchResult.error;
   if (productsResult.error) throw productsResult.error;
 
   setState({
     products: (productsResult.data as ProductWithRelations[]).map(mapProductRow),
-    defaultThreshold: branchResult.data.default_low_stock_threshold,
-    branchId: branchResult.data.id,
+    defaultThreshold: branch.default_low_stock_threshold,
+    branchId: branch.id,
     loading: false,
     error: null,
     lastSyncedAt: Date.now(),

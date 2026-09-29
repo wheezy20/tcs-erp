@@ -210,7 +210,7 @@ function SettingsPage() {
             <ComingSoon
               title="Branches"
               icon={Store}
-              note={`TCS runs from ${branchName ?? "…"} only, so there is nothing to switch between yet.`}
+              note={`School-wide records (payroll, expenses, accounting, sales) are kept on ${branchName ?? "…"}. A campus switcher isn't built yet.`}
             />
           )}
         </div>

@@ -8,6 +8,7 @@ import {
   type PosSale,
 } from "@/data/pos";
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 
 type SaleRow = Database["public"]["Tables"]["sales"]["Row"];
@@ -163,8 +164,8 @@ function mapSaleRow(row: SaleWithRelations): PosSale {
 
 let loadPromise: Promise<void> | null = null;
 async function loadSales() {
-  const [branchResult, salesResult] = await Promise.all([
-    supabase.from("branches").select("id").limit(1).single(),
+  const [branchId, salesResult] = await Promise.all([
+    getSchoolBranchId(),
     supabase
       .from("sales")
       .select(
@@ -178,11 +179,10 @@ async function loadSales() {
       )
       .order("sold_at", { ascending: false }),
   ]);
-  if (branchResult.error) throw branchResult.error;
   if (salesResult.error) throw salesResult.error;
   setState({
     sales: (salesResult.data as unknown as SaleWithRelations[]).map(mapSaleRow),
-    branchId: branchResult.data.id,
+    branchId: branchId,
     loading: false,
     error: null,
   });

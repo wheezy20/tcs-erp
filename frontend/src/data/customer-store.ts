@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import type { Customer } from "@/data/customers";
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 
 type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
@@ -56,17 +57,16 @@ function mapCustomerRow(row: CustomerRow): Customer {
 let loadPromise: Promise<void> | null = null;
 
 async function loadCustomers() {
-  const [branchResult, customersResult] = await Promise.all([
-    supabase.from("branches").select("id").limit(1).single(),
+  const [branchId, customersResult] = await Promise.all([
+    getSchoolBranchId(),
     supabase.from("customers").select("*").order("name"),
   ]);
 
-  if (branchResult.error) throw branchResult.error;
   if (customersResult.error) throw customersResult.error;
 
   setState({
     customers: customersResult.data.map(mapCustomerRow),
-    branchId: branchResult.data.id,
+    branchId: branchId,
     loading: false,
     error: null,
   });

@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import { reloadInvoices } from "@/data/invoice-store";
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 import type { InvoiceLine } from "@/data/invoices";
 
@@ -89,19 +90,18 @@ function setState(next: State) {
 }
 
 async function load() {
-  const [branchResult, rowsResult] = await Promise.all([
-    supabase.from("branches").select("id").limit(1).single(),
+  const [branchId, rowsResult] = await Promise.all([
+    getSchoolBranchId(),
     supabase
       .from("pro_forma_invoices")
       .select("*, staff(name), pro_forma_invoice_lines(*)")
       .order("created_at", { ascending: false }),
   ]);
-  if (branchResult.error) throw branchResult.error;
   if (rowsResult.error) throw rowsResult.error;
 
   setState({
     proFormaInvoices: (rowsResult.data as ProFormaWithRelations[]).map(mapRow),
-    branchId: branchResult.data.id,
+    branchId: branchId,
     loading: false,
     error: null,
   });

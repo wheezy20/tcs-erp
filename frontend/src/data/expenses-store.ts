@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import { type Expense, type ExpenseMethod } from "@/data/expenses";
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 
 const RECEIPTS_BUCKET = "receipts";
@@ -87,8 +88,8 @@ function mapExpenseRow(row: ExpenseRowWithStaff, signedUrls: Map<string, string>
 let loadPromise: Promise<void> | null = null;
 
 async function loadExpenses() {
-  const [branchResult, categoriesResult, expensesResult] = await Promise.all([
-    supabase.from("branches").select("id").limit(1).single(),
+  const [branchId, categoriesResult, expensesResult] = await Promise.all([
+    getSchoolBranchId(),
     supabase.from("expense_categories").select("*").order("position"),
     supabase
       .from("expenses")
@@ -102,7 +103,6 @@ async function loadExpenses() {
       .order("recorded_at", { ascending: false }),
   ]);
 
-  if (branchResult.error) throw branchResult.error;
   if (categoriesResult.error) throw categoriesResult.error;
   if (expensesResult.error) throw expensesResult.error;
 
@@ -113,7 +113,7 @@ async function loadExpenses() {
   setState({
     expenses: rows.map((row) => mapExpenseRow(row, signedUrls)),
     categories: (categoriesResult.data as ExpenseCategoryRow[]).map((c) => c.name),
-    branchId: branchResult.data.id,
+    branchId: branchId,
     loading: false,
     error: null,
   });

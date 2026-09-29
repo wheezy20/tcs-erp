@@ -1,14 +1,43 @@
 import { useSyncExternalStore } from "react";
 
+import type { Database } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 
-// Every other store fetches its own branch_id for writes (see getBranchId()
-// in inventory-store.ts, invoice-store.ts, etc.) — this one exists purely so
-// display-only spots (page headers, the topbar, dialog copy) can show the
-// real branch name instead of a hardcoded string, without each needing its
-// own Supabase query. Still single-branch, still no switcher: the only thing
-// this changes is that the name traces back to the `branches` row instead of
-// going stale if that row is ever renamed.
+// branches = campuses. TCS has two, Main and Annex (docs/CONSTRAINTS.md,
+// Architecture). The oldest row is Main, and every school-wide record
+// (payroll, expenses, accounting, POS, inventory) lives on it (D-1b in
+// docs/admissions/PORT-PLAN.md). Pick it only through getSchoolBranchId() /
+// getSchoolBranchRow() below: an unordered `.limit(1)` returns an arbitrary
+// row once a second branch exists. Same rule the database's own pickers use
+// (`order by created_at limit 1` in handle_new_staff_signup /
+// post_journal_entry).
+//
+// The hook below exists so display-only spots (page headers, the topbar,
+// dialog copy) can show the branch name without each running its own query.
+
+type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
+
+export async function getSchoolBranchRow(): Promise<BranchRow> {
+  const { data, error } = await supabase
+    .from("branches")
+    .select("*")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getSchoolBranchId(): Promise<string> {
+  const { data, error } = await supabase
+    .from("branches")
+    .select("id")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .single();
+  if (error) throw error;
+  return data.id;
+}
 
 type BranchState = {
   id: string | null;
@@ -29,9 +58,8 @@ function setState(next: BranchState) {
 let loadPromise: Promise<void> | null = null;
 
 async function loadBranch() {
-  const { data, error } = await supabase.from("branches").select("id, name").limit(1).single();
-  if (error) throw error;
-  setState({ id: data.id, name: data.name, loading: false, error: null });
+  const branch = await getSchoolBranchRow();
+  setState({ id: branch.id, name: branch.name, loading: false, error: null });
 }
 
 function ensureLoaded() {

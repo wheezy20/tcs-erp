@@ -2840,3 +2840,222 @@ decisions:
 **Pending, Eyram's step after review and commit:** run
 `npx supabase db push` from the repo root against the linked TCS ERP
 project. Until then the hosted database still has the gap.
+
+## 2026-09-29 — Stage 3: admissions port plan drafted (plan only)
+
+Eyram asked for the admissions port plan: plan only, with no
+application code, no migrations and no commits. The three Stage 1
+decisions (campuses as `branches` rows, four roles plus an admissions
+capabilities layer, no dual intake) were treated as fixed inputs. The
+result is `docs/admissions/PORT-PLAN.md` (new). The plan holds the
+detail; this entry only records what happened and where to look.
+
+**Approach.** tcs-planner ran as a general-purpose agent following
+`.claude/agents/tcs-planner.md`, because this session started before
+those agent files were loaded. It read TCS OS's `docs/admissions/*`,
+`backend/modules/admissions/` (models, views, serializers, emails,
+bulk_email, access, admin, turnstile, storage, tests) and
+`docs/deployment.md`. On the ERP side it read the onboarding token
+flow, `supabase/functions/invite-staff` and `create_payslip`. The
+main session wrote the output to PORT-PLAN.md and spot-checked its
+load-bearing citations against the code. All of them held; the list
+is in the plan's "Open unknowns" section.
+
+**Slices: 17, in a different order from Eyram's suggested 0–9.** They
+are 0, 1, 2, 3, 4, 5, 6, 7a, 7b and 8–15. The main changes, and why:
+
+- **New slice 1: make a second branch safe, then seed Main + Annex,**
+  before any admissions table exists. There are 14 frontend lookups
+  of the form `branches … limit(1).single()` with no ordering, in 13
+  files under `frontend/src/data/`. Once an Annex row exists, which
+  branch payroll, expenses and invoices write to becomes undefined.
+  This touches finance and POS stores, so the plan flags that it needs
+  Eyram's OK to belong in Phase 2.
+- **Capabilities layer moved before the schema (slice 2),** because
+  every admissions RLS policy depends on it.
+- **Health info and documents split out (slice 4)** from the core
+  schema (slice 3).
+- **Staff UI split into 7a and 7b.**
+- **Public surface split per anon piece:** 8 (inquiry, plus the Edge
+  Function, Turnstile, rate limits and the intake flag), 9
+  (application + uploads), 10 (drafts), 11 (offer page), 13 (leads)
+  and 14 (bulk email + unsubscribe). Each gets its own confirmation
+  gate.
+- Transactional email is slice 12, and cutover is slice 15.
+
+**Key recommendations. These are recommendations, not decisions.**
+Each is listed as one of Eyram's decisions, D-0a … D-15f, with a
+recommendation, in the plan's consolidated table:
+
+- Turnstile-verified writes, upload-URL minting and the mailer live in
+  a Supabase Edge Function. The submit RPCs are service-role-only, so
+  `anon` can't call them directly.
+- Email goes through a DB outbox drained by pg_cron + pg_net, sending
+  via Resend.
+- The Worker only serves secret-free routes.
+- At cutover, `admissions.tcsch.edu.gh` attaches to the ERP Worker.
+  The ERP's public routes reuse TCS OS's exact paths (`/inquiry`,
+  `/apply?draft_token=`, `/offer?token=`,
+  `/api/admissions/unsubscribe/<token>/`), so links already sent keep
+  resolving without a redirect. Tokens migrate as SHA-256 hashes of
+  the verbatim TCS OS tokens. PLANNING.md's Phase 2 bullet still says
+  "becomes a redirect"; that wording is left as is until Eyram decides
+  D-15b.
+- An `admissions_settings.public_intake_open` flag is the technical
+  enforcement of no dual intake.
+
+**Where the code contradicts the brief or the docs.** Full list in the
+plan's "Where the code contradicts…" section:
+
+- Grade-band scoping keys on the grade **applied for**
+  (`year_group_applied_for`), not the child's current grade.
+  CONSTRAINTS.md's wording ("resolved live from the applicant's
+  current grade") is left unchanged until Eyram confirms D-2c.
+- TCS OS's admissions tests don't cover most of the rules being
+  ported: reference formats, stage gating, capacity, Annex,
+  vaccination, matching, expiry, uploads. Probes will be derived from
+  the model, serializer and admin code instead.
+- Bulk send is atomic per batch of up to 100 (Resend's batch API),
+  with invalid addresses skipped beforehand, not atomic per message.
+- TCS OS has a fourth permission, `can_send_bulk_email` (D-2d).
+- Per its `deployment.md`, TCS OS production is only migrated through
+  `0014`; `0015`–`0019` are unapplied unless they were deployed since.
+- There's likely more real data than ~3 records: leads with emailed
+  unsubscribe tokens, and possibly drafts. So slice 15 starts with an
+  inventory that Eyram runs.
+- An anonymous Application re-submission in TCS OS overwrites
+  guardian, student and health data, and can reset any stage back to
+  `application` (D-9b).
+- TCS OS's generate-offer isn't atomic, and reset-offer reuses the
+  token (D-6b).
+- The unsubscribe GET changes state (D-14b).
+- The marketing site posts cross-origin to TCS OS's lead endpoints
+  (D-13a).
+
+**Out-of-scope ERP issues, noted in the plan but not planned:**
+
+- onboarding puts the raw token in the storage object path
+  (`frontend/src/data/onboarding-store.ts:312`);
+- `submit_onboarding_form` stores client-supplied storage paths
+  without checking them;
+- `invite-staff`'s CORS is `*`.
+
+**Nothing built:** no code, no migrations, no commits. **Next step:**
+Eyram reviews PORT-PLAN.md and its decisions. No slice starts before
+that.
+
+## 2026-09-29 — Admissions decisions recorded: fifth role (Admissions Officer), D-1/D-2/D-3 accepted
+
+Eyram reviewed the port plan and decided a first batch. Everything is
+recorded in `docs/admissions/PORT-PLAN.md` ("Decisions recorded", the
+consolidated table, slices 1–6) and CONSTRAINTS.md "Staff roles".
+
+- **A fifth role, Admissions Officer.** It supersedes D-2b and the
+  earlier same-day decision to use "four roles plus capabilities". None
+  of the four fits a coordinator: Attendant brings store writes,
+  Accountant brings payroll and finance writes, and Manager is
+  everything. The new role gets admissions tables only. Attendant stays
+  the store role. The capabilities layer stays for narrowing inside
+  admissions:
+  - `can_decide`: Manager or Admissions Officer;
+  - `can_view_health`: any role;
+  - `grade_bands`: Admissions Officer only. Accountant was dropped from
+    the plan's recommendation because a coordinator holding it would
+    get finance write access.
+
+  CONSTRAINTS.md's "don't invent a fifth role" rule is rewritten. It now
+  records this as a deliberate, confirmed exception, notes that more
+  roles are expected as the ERP grows, and adds an "Adding a role"
+  procedure: Eyram's recorded decision, its own slice, allowlist guards,
+  a read-exposure audit, and denial probes.
+- **A new slice 1b, "Admissions Officer role",** sits after slice 1
+  (campuses). Not started. The plan proposes an explicit `all_grades`
+  flag for a full officer, as open decision D-2g, rather than "every
+  band" or "empty means all".
+- **Accepted as recommended:** D-1a, D-1b, D-1c, D-2a, D-2c, D-2d, D-2e,
+  D-2f, D-3a, D-3b. D-2c means grade bands key on the grade applied for
+  (`year_group_applied_for`), not the current grade. CONSTRAINTS.md and
+  the tcs-planner and code-reviewer agent files now say so. The
+  code-reviewer also now blocks denylist-style guards and undeclared
+  roles, and its bulk-email line matches the per-batch finding.
+
+**Read-exposure audit** (live local DB). A new role passing
+`is_active_staff()` would reach the following today:
+
+- **Reads:** 24 tables, including all of `staff`, `business_settings`,
+  and every sales, invoice, customer and inventory table.
+- **Writes:** 19 store tables, because `can_write()` is a denylist (not
+  Accountant or Auditor).
+- **RPC guards:** the guard in 28 RPCs, because
+  `require_writable_role()` only rejects Auditor. 8 of those invoker
+  RPCs have no `has_role` of their own.
+- **`compute_day_totals`**, a SECURITY DEFINER function guarded only by
+  `require_staff`.
+
+Every finance, payroll, HR and onboarding table and every storage
+policy already uses `has_role()` allowlists. Slice 1b converts the two
+denylist guards to allowlists, with D-1b-a to D-1b-d open. The full
+table is in PORT-PLAN.md slice 1b.
+
+## 2026-09-29 — Admissions slice 1: campuses (Main + Annex), deterministic branch lookups
+
+Eyram confirmed five decisions from the port plan (all recommended): D-2g
+(explicit `all_grades` flag), D-1b-a (allowlist guards), D-1b-b (officer
+reads branches and staff names only), D-1b-c (Auditor read-only on
+admissions), D-1b-d (role string "Admissions Officer"). The only
+contradiction in the earlier journal entry was the consolidated decision
+table preamble saying "none is decided here"; reworded to match.
+
+**Branch lookups verified (main session, before any change).** 13
+files in `frontend/src/data/` have `from("branches")…limit(1).single()`
+with no `order by`. The earlier count was 14; the 14th,
+`inventory-store.ts:197`, is an UPDATE keyed by the id from `:122`, not a
+lookup. Verified against HEAD `bd5e9ec`. The DB side already orders
+(`order by created_at limit 1` in 6 migration functions).
+
+**Slice 1 run through the slice loop.** An implementation existed
+uncommitted in the working tree from an earlier session that hadn't
+been journaled. tcs-planner planned from HEAD and judged that diff:
+
+- **Kept as built:** the helper (`getSchoolBranchId()` /
+  `getSchoolBranchRow()` in `branch-store.ts`, `order by created_at`),
+  the 12 other call-site rewrites, the Settings → Branches copy,
+  `seed.sql` (Main `…0001` + Annex `…0002`, explicit `created_at` 1s
+  apart), `seed.production.sql` (rename the oldest branch to Main keeping
+  its id, insert Annex strictly newer, raise if another row is called
+  Main or the oldest isn't Main; run command gains `-v ON_ERROR_STOP=1`),
+  and the deposit-counters probe comment. A
+  branch-list export for the admissions campus picker was proposed but
+  **deferred to the slice that builds the picker (7a or 9)** — nothing
+  consumes it before then.
+- **DESIGN.md:** a new convention bullet was added in-session: "Branches
+  are campuses; the oldest is Main and holds every school-wide record."
+  There is no migration comment, because slice 1 has no migration.
+- **Probe:** `supabase/role-matrix/campuses-main-annex.sql`. The header
+  comment was corrected this session (named for D-1a since there's no
+  migration; explains the no-op UPDATE). Proves two branch rows don't
+  change read permissions: attendant/manager/accountant/auditor ✓ on
+  branches select; anon ✗.
+- **test-runner, full pass:** After prettier reflow of a pre-existing
+  lint error in `accent-sync.tsx` (outside scope), `lint`, `tsc`,
+  `build`, `db reset`, and `check-duplicate-function-overloads.sh` all
+  pass. Types regen: no schema change; 73-line residue is CLI-formatting
+  drift in generic helper boilerplate, pre-existing. Campuses probe and
+  deposit-counters probe re-run both pass. Proved the probe's no-op UPDATE
+  has teeth: after it, an unordered `limit 1` returns Annex while
+  `order by created_at limit 1` still returns Main (the planner had
+  doubted this). Seed
+  idempotency: production script tested on a rolled-back local transaction
+  for a single legacy row and for Main+Annex.
+- **code-reviewer:** no blocking findings. anon/service_role/client-logic
+  checks clean. Non-blocking: `seed.production.sql` doesn't flag a hosted
+  project with 3+ pre-existing branch rows (speculative).
+
+**Pending, Eyram's steps:**
+1. Review diff (code + docs together).
+2. Commit when asked.
+3. Production step after commit: `psql "$PROD_DB_URL" -v ON_ERROR_STOP=1
+   -f supabase/seed.production.sql` (renames the hosted oldest branch to
+   Main and adds Annex) — Eyram runs this, not Claude.
+
+**Slice 1b not started.**

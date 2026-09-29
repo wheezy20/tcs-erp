@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import type { Discount, HeldSale, PosLine, PosPayment, VatMode } from "@/data/pos";
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 
 type HeldSaleRow = Database["public"]["Tables"]["held_sales"]["Row"];
@@ -121,12 +122,7 @@ export async function reloadHeldSales() {
 }
 
 async function getBranchId(): Promise<string> {
-  // Every other store fetches its own branch_id for writes (see
-  // getBranchId() in inventory-store.ts, pos-store.ts, etc.) rather than
-  // sharing one across stores — same precedent, applied here.
-  const { data, error } = await supabase.from("branches").select("id").limit(1).single();
-  if (error) throw error;
-  return data.id;
+  return getSchoolBranchId();
 }
 
 /** Plain insert — no RPC, no server-side numbering or total computation,

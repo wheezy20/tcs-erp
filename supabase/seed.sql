@@ -2,8 +2,15 @@
 -- frontend/src/data/inventory.ts and frontend/src/data/customers.ts, so the UI
 -- shows the same content once wired to Supabase. Re-run via `supabase db reset`.
 
-insert into public.branches (id, name, default_low_stock_threshold)
-values ('00000000-0000-0000-0000-000000000001', 'Ho Main Branch', 20);
+-- branches = campuses (docs/CONSTRAINTS.md, Architecture). Main must be the
+-- oldest row: school-wide records resolve to the oldest branch
+-- (getSchoolBranchId() in frontend/src/data/branch-store.ts, and
+-- `order by created_at limit 1` in the database). Explicit created_at, because
+-- both rows are inserted in one transaction and now() would tie them.
+insert into public.branches (id, name, default_low_stock_threshold, created_at)
+values
+  ('00000000-0000-0000-0000-000000000001', 'Main', 20, '2026-01-01 00:00:00+00'),
+  ('00000000-0000-0000-0000-000000000002', 'Annex', 20, '2026-01-01 00:00:01+00');
 
 -- Staff (Session 7). Real auth.users + auth.identities rows, in the same
 -- shape a genuine supabase.auth.signUp() produces (verified by doing one

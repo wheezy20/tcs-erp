@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import { type Invoice, type InvoiceLine, type InvoicePayment } from "@/data/invoices";
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 
 type InvoiceRow = Database["public"]["Tables"]["invoices"]["Row"];
@@ -126,8 +127,8 @@ function mapInvoiceRow(row: InvoiceWithRelations): Invoice {
 let loadPromise: Promise<void> | null = null;
 
 async function loadInvoices() {
-  const [branchResult, settingsResult, invoicesResult] = await Promise.all([
-    supabase.from("branches").select("id").limit(1).single(),
+  const [branchId, settingsResult, invoicesResult] = await Promise.all([
+    getSchoolBranchId(),
     supabase.from("business_settings").select("vat_rate").eq("id", 1).single(),
     supabase
       .from("invoices")
@@ -141,13 +142,12 @@ async function loadInvoices() {
       .order("date", { ascending: false }),
   ]);
 
-  if (branchResult.error) throw branchResult.error;
   if (settingsResult.error) throw settingsResult.error;
   if (invoicesResult.error) throw invoicesResult.error;
 
   setState({
     invoices: (invoicesResult.data as InvoiceWithRelations[]).map(mapInvoiceRow),
-    branchId: branchResult.data.id,
+    branchId: branchId,
     vatRate: Number(settingsResult.data.vat_rate),
     loading: false,
     error: null,

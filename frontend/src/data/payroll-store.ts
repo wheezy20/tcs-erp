@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 import { reloadJournalEntries } from "@/data/journal-store";
 
@@ -326,9 +327,7 @@ export function usePayroll() {
 // ------------------------------------------------------------------ mutators
 
 async function getBranchId(): Promise<string> {
-  const { data, error } = await supabase.from("branches").select("id").limit(1).single();
-  if (error) throw error;
-  return data.id;
+  return getSchoolBranchId();
 }
 
 export async function createPayrollRun(month: number, year: number): Promise<PayrollRun> {

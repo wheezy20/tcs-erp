@@ -3,7 +3,7 @@
 --
 -- Direct-access probes use fake year_month values ('9901'/'9902') so they
 -- never collide with real numbering. The create_customer_deposit probes use
--- seed.sql's branch (Ho Main Branch) and customer (Adjoa Mensah), paid in
+-- seed.sql's branch (Main) and customer (Adjoa Mensah), paid in
 -- Cash so no bank account is needed. Deposit creators are Manager and
 -- Attendant (can_write(), matching customer_deposits' own insert policy).
 

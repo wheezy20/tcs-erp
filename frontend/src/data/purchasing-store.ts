@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 
 export type PurchaseOrderStatus =
@@ -172,8 +173,8 @@ function setState(next: PurchasingState) {
 let loadPromise: Promise<void> | null = null;
 
 async function loadPurchaseOrders() {
-  const [branchResult, poResult] = await Promise.all([
-    supabase.from("branches").select("id").limit(1).single(),
+  const [branchId, poResult] = await Promise.all([
+    getSchoolBranchId(),
     supabase
       .from("purchase_orders")
       .select(
@@ -181,11 +182,10 @@ async function loadPurchaseOrders() {
       )
       .order("created_at", { ascending: false }),
   ]);
-  if (branchResult.error) throw branchResult.error;
   if (poResult.error) throw poResult.error;
   setState({
     purchaseOrders: (poResult.data as unknown as PORow[]).map(mapPO),
-    branchId: branchResult.data.id,
+    branchId: branchId,
     loading: false,
     error: null,
   });

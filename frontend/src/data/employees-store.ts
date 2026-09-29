@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 
 // Employees = everyone TCS pays, independent of ERP login (20260909130000).
@@ -294,9 +295,7 @@ export function standingAllowancesFor(
 // ------------------------------------------------------------------ mutators
 
 async function getBranchId(): Promise<string> {
-  const { data, error } = await supabase.from("branches").select("id").limit(1).single();
-  if (error) throw error;
-  return data.id;
+  return getSchoolBranchId();
 }
 
 export type ProposeEmployeeInput = {

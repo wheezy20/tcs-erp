@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 
 export type Supplier = {
@@ -61,15 +62,14 @@ function setState(next: SuppliersState) {
 let loadPromise: Promise<void> | null = null;
 
 async function loadSuppliers() {
-  const [branchResult, suppliersResult] = await Promise.all([
-    supabase.from("branches").select("id").limit(1).single(),
+  const [branchId, suppliersResult] = await Promise.all([
+    getSchoolBranchId(),
     supabase.from("suppliers").select("*, staff(name)").order("name"),
   ]);
-  if (branchResult.error) throw branchResult.error;
   if (suppliersResult.error) throw suppliersResult.error;
   setState({
     suppliers: (suppliersResult.data as SupplierRow[]).map(mapSupplierRow),
-    branchId: branchResult.data.id,
+    branchId: branchId,
     loading: false,
     error: null,
   });

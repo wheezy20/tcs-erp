@@ -636,6 +636,22 @@ depend on them holding true for every new table/function added.
   which a role-matrix probe confirmed. `20260929100000` closed it: RLS
   on, `invoice_number_counters`' policies, and `anon` revoked. See
   CONSTRAINTS.md and JOURNAL.md.
+- **Branches are campuses; the oldest is Main and holds every
+  school-wide record (codified 2026-09-29, admissions slice 1).** TCS
+  has two `branches` rows, Main and Annex. Payroll, expenses,
+  accounting, POS, inventory and the store all stay school-wide on Main
+  (D-1b in `docs/admissions/PORT-PLAN.md`). Admissions is the only
+  campus-aware module. "Main" is defined as the **oldest row by
+  `created_at`**, not by name. The database already resolves it that
+  way (`order by created_at limit 1` in `handle_new_staff_signup`,
+  `post_journal_entry` and the branch-scoped seeders). The frontend
+  resolves it only through `getSchoolBranchId()` /
+  `getSchoolBranchRow()` in `frontend/src/data/branch-store.ts`. Never
+  write another `.from("branches")…limit(1)` without an `order`. With
+  two rows, an unordered `limit 1` returns whichever tuple the scan
+  hits first, and payroll's unique `(branch_id, month, year)` could
+  then split a month across campuses. Any seed that adds a branch must
+  give it a `created_at` later than Main's. Both seed files check this.
 
 ## Branding
 

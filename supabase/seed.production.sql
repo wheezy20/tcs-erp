@@ -4,7 +4,7 @@
 -- Run this ONCE against a fresh hosted Supabase project, AFTER
 -- `supabase db push` has applied every migration:
 --
---     psql "$PROD_DB_URL" -f supabase/seed.production.sql
+--     psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -f supabase/seed.production.sql
 --
 -- It is idempotent (every insert is `on conflict do nothing` or guarded),
 -- so re-running it is harmless.
@@ -17,13 +17,21 @@
 -- ---------------------------------------------------------------------------
 -- What this file DOES seed (branch-scoped rows the migrations cannot):
 --
---   * branches                    — one campus row. The migrations run
---                                   before any branch exists on a brand-new
---                                   project, so they cannot create it, and
---                                   the branch-scoped seeders below skip
+--   * branches                    — the two campus rows, Main and Annex
+--                                   (D-1a, docs/admissions/PORT-PLAN.md).
+--                                   The migrations run before any branch
+--                                   exists on a brand-new project, so they
+--                                   cannot create them, and the
+--                                   branch-scoped seeders below skip
 --                                   themselves when there is no branch (see
 --                                   20260819090000). This file closes that
---                                   gap.
+--                                   gap. Main must stay the OLDEST row:
+--                                   every school-wide record resolves to the
+--                                   oldest branch. An existing project's
+--                                   oldest branch is renamed to Main (it
+--                                   keeps its id, so every existing
+--                                   branch_id stays on it). The branch-scoped
+--                                   seeders below target Main only.
 --   * expense_categories          — the 9 standard categories, per branch.
 --   * expense_category_accounts   — each category → its GL account.
 --   * allowance_types             — a starting set of payroll allowance
@@ -52,15 +60,35 @@ declare
   v_branch_id uuid;
 begin
   -- Reuse an existing branch if the project already has one (e.g. added by
-  -- hand in the dashboard); otherwise create the single campus row.
+  -- hand in the dashboard); otherwise create Main.
   select id into v_branch_id from public.branches order by created_at limit 1;
   if v_branch_id is null then
     insert into public.branches (name, default_low_stock_threshold)
-    values ('Treasures Christian School', 20)
+    values ('Main', 20)
     returning id into v_branch_id;
-    raise notice 'Created branch % (Treasures Christian School)', v_branch_id;
+    raise notice 'Created branch % (Main)', v_branch_id;
   else
-    raise notice 'Using existing branch %', v_branch_id;
+    raise notice 'Using existing branch % as Main', v_branch_id;
+  end if;
+
+  -- The oldest branch is Main. branches.name is unique, so a different row
+  -- already called Main needs a human, not a guess.
+  if exists (select 1 from public.branches where name = 'Main' and id <> v_branch_id) then
+    raise exception 'A branch named Main exists but is not the oldest branch; fix by hand before re-running';
+  end if;
+  update public.branches set name = 'Main' where id = v_branch_id and name <> 'Main';
+
+  -- Annex, strictly newer than every existing row so Main stays the oldest
+  -- (on a fresh project Main was inserted in this same transaction).
+  insert into public.branches (name, default_low_stock_threshold, created_at)
+  values (
+    'Annex', 20,
+    greatest(now(), (select max(created_at) from public.branches)) + interval '1 second'
+  )
+  on conflict (name) do nothing;
+
+  if (select name from public.branches order by created_at limit 1) is distinct from 'Main' then
+    raise exception 'The oldest branch is not Main; school-wide records would resolve to the wrong campus';
   end if;
 
   -- Expense categories (branch-scoped). Same list as 20260819090000.

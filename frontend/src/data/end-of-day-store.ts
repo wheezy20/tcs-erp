@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { supabase } from "@/lib/supabase";
+import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 
 export type DepositSource = "Cash" | "Mobile Money";
@@ -145,8 +146,8 @@ function setState(next: EodState) {
 
 let loadPromise: Promise<void> | null = null;
 async function load() {
-  const [branchResult, closesResult, depositsResult] = await Promise.all([
-    supabase.from("branches").select("id").limit(1).single(),
+  const [branchId, closesResult, depositsResult] = await Promise.all([
+    getSchoolBranchId(),
     supabase
       .from("day_closes")
       // day_closes has two FKs into staff (opening_confirmed_by, closed_by)
@@ -163,7 +164,6 @@ async function load() {
       .order("date", { ascending: false })
       .order("created_at", { ascending: false }),
   ]);
-  if (branchResult.error) throw branchResult.error;
   // Attendant has no read access to bank_deposits at all (same sensitivity
   // class as expenses) — treat that specific denial as "no deposits to
   // show" rather than a load failure, the same way an Attendant's RLS-
@@ -180,7 +180,7 @@ async function load() {
   setState({
     closes: (closesResult.data as unknown as DayCloseRow[]).map(mapDayClose),
     deposits,
-    branchId: branchResult.data.id,
+    branchId: branchId,
     loading: false,
     error: null,
   });
