@@ -3059,3 +3059,190 @@ been journaled. tcs-planner planned from HEAD and judged that diff:
    Main and adds Annex) — Eyram runs this, not Claude.
 
 **Slice 1b not started.**
+
+## 2026-09-29 — 2026 PAYE bands planned (stopped at statutory gate); payroll tax decisions recorded
+
+- **Plan only, nothing built.** Eyram asked for GRA's "Year of Assessment
+  2026" monthly bands to be added as a new effective-dated set (effective
+  1 September 2026), with the existing set left untouched. `tcs-planner`
+  found `create_payslip()` already picks the band set by payroll month
+  (`make_date(year, month, 1)` against `max(effective_from) <= that date`),
+  not "the latest". So August 2026 and earlier keep the old set, and
+  September 2026 onward gets the new one. It also rounds each band on
+  `numeric`. The slice is therefore a single data-insert migration
+  (`effective_from = 2026-09-01`, 7 bands), with no function change.
+  The engine's method reproduces Eyram's three hand cross-checks
+  (1,795.50 → 193.81, 1,606.50 → 160.74, 6,142.50 → 1,140.13). The
+  figures were checked against the GRA PAYE page on 2026-09-29 and
+  match. Stopped at the statutory-number gate for Eyram's confirmation.
+- **Recorded in CONSTRAINTS.md (Eyram's decisions):**
+  - The overtime concession doesn't apply to TCS (accountant
+    confirmed; qualifying also needs annual income of GHS 18,000 or
+    less).
+  - National Service staff are fully exempt from SSNIT, Tier 2 and PAYE.
+  - GRA's bonus rule (5% up to 15% of annual basic, excess graduated)
+    gets its own later slice.
+  - Extra classes stay a normal taxable allowance until the accountant
+    confirms in writing how they're classified.
+
+## 2026-09-29 — Admissions slice 1b-i: allowlist guards (no new role yet)
+
+Eyram approved the slice 1b plan and split it. 1b-i (this entry) turns the
+two denylist guards into allowlists and closes the read exposure, with no
+new role. 1b-ii adds the Admissions Officer role itself. Recorded in
+`docs/admissions/PORT-PLAN.md` (slices 1b-i and 1b-ii).
+
+**Decisions (Eyram, 2026-09-29):**
+
+1. Guard rewrites approved. A role outside the list gets "This action is
+   not available to your role"; Auditor keeps "Auditor is read-only and
+   cannot perform this action".
+2. `staff` read is `can_read_store()` or own row.
+3. `list_staff_names()` returns `id` and `name` for all staff, active or
+   not.
+4. The officer reads `branches`.
+5. No Admissions sidebar section until slice 7a (no placeholder nav).
+6. A route-guard allowlist for the officer.
+7. Hide the Settings tabs that read `business_settings` from the officer.
+8. Split 1b into 1b-i and 1b-ii. Items 4 to 7 are built in 1b-ii.
+
+**Corrections to the planner's pass (main session):**
+
+- A plain four-role `staff_select` would have signed an officer out,
+  because `auth-store.ts` resolves the signed-in user from their own
+  `staff` row.
+- The topbar's global search loads store data for every role. 1b-ii
+  gates it.
+- No route has a `beforeLoad` guard today.
+
+**Built:** `20260929110000_allowlist_guards.sql`. Every replaced function
+keeps its signature, volatility, `security definer` and `search_path`, so
+it's `create or replace` with no drops.
+
+- `can_write()` = `has_role(['Manager','Attendant'])`. It was
+  `is_active_staff() and not has_role(['Accountant','Auditor'])`.
+- `require_writable_role()` = `require_staff()`, then an allowlist of
+  Manager, Attendant and Accountant. It used to reject Auditor only.
+- New `can_read_store()` = `has_role` of the four roles. 22 select
+  policies move from `is_active_staff()` to it: every one except
+  `branches` (unchanged) and `staff`.
+- `staff_select` = `can_read_store() or (id = auth.uid() and
+  is_active_staff())`. An inactive member still sees nothing, as before.
+- New `list_staff_names()`: SECURITY DEFINER, `require_staff()` first,
+  `id` and `name` of every staff row, ordered by name.
+- `compute_day_totals` gets a `can_read_store()` check. Its body is
+  otherwise identical.
+- Both new functions are revoked from `public` and `anon`, and granted to
+  `authenticated` and `service_role`.
+- `database.types.ts` gains the two function types (+8 lines). The
+  generic-helper section is left as committed, to keep the pre-existing
+  CLI formatting drift out.
+
+**Proof:**
+
+- `supabase/role-matrix/20260929110000_allowlist_guards_regression.sql`
+  has 100 probes generated from the live catalog:
+  - 6 guard truth tables, including all-inactive;
+  - 24 table reads, plus 3 `staff` variants;
+  - 38 writes, one per `can_write()` policy on the 19 tables;
+  - 28 RPCs, one per `require_writable_role()` caller, with NULL
+    arguments; access errors count as denied and later errors as passed;
+  - `compute_day_totals`.
+- Its output was byte-identical (363 lines) on the schema without and
+  with the migration. test-runner reproduced this independently, moving
+  the migration out and back with sha256 checked.
+- The catalog diff (policies, function definitions and ACLs, table ACLs
+  and RLS flags, constraints, triggers) shows only the 23 policy changes,
+  the 2 new functions and the 3 changed bodies. No existing grant
+  changed.
+- Confirmed empirically that RLS WITH CHECK fires before unique
+  constraints on INSERT, which is what the write probes rely on.
+- `…_new_surface.sql` (6 probes) all match. The campuses and
+  deposit-counters files re-run clean. Lint, tsc, build, db reset and the
+  overload check all pass.
+
+**Audit findings:**
+
+- The only denylist guards were `can_write()` and
+  `require_writable_role()`. Every other `not has_role([...])` check is
+  reject-unless-listed.
+- `handle_new_staff_signup` maps any unrecognised invited role to
+  Attendant. 1b-ii must add the new role to its list, or an invited
+  officer would get store access.
+
+**code-reviewer:** no blocking findings. The one non-blocking item was a
+missing `service_role` grant on the two new functions, for consistency
+with the codebase. Fixed, and the regression output is still
+byte-identical.
+
+**Open item: route guards for the other roles.** No route has an access
+guard. Pages are protected only by sidebar visibility, some in-page
+checks, and RLS. 1b-ii adds a route-guard allowlist for the Admissions
+Officer only. Guards for the existing roles aren't planned: an Attendant
+opening a finance URL directly gets the page, with RLS returning empty or
+denied data. Eyram to decide whether and when.
+
+**Pending:** Eyram's review. No commit until asked. `npx supabase db push`
+later is Eyram's step. 1b-ii not started.
+
+## 2026-09-29 — 2026 PAYE bands built, confirmed and tested
+
+Eyram confirmed the GRA "Year of Assessment 2026" monthly PAYE bands
+(7 bands, effective 1 September 2026) on 2026-09-29, checked against
+the live GRA PAYE page the same day and matched. The slice is a single
+data-only migration seeding the new set, leaving the 2025 set untouched.
+`create_payslip()` already selects the band set by payroll month via
+`max(effective_from) <= make_date(year, month, 1)`, so no function change
+is needed: August 2026 and earlier use the old set, September 2026 onward
+gets the new one.
+
+**Built:** `supabase/migrations/20260929120000_paye_bands_2026.sql`.
+- 7 rows (one per band) inserted with `effective_from = 2026-09-01`
+  and `on conflict (effective_from, band_order) do nothing`.
+- No schema, grant or RLS change.
+- Monthly bands: 0–588 0%, 588–668 5%, 668–768 10%, 768–3,668 17.5%,
+  3,668–19,668 25%, 19,668–50,000 30%, above 50,000 35%.
+
+**Probe:** `supabase/role-matrix/20260929120000_paye_bands_2026.sql`.
+- Checks the new set's exact contents and that the 2025-01-01 set is
+  unchanged (Manager, Accountant and Auditor can read).
+- Creates real payslips via `create_payslip()` for a Sep 2026 run (new
+  bands): Emmanuel Ansah basic 6,500 → PAYE 1,140.13, net 5,002.37;
+  Abena basic 1,900 → 193.81, net 1,601.69; Yaw basic 1,700 → 160.74,
+  net 1,445.76.
+- Same three for an Aug 2026 run (old bands): PAYE 1,134.13 / 204.96 /
+  171.89, net 5,008.37 / 1,590.54 / 1,434.61. Emmanuel's 5,008.37 is the
+  TCS OS parity figure, so the old engine is still held to a result
+  verified outside this repo.
+- Only Manager and Accountant pass the payslip probes; the other roles
+  are stopped by `require_finance_writer()`. Anon reaches the function
+  through Supabase's default execute grant and is stopped by the same
+  guard (pre-existing, not new here).
+- **Teeth check, in a rolled-back transaction:** deleted the new set's
+  rows → Sep run gave 1,134.13 (old bands), confirming the probe would
+  fail without the migration.
+
+**test-runner results:**
+- lint: 0 new errors, 12 pre-existing warnings.
+- `tsc` and `vite build` clean.
+- `check-duplicate-function-overloads.sh` clean.
+- Role matrix: no mismatches. Other role-matrix files also pass.
+- Idempotency: rerunning the migration in a rolled-back transaction
+  inserts 0 rows.
+- **`supabase db reset` deliberately skipped** — another Claude session
+  was using the same local stack at the time, and a reset would have wiped
+  its state. The migration was applied with `npx supabase migration up
+  --local` instead. A full `db reset` still needs to run before commit.
+- `database.types.ts` not regenerated per Eyram's instruction (no schema
+  change).
+
+**code-reviewer:** arithmetic, old set untouched, idempotency and probe
+teeth all verified clean. One blocking finding: the docs still said
+"planned, awaiting confirmation" after the migration was built. Resolved
+by this entry and the CONSTRAINTS.md update (fix round 1).
+
+**Pending, Eyram's question:** Has any real September 2026 payroll already
+been run on a hosted project with the old bands? Posted payslips must not
+be rewritten, so if yes, a correction path is needed separately, outside
+this slice. The hosted project gets the 2026 set only when Eyram runs
+`npx supabase db push`. Not committed.
