@@ -74,11 +74,15 @@ reference docs are `~/projects/tcs-os/docs/admissions/`
   serving from TCS OS until cutover. At cutover it becomes a redirect
   to this ERP's public admissions routes. It is not simply switched
   off, because parents hold links to it in sent emails.
-- TCS OS models **two campuses (Main and Annex)**, with separate seat
-  capacity per campus and an Annex-only grade restriction. That
-  contradicts the "single-campus" non-goal below, and has to be
-  resolved in the port plan (it probably maps onto the existing
-  `branch_id` scoping).
+- **Two campuses, Main and Annex**, each a `branches` row using the
+  existing `branch_id` (decided 2026-09-29, see CONSTRAINTS.md). Seat
+  capacity is per campus, and Annex only takes the grades TCS OS
+  restricts it to.
+- **Roles stay four.** Admissions adds a small capabilities layer on
+  top: a `can_decide` flag, per-staff grade bands for coordinators, and
+  a separate gate for child health data. See CONSTRAINTS.md.
+- **No dual intake:** TCS OS and this ERP never both accept real
+  submissions at once. See CONSTRAINTS.md.
 
 ## Later phases (not started)
 
@@ -112,10 +116,10 @@ demo (explored for feature ideas, not code) suggested is worth having:
 
 ## Non-goals for now
 
-- Multi-campus support isn't needed yet (TCS is single-campus), but the
-  underlying `branch_id` scoping is kept on every table anyway — see
-  CONSTRAINTS.md. **Under review as of 2026-09-29:** TCS OS's admissions
-  treats Main and Annex as separate campuses. See Phase 2.
+- No campus-management features beyond what TCS's two campuses (Main
+  and Annex) need. They're two `branches` rows on the existing
+  `branch_id`, not a general multi-campus system. A third campus, or
+  per-campus settings/branding, isn't planned. See CONSTRAINTS.md.
 - No parent/student self-service login until the Parent Portal phase.
   The admissions public forms don't break this rule. Inquiry and
   application submission is anonymous (bot-checked), and the

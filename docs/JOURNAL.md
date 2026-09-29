@@ -2660,3 +2660,96 @@ Docs only: no code, schema, or migration changes this session. Next,
 in separately reviewed steps: port TCS OS's five subagents plus a
 push/deploy-blocking hook, and write the slice loop into CLAUDE.md.
 Then write `docs/admissions/PORT-PLAN.md`.
+
+## 2026-09-29 — Three admissions-port decisions settled: campuses, roles, no dual intake
+
+Eyram settled the three open questions the previous entry flagged. Docs
+only, no schema or code yet.
+
+1. **Campuses: Main and Annex, on the existing `branch_id`.** TCS really
+   has two campuses. The "single-campus now" framing in PLANNING.md's
+   non-goals and CONSTRAINTS.md's Architecture section came from
+   Wilelik and was wrong for TCS. Both are rewritten: each campus is a
+   `branches` row, with no new `campus` table or column. Still to settle
+   in the port plan: turning `seed.production.sql`'s single "Treasures
+   Christian School" branch into Main plus a new Annex row, and which
+   existing screens need a campus filter.
+2. **Roles: still four, plus a small admissions capabilities layer.**
+   The layer has a `can_decide` flag, a per-staff list of grade bands
+   for coordinators, and a separate gate for child health data. It
+   isn't a fifth role, because it only narrows or unlocks admissions
+   actions for someone who already holds one of the four roles. It
+   never grants anything outside admissions, and every capability is
+   ungranted by default. CONSTRAINTS.md's "don't invent a fifth role"
+   rule now says why, and its "open" marker is removed. The exact
+   storage shape is left to `docs/admissions/PORT-PLAN.md`.
+3. **No dual-intake window, confirmed.** TCS OS and the ERP never both
+   accept real admissions submissions at the same time. Promoted from
+   "proposed" in CONSTRAINTS.md. Consequence: the ERP's public forms go
+   live only after TCS OS's intake stops, and the hand migration runs
+   after that. So no real record ever needs reconciling across the two
+   systems.
+
+## 2026-09-29 — Stage 2: project subagents, production-command hook, slice loop, role-matrix harness
+
+Ported TCS OS's five subagents into `.claude/agents/`. They were
+rewritten for this stack, not copied, since the Django-specific checks
+(app labels, `makemigrations --check`, `queryset.update()`) don't apply
+here:
+
+- **tcs-planner** now has to state an expected role matrix, the anon
+  surface, and every human confirmation gate for the slice it plans.
+- **test-runner** runs lint, `tsc --noEmit`, build, `db reset`, the dev
+  staff seed, `check-duplicate-function-overloads.sh`, and a types
+  regen diff. For every new or changed RPC or RLS policy it also writes
+  and runs a role matrix across anon/Attendant/Manager/Accountant/Auditor.
+  It may fix mechanical failures, but it only reports policy, grant, or
+  logic failures and never edits an `-- expect:` line to get a green run.
+- **code-reviewer** checks DESIGN.md and CONSTRAINTS.md, plus three
+  specific checks: anon-reachable surface that isn't SECURITY DEFINER
+  (checked against the live database's effective privileges, not the
+  migration text), service_role in `frontend/src` or `dist/client`, and
+  client-side business logic.
+- **docs-updater** and **feature-researcher** are aimed at this repo's
+  docs. feature-researcher writes only to a "Backlog / someday" section
+  of PLANNING.md.
+
+New `scripts/role-matrix.sh`. The host has no `psql`, so it runs
+through `docker exec` into `supabase_db_tcs-erp`. It impersonates each
+role the way a real request does (`authenticated` plus a JWT `sub`
+claim), runs every probe in a rolled-back transaction, supports a setup
+section that runs as `postgres` to seed rows, and fails on any
+`-- expect:` mismatch. A broken setup is reported as `SETUP FAILED`,
+because otherwise it would read as "denied" for every role and let a
+denial probe pass silently. Smoke-tested against the existing guards:
+`require_finance_writer()` and `require_writable_role()` produced the
+expected grid, and a seeded `audit_log` read showed Manager, Accountant
+and Auditor ok, with Attendant and anon denied.
+
+New PreToolUse hook (`.claude/hooks/block-production-commands.sh`,
+wired in the new project-level `.claude/settings.json`). It blocks
+`git push`, `supabase db push`, `supabase db reset --linked/--db-url`,
+`supabase functions deploy`, `supabase secrets set`, `wrangler deploy`,
+and `bootstrap-production-manager.sh`. The last four go beyond the list
+Eyram asked for, and are in because they're production steps too. It
+matches only in command position and skips heredoc bodies. The heredoc
+rule was added after the hook blocked this session's own CLAUDE.md
+edit, whose heredoc text mentioned the bootstrap script. 31 block/allow
+cases pass. It's a backstop, not a sandbox: `bash -c "…"` gets past it.
+
+CLAUDE.md gained the slice loop (plan, build one slice, test, review,
+at most 3 fix rounds then stop and report, record, stop for review)
+and its four human confirmation gates: statutory numbers, new
+permissions or capabilities, public anon surface, and production steps.
+
+**Found while building the harness:** `anon` has EXECUTE on 169 of 170
+public functions (Postgres's PUBLIC default plus Supabase's default
+privileges). Invoker RPCs are safe only because `require_staff()`
+rejects anon at runtime. Separately, `deposit_number_counters` has RLS
+**off** with full anon privileges, and a probe confirmed an anon INSERT
+gets past grants and RLS. Not fixed, since it's outside this stage's
+scope. It's logged as an open CONSTRAINTS.md checklist item. DESIGN.md
+now codifies the rule: the anon surface is SECURITY DEFINER functions
+only, and new invoker RPCs `revoke execute … from public, anon`. It
+also records this measured baseline and the one deliberate anon table
+read (`qualifications_select_anon`).

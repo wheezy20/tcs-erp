@@ -62,8 +62,72 @@ npx supabase gen types typescript --local > frontend/src/lib/database.types.ts
 Regenerate `database.types.ts` after any schema change rather than
 hand-editing it.
 
-There is no test suite/framework in this repo (no test script, no test
-files).
+There is no unit-test framework in this repo. Verification is lint,
+`tsc`, build, `db reset`, the duplicate-overload check, a types regen
+diff, and a **role matrix** for anything touching RPCs or RLS:
+
+```sh
+./scripts/role-matrix.sh supabase/role-matrix/<file>.sql
+```
+
+It runs each probe once each as `anon`, Attendant, Manager, Accountant and
+Auditor against the local database, each in a rolled-back transaction,
+and fails on any cell that doesn't match the probe's `-- expect:` line.
+Needs the dev staff accounts (`./scripts/seed-local-dev-staff.sh`) and
+the local stack running. The probe format is documented at the top of
+the script. The `test-runner` subagent owns this whole pass.
+
+## Slice loop (how every non-trivial change gets built)
+
+Project subagents live in `.claude/agents/`: `tcs-planner`,
+`test-runner`, `code-reviewer`, `docs-updater`, `feature-researcher`.
+Build work goes one slice at a time, in this order:
+
+1. **Plan.** `tcs-planner` plans exactly one slice (for admissions, the
+   next slice of `docs/admissions/PORT-PLAN.md`). The plan names the
+   conventions it touches, the expected role matrix, the anon surface,
+   and every confirmation gate below.
+2. **Build** that one slice, nothing beyond it.
+3. **Test.** `test-runner` runs the full check pass plus the role
+   matrix.
+4. **Review.** `code-reviewer` checks the diff against DESIGN.md and
+   CONSTRAINTS.md, and for non-SECURITY-DEFINER anon surface,
+   service_role in the bundle, and client-side business logic.
+5. **Fix blocking findings** from steps 3 and 4, then re-run 3 and 4.
+   **At most 3 fix rounds.** If anything is still blocking after the
+   third, stop and report what's left and why. Don't keep going, and
+   don't downgrade a finding to get out of the loop.
+6. **Record.** `docs-updater` writes the JOURNAL entry and status
+   updates.
+7. **Stop for Eyram's review.** Summarize the slice and show the diff,
+   code and docs together. Don't commit until asked, and don't start the
+   next slice.
+
+**Human confirmation gates.** At any step, stop and get Eyram's explicit
+confirmation before building or continuing past:
+
+- **any statutory or regulatory number** (PAYE bands, SSNIT/Tier 2
+  rates, thresholds, any tax or deduction figure) not already confirmed
+  in DESIGN.md/CONSTRAINTS.md;
+- **any new permission**: a role permission, an admissions capability
+  (`can_decide`, grade bands, the health-data gate), or any grant or
+  policy that widens who can read or write something;
+- **any public anon surface**: a function `anon` can execute, an anon
+  grant or policy, an anon storage policy, or a public route that writes;
+- **any production step**: `supabase db push`, deploys, secrets, DNS or
+  Cloudflare config, a hand data migration,
+  `bootstrap-production-manager.sh`. Eyram runs these. Hand over the
+  exact command instead.
+
+A PreToolUse hook (`.claude/hooks/block-production-commands.sh`, wired
+in `.claude/settings.json`) hard-blocks the command-level subset:
+`git push`, `supabase db push`, `supabase db reset --linked/--db-url`,
+`supabase functions deploy`, `supabase secrets set`, `wrangler deploy`,
+and `bootstrap-production-manager.sh`. The hook is a backstop. The gate
+rule above applies whether or not a command is caught.
+
+`feature-researcher` sits outside the loop. Use it only when explicitly
+asked.
 
 ## Routing (TanStack Start)
 

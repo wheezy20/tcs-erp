@@ -42,6 +42,17 @@ Things that shape how this gets built, not just what gets built.
       against the TCS OS originals. admissions.tcsch.edu.gh then
       redirects to this ERP. TCS OS is shut down only after both are
       done and confirmed.
+- [ ] **`deposit_number_counters` has RLS off** (`20260901100000`), and
+      Supabase's default privileges give `anon` full table privileges on
+      it. So anyone holding the public anon key, and every staff role
+      including Auditor, can insert/update/delete customer-deposit
+      numbering directly through the Data API. Found 2026-09-29 while
+      building the role-matrix harness, and confirmed by a probe (an
+      anon INSERT got past grants and RLS). Fix it in its own migration:
+      enable RLS with policies matching `invoice_number_counters`, and
+      revoke `anon`. It isn't fixed yet because it wasn't in that
+      session's scope. It must be fixed before the ERP serves
+      production traffic.
 
 ## Data safety
 
@@ -156,22 +167,47 @@ DESIGN.md. When adding a new table, decide which of these four it's for
 and gate it with the matching predicate; don't invent a fifth role or a
 per-table role check.
 
-**Open as of 2026-09-29 (admissions port):** TCS OS's admissions has
-staff shapes that none of the four roles covers cleanly: an admissions
-officer, the `can_decide` holder, and grade-band coordinators scoped to
-Preschool/Primary/JHS applicants. Whether that justifies a fifth role,
-or can be modelled as a narrower grant layered on an existing role, is
-an **unresolved decision for Eyram**, tracked in
-`docs/admissions/PORT-PLAN.md`. Until it's decided, the "don't invent a
-fifth role" rule above still stands. No admissions slice gets to add
-one on its own authority.
+**Admissions capabilities (decided 2026-09-29) — not a fifth role.**
+TCS OS's admissions has staff shapes the four roles don't express on
+their own: the `can_decide` holder, grade-band coordinators scoped to
+Preschool/Primary/JHS applicants, and the people allowed to see child
+health data. These are modelled as a **small capabilities layer on top
+of the four roles**, not as a new role:
+
+- a `can_decide` flag per staff member (who may record a decision /
+  generate an offer);
+- a list of grade bands per staff member (a coordinator sees and works
+  only applicants whose grade falls in their bands, resolved live from
+  the applicant's current grade, never stored per application);
+- a **separate gate for child health data**, independent of both of the
+  above. Holding a role, `can_decide`, or a grade band never implies
+  health-data access on its own.
+
+Why this isn't a fifth role: `staff.role` still answers "what kind of
+access does this person have across the whole ERP", and every existing
+predicate keeps working unchanged. The capabilities only **narrow or
+unlock specific admissions actions** for someone who already holds one
+of the four roles; they never grant anything outside admissions and
+never stand in for a role. Each capability is **ungranted by default**:
+granting one is a deliberate human decision, not a migration default
+(same rule TCS OS followed for `can_decide`, `can_view_health_info` and
+`can_send_bulk_email`). The exact shape (columns vs a side table, which
+role may hold which capability) is settled in
+`docs/admissions/PORT-PLAN.md` and recorded in DESIGN.md when built.
 
 ## Architecture
 
-- Design for **single-campus** operation now (TCS has one campus), but
-  keep `branch_id` on every relevant table anyway — same discipline
-  Wilelik already used for its own single-branch-first rollout. This
-  avoids a restructuring project if TCS ever opens a second campus.
+- **TCS has two campuses, Main and Annex (decided 2026-09-29).** Each
+  is one row in `branches`, and every campus-scoped table uses the
+  existing `branch_id` for it. No separate `campus` table or column.
+  This replaces the earlier "single-campus now" framing, which was
+  wrong for TCS. It came from Wilelik's single-branch rollout, and TCS
+  OS's admissions already treats Main and Annex as separate seat pools.
+  `seed.production.sql` currently creates a single "Treasures Christian
+  School" branch. Renaming that row to Main and adding Annex, and
+  deciding which existing screens (payroll, expenses, accounting) need a
+  campus filter versus staying school-wide, are admissions port-plan
+  items, not assumed here.
 - **This ERP is the target system; TCS OS is being retired into it**
   (reversed 2026-09-29; the old plan was to merge this ERP into TCS OS).
   See the "TCS OS retirement & admissions port" section below.
@@ -241,11 +277,13 @@ docs/JOURNAL.md.
   port plan decides which. Separately, TCS OS's own journal records
   that `app.tcsch.edu.gh` gets repointed from Cloud Run to this ERP.
   Both are DNS/infra steps Eyram runs.
-- TCS OS stays live and unmodified until cutover. **Proposed, not yet
-  confirmed:** don't have both systems accepting new admissions
-  submissions at the same time. A second set of real records would
-  have to be reconciled by hand. The port plan's cutover slice settles
-  this.
+- TCS OS stays live and unmodified until cutover. **No dual-intake
+  window (confirmed 2026-09-29):** TCS OS and this ERP never both
+  accept real admissions submissions at the same time. The ERP's public
+  admissions forms don't take real submissions until TCS OS's intake is
+  switched off, and the hand migration of TCS OS's records happens
+  after that point, so no real record ever exists in both places or
+  needs reconciling. The port plan's cutover slice orders the steps.
 
 ## Ghana-specific context worth keeping in mind
 

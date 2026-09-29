@@ -595,6 +595,41 @@ depend on them holding true for every new table/function added.
   Asset Management, Analytics & BI, or anything else TCS eventually
   needs) gets its own new top-level section here the same way, once it's
   an actual route — never an empty/placeholder nav entry pointing nowhere.
+- **The anon surface is SECURITY DEFINER functions only (codified
+  2026-09-29).** Onboarding (`20260921100000`) set the pattern, and the
+  admissions port's public forms will lean on it heavily. `anon` never
+  gets a table write grant or a write policy. It reaches data only
+  through functions that are `security definer`, pin `search_path`, and
+  validate their own input (a token, a Turnstile result, size and type
+  limits) before touching a row, each granted to `anon` explicitly. The
+  one allowed read exception is a non-sensitive, public-by-nature
+  reference list a public form needs to populate a picker: today only
+  `qualifications_select_anon` (active qualifications, for the
+  onboarding form). Any new one is a human-confirmed decision, and
+  `code-reviewer` flags it.
+  File uploads use a single-object signed upload URL issued by such a
+  function, or a storage policy that re-checks the token (onboarding's
+  `onboarding_documents_anon_insert`).
+  The gotcha: Postgres grants EXECUTE on every new function to
+  `PUBLIC`, and Supabase's default privileges add `anon`. So "no grant
+  to anon" in a migration doesn't mean anon can't call it. A new
+  **invoker** RPC that isn't meant for anon should
+  `revoke execute on function … from public, anon;`. Its
+  `require_staff()`-style guard is the second line of defence, not the
+  only one. Checked in the live database (`has_function_privilege`,
+  `has_table_privilege`) by `code-reviewer`, and at runtime by
+  `scripts/role-matrix.sh`'s `anon` column.
+  Known baseline, measured 2026-09-29 and not retrofitted: 169 of 170
+  public functions are anon-executable. The invoker ones are safe in
+  practice because they call `require_staff()` first. `anon` also holds
+  privileges on 15 tables (Supabase default privileges). 14 have RLS on,
+  with every policy gated on `has_role()`, `is_active_staff()`, or
+  `auth.uid()`, all of which anon fails, apart from
+  the deliberate `qualifications_select_anon` read above. The exception
+  is `deposit_number_counters`, which has RLS **off**, so `anon` and
+  every staff role (Auditor included) can insert/update/delete it
+  directly. That's a real gap, confirmed by a role-matrix probe and
+  tracked in CONSTRAINTS.md.
 
 ## Branding
 
