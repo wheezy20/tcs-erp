@@ -191,11 +191,11 @@ DESIGN.md). When adding a new table, decide which roles it's for and
 gate it with the matching predicate. Don't hand-roll a per-table role
 check.
 
-**A fifth role, Admissions Officer, is decided (2026-09-29) but not
-built yet.** It's built in `docs/admissions/PORT-PLAN.md` slice 1b. This
-is a **deliberate, confirmed exception** to the earlier "don't invent a
-fifth role" rule, and it supersedes the same day's earlier decision to
-model admissions as capabilities on the four roles alone.
+**A fifth role, Admissions Officer, is built locally (2026-09-29, slice
+1b-ii)** in migration `20260929130000` and the frontend. It's awaiting
+Eyram's review and not yet committed or deployed. This is a **deliberate, confirmed exception**
+to the earlier "don't invent a fifth role" rule, and it supersedes the same day's
+earlier decision to model admissions as capabilities on the four roles alone.
 
 The reason is that none of the four fits an admissions coordinator:
 

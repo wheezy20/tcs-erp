@@ -28,11 +28,10 @@ depend on them holding true for every new table/function added.
   where even service_role shouldn't have update/delete (e.g. append-only
   audit logs, posted journal entries).
 - **RLS is role-based**, checked via `has_role()` / `is_active_staff()`
-  helper functions (never hand-rolled per-table logic). Four roles on
-  `staff.role`, split from the original combined "Accountant/Auditor" by
-  `20260909090000_split_accountant_auditor_roles.sql`. A fifth,
-  Admissions Officer (admissions only), is decided (CONSTRAINTS.md "Staff
-  roles") and lands in admissions slice 1b-ii:
+  helper functions (never hand-rolled per-table logic). Five roles on
+  `staff.role`. The original combined "Accountant/Auditor" was split by
+  `20260909090000_split_accountant_auditor_roles.sql`; a fifth,
+  Admissions Officer, was added in admissions slice 1b-ii (`20260929130000`):
   - **Manager** — full read/write/delete everywhere.
   - **Accountant** — Manager-equivalent write on the *finance modules*
     (Payroll, Accounting, Expenses); read-only elsewhere (everywhere the
@@ -40,6 +39,9 @@ depend on them holding true for every new table/function added.
   - **Auditor** — read-only everywhere the old combined role could read;
     no write access anywhere.
   - **Attendant** — Sales / POS / returns / invoices; no finance access.
+  - **Admissions Officer** — admissions only (no admissions tables exist
+    yet); reads `branches`, its own `staff` row, and `list_staff_names()`;
+    nothing in finance, payroll, HR, store or `business_settings`.
 
   **Guards are allowlists; never grant or deny a role by negation.** A
   denylist ("not Auditor") silently hands every future role whatever the
@@ -689,6 +691,23 @@ depend on them holding true for every new table/function added.
   separate probe file. Example:
   `supabase/role-matrix/20260929110000_allowlist_guards_regression.sql`
   and `…_new_surface.sql`.
+  **Note on `-- expect:` names:** role names in `-- expect:` comments may
+  contain spaces (e.g. `Admissions Officer`). The parser trims whitespace
+  around commas only; spaces inside a name are kept.
+- **UI-side boundaries for restricted roles (2026-09-29, slice 1b-ii).** The
+  database is the primary boundary; a role that can't read `business_settings`
+  is stopped by RLS if it makes the request anyway. The UI additionally applies
+  two layers: (1) **Don't mount data-fetching components for restricted data.**
+  Hooks can't be conditional, so split the component tree: if a role can't read
+  a store table, put its hooks in a separate child component that is only
+  mounted for permitted roles (`GlobalSearch` vs `Topbar` in topbar.tsx,
+  `OfficerDashboard` vs `FullDashboard` in index.tsx). (2) **Check both `location`
+  and `resolvedLocation` in route guards.** After a redirect, the router keeps
+  rendering the old route's components until the new one resolves; an
+  AuthGate that checks only `location.pathname` would mount the blocked page
+  and fire its data hooks for that brief moment. Check `resolvedLocation.pathname`
+  too (the route whose components are actually rendered) to prevent it
+  (`auth-gate.tsx`).
 
 ## Branding
 

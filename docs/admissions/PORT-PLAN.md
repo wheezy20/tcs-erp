@@ -26,8 +26,8 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 |---|---|---|---|
 | 0 | Payroll regression carry-back (SQL probes for `create_payslip`) | not started | — |
 | 1 | Campuses: make a second branch safe, seed Main + Annex | built, committed (3f40807) | — |
-| 1b-i | Allowlist guards, can_read_store(), staff read, list_staff_names(), compute_day_totals, regression matrix | built, awaiting Eyram's review (uncommitted) | 1 |
-| 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | not started | 1b-i |
+| 1b-i | Allowlist guards, can_read_store(), staff read, list_staff_names(), compute_day_totals, regression matrix | committed (030234d) | 1 |
+| 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | built, awaiting Eyram's review (uncommitted) | 1b-i |
 | 2 | Admissions grade reference data + capabilities layer | not started | 1b-ii |
 | 3 | Core admissions schema + staff RLS (no health, no documents) | not started | 2 |
 | 4 | Health info (health gate) + documents metadata + private bucket | not started | 3 |
@@ -341,24 +341,24 @@ Adds the fifth role on top of 1b-i's allowlists. It ships before any admissions 
 **Delivers:**
 
 - **`staff.role` check constraint:** add `'Admissions Officer'` to `staff_role_check` (drop and recreate, in a new migration).
-- **`handle_new_staff_signup`:** today it maps any role outside the four to `Attendant` (`if v_role not in ('Attendant','Manager','Accountant','Auditor') then v_role := 'Attendant'`). So an invited officer would silently get store access. Add `'Admissions Officer'` to that list.
+- **`handle_new_staff_signup`:** changed to reject unlisted roles explicitly instead of silently defaulting to Attendant. An invite with an unknown role raises 'Unknown staff role: <role>'. A missing `role` metadata field still defaults to Attendant (seed paths depend on it). Add `'Admissions Officer'` to the list of allowed roles.
 - **`supabase/functions/invite-staff/index.ts`:** add the role to `ALLOWED_ROLES`.
 - **Frontend:**
   - the `StaffRole` union in `data/auth-store.ts`, and `STAFF_ROLES` in `routes/settings.tsx` (the role dropdown and the invite dialog);
-  - the "Roles & permissions" note in Settings, which names four roles;
-  - sidebar: hide the Stores section from the officer (Finance and HR are already hidden by `canViewFinancials`). No Admissions section until slice 7a (decision 5);
-  - Dashboard: hide the "Store & Sales" block from the officer;
-  - topbar: don't load or show the global search (customers, products, invoices, expenses, suppliers) for the officer;
-  - route guard (decision 6): an allowlist of routes for the officer in the app shell. Any other route redirects to `/`;
-  - Settings (decision 7): hide the tabs that read `business_settings` (Business, WHT, Notifications) from the officer;
+  - add `isAdmissionsOfficer()` helper to `data/auth-store.ts`.
+  - the "Roles & permissions" note in Settings, which names five roles now;
+  - sidebar: hide the Procurement & Stores section from the officer (Finance and HR are already hidden by `canViewFinancials`). No Admissions section until slice 7a (decision 5);
+  - Dashboard: a separate `OfficerDashboard()` component that loads no data (useDashboard is not called) and renders only a welcome message. Routed via `isAdmissionsOfficer()`;
+  - topbar: the global search (customers, products, invoices, expenses, suppliers) is extracted into a separate `GlobalSearch()` component; it is only mounted for non-officers (since they cannot read store data);
+  - route guard (decision 6): an allowlist of routes for the officer in the app shell (`"/"` and `"/settings"`). Any other route redirects to `/`. The guard also checks `resolvedLocation` (not just `pathname`) because the router keeps rendering the old match right after a redirect, and that would mount the blocked page's data-fetching hooks;
+  - Settings (decision 7): hide six tabs from the officer: `documents`, `tax`, `inventory`, `expenses`, `notifications`, `security`. `documents`, `inventory` and `expenses` load store tables; `tax`, `notifications` and `security` read `business_settings`;
   - any other role-name `switch` or map (grep for `"Attendant"`).
 - **`scripts/seed-local-dev-staff.sh`:** a fifth dev account, `dev-admissions@tcs.test`, role Admissions Officer. Update CLAUDE.md's dev-accounts table too.
-- **`scripts/role-matrix.sh`:** six roles (anon, Attendant, Manager, Accountant, Auditor, Admissions Officer), with wider columns for the longer name. Update its header and `-- expect:` docs.
+- **`scripts/role-matrix.sh`:** six roles (anon, Attendant, Manager, Accountant, Auditor, Admissions Officer), Column widths are unchanged (the officer is the last column, so only its header label overflows). `-- expect:` parsing now trims around commas instead of deleting every space, so `Admissions Officer` can match. Header docs updated.
 - **Probes:**
-  - re-run 1b-i's regression file with the sixth column. The five existing columns must stay as recorded, and the officer is ✗ everywhere except `read branches` and the `staff` own-row probe;
-  - `supabase/role-matrix/<migration>_admissions_officer_role.sql` proves the officer is **denied** on finance (`accounts`, `journal_entries`, `expenses`, `bank_accounts`), payroll (`payroll_runs`, `payslips`, `employee_pay_config`, `create_payslip`), HR (`employees`, `employee_documents`, the onboarding tables) and the `receipts`, `onboarding-documents` and `employee-generated-documents` buckets. It also proves the officer gets `list_staff_names()`, reads `branches`, and sees only their own `staff` row;
-  - a probe that an invite with role `Admissions Officer` lands as that role.
-- **DESIGN.md:** the role list gains Admissions Officer.
+  - all five existing probe files re-run with the sixth column (the officer was added to 9 `-- expect:` lines in the two 1b-i files and `campuses-main-annex.sql`). The five existing columns are byte-identical to a baseline run with the committed script and probe files on the pre-migration schema, once the officer column and its error lines are removed.
+  - `supabase/role-matrix/20260929130000_admissions_officer_role.sql` (new): 30 probes proving the officer is **denied** on finance (`accounts`, `journal_entries`, `expenses`, `bank_accounts`), payroll (`payroll_runs`, `payslips`, `employee_pay_config`, `create_payslip`), HR (`employees`, `employee_documents`, the onboarding tables) and the three storage buckets (`receipts`, `onboarding-documents`, `employee-generated-documents`). The officer also has probes for `list_staff_names()`, `branches` read, and seeing only their own `staff` row. Signup probes confirm that an invite with role 'Admissions Officer' lands as that role, 'Janitor' is rejected, and a missing role defaults to Attendant.
+- **DESIGN.md:** the role list gains Admissions Officer; the RLS model bullet updated to five roles; a new note on the UI side of role-gating (split components and checking resolvedLocation).
 
 **Not included:** any admissions table or capability (slice 2 onward). The role has no admissions data to see until slice 3.
 
@@ -370,9 +370,15 @@ Adds the fifth role on top of 1b-i's allowlists. It ships before any admissions 
 
 **Anon surface:** none.
 
-**Gates:** a new role and new permissions (the officer's `branches` read, the own `staff` row and `list_staff_names()`). All decided 2026-09-29 (D-1b-b, D-1b-d, decisions 4–7 above). The plan still stops for Eyram before building.
+**Open unknowns:**
 
-**Size:** one small migration, one Edge Function line, a frontend pass (role type, dropdown, sidebar, Dashboard, topbar, route guard, Settings tabs), two script edits, and about 20 probes plus the six-column regression re-run.
+- **(a) Officer inactivity auto-logout never arms.** `InactivityWatcher` reads `business_settings.session_timeout_minutes` to set the timeout. The officer gets a 406 (RLS), so `sessionTimeoutMinutes` stays `null`, and `useInactivityLogout` treats `null` as "don't arm". Not blocking now (the officer can see no sensitive data yet) but must be fixed before slices 3–4 give the officer admissions or health data. The fix needs a new narrow read (e.g. a SECURITY DEFINER function returning only the timeout value) = a new permission, Eyram's decision.
+- **(b) Missing role defaults to Attendant.** `handle_new_staff_signup` still defaults a missing `role` metadata field to Attendant (seed paths and local-dev scripts rely on it). An explicit unlisted role is now rejected. Eyram to confirm the missing-role default is intended and safe.
+- Route guards for the other four roles are still not built (existing open item).
+
+**Gates:** all permissions (the officer's `branches` read, own `staff` row and `list_staff_names()`) decided 2026-09-29 (D-1b-b, D-1b-d, decisions 4–7 above). Slice built and awaiting Eyram's review. No commit yet.
+
+**Size:** one small migration, one Edge Function line, a frontend pass (role type, dropdown, sidebar, Dashboard, topbar, route guard, Settings tabs), two script edits, a new 30-probe file, and the five existing probe files re-run with the sixth column.
 
 ## Slice 2 — Admissions grade reference data and the capabilities layer
 

@@ -20,6 +20,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { isAdmissionsOfficer, useAuth } from "@/data/auth-store";
 import { useCurrentBranch } from "@/data/branch-store";
 import { currency, TODAY, useDashboard, type DashboardKpi } from "@/data/dashboard";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,25 @@ export const Route = createFileRoute("/")({
 const PRIMARY_KPI_LABELS = new Set(["Cash on Hand", "Expenses this Month"]);
 
 function Dashboard() {
+  const { staff } = useAuth();
+  // useDashboard() loads sales, inventory, expenses, accounts, journal
+  // entries, employees and payroll; the Admissions Officer can read none of
+  // them, so it gets a page that loads nothing.
+  if (isAdmissionsOfficer(staff?.role)) return <OfficerDashboard />;
+  return <FullDashboard />;
+}
+
+function OfficerDashboard() {
+  const { staff } = useAuth();
+  return (
+    <PageHeader
+      title={staff ? `Welcome, ${staff.name}` : "Welcome"}
+      description="Admissions isn't built yet. Your account can open Settings in the meantime."
+    />
+  );
+}
+
+function FullDashboard() {
   const {
     kpis,
     lowStock,

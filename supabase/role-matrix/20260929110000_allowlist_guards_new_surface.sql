@@ -21,7 +21,7 @@ update public.staff set active = false where not protected;
 do $$ begin if not public.can_read_store() then raise exception 'false'; end if; end $$;
 
 -- probe: list_staff_names()
--- expect: Attendant,Manager,Accountant,Auditor
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if (select count(*) from public.list_staff_names()) < 2 then
     raise exception 'expected every staff name';
@@ -29,7 +29,7 @@ do $$ begin
 end $$;
 
 -- probe: list_staff_names() returns only id and name
--- expect: Attendant,Manager,Accountant,Auditor
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if (select array_agg(k order by k)
       from jsonb_object_keys(to_jsonb((select r from public.list_staff_names() r limit 1))) k)
@@ -39,7 +39,7 @@ do $$ begin
 end $$;
 
 -- probe: list_staff_names() includes an inactive member
--- expect: Attendant,Manager,Accountant,Auditor
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
 insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data)
 values ('9e000000-0000-0000-0000-00000000001b', '00000000-0000-0000-0000-000000000000',
         'authenticated', 'authenticated', 'probe-former@tcs.test',

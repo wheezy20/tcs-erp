@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Creates four LOCAL-ONLY test staff accounts — one per role (Attendant,
-# Manager, Accountant, Auditor) — so there's always a known-good login for
+# Creates five LOCAL-ONLY test staff accounts — one per role (Attendant,
+# Manager, Accountant, Auditor, Admissions Officer) — so there's always a known-good login for
 # every role when testing through /login. Deliberately NOT a migration or
 # supabase/seed.sql: those run automatically (via `supabase db reset`, and
 # migrations can be pushed to a real project via `supabase db push`), and
@@ -14,7 +14,7 @@
 # access), so it refuses to run against anything but a local API_URL as a
 # safety check.
 #
-# Safe to re-run after a `supabase db reset` — recreates the three accounts.
+# Safe to re-run after a `supabase db reset` — recreates the five accounts.
 # Credentials are documented in CLAUDE.md under "Local dev-only test accounts".
 
 set -euo pipefail
@@ -103,5 +103,10 @@ AUD_ID=$(create_or_get_user_id "dev-auditor@tcs.test" "Dev Auditor")
 set_role "$AUD_ID" "Auditor"
 echo "  id: $AUD_ID"
 
+echo "== dev-admissions@tcs.test (Admissions Officer) =="
+AO_ID=$(create_or_get_user_id "dev-admissions@tcs.test" "Dev Admissions Officer")
+set_role "$AO_ID" "Admissions Officer"
+echo "  id: $AO_ID"
+
 echo ""
-echo "Done. Sign in at /login with any of the four accounts — credentials are in CLAUDE.md under 'Local dev-only test accounts'."
+echo "Done. Sign in at /login with any of the five accounts — credentials are in CLAUDE.md under 'Local dev-only test accounts'."

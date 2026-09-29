@@ -1,10 +1,16 @@
 import { useEffect, type ReactNode } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
-import { useAuth } from "@/data/auth-store";
+import { isAdmissionsOfficer, useAuth } from "@/data/auth-store";
 import { useSessionTimeoutMinutes } from "@/data/session-timeout-store";
 import { useInactivityLogout } from "@/hooks/use-inactivity-logout";
+
+const OFFICER_ROUTES = new Set(["/", "/settings"]);
+
+function officerMayOpen(pathname: string) {
+  return OFFICER_ROUTES.has(pathname.replace(/\/+$/, "") || "/");
+}
 
 /** Wraps every route except /login. Redirects to /login once it's clear
  * there's no session — "clear" meaning after the first session check
@@ -16,12 +22,31 @@ import { useInactivityLogout } from "@/hooks/use-inactivity-logout";
 export function AuthGate({ children }: { children: ReactNode }) {
   const { session, staff, loading } = useAuth();
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // The location whose route components are actually rendered. Right after
+  // the redirect below, `pathname` is already "/" while the router still
+  // renders the old match until the new one resolves; without this the
+  // blocked page mounts for a moment and starts its data loads.
+  const renderedPathname = useRouterState({
+    select: (s) => s.resolvedLocation?.pathname ?? s.location.pathname,
+  });
+  // The Admissions Officer's route allowlist. Every other role is unaffected
+  // here; they have no route guard yet (open item, docs/admissions/PORT-PLAN.md).
+  const isOfficer = isAdmissionsOfficer(staff?.role);
+  const officerBlocked = isOfficer && !officerMayOpen(pathname);
+  const officerHidden = isOfficer && (officerBlocked || !officerMayOpen(renderedPathname));
 
   useEffect(() => {
     if (!loading && !session) {
       navigate({ to: "/login" });
     }
   }, [loading, session, navigate]);
+
+  useEffect(() => {
+    if (officerBlocked) {
+      navigate({ to: "/", replace: true });
+    }
+  }, [officerBlocked, navigate]);
 
   if (loading) {
     return (
@@ -49,6 +74,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
         </div>
       </div>
     );
+  }
+
+  if (officerHidden) {
+    // Redirecting to /, or waiting for / to replace the blocked page; don't
+    // mount the page, so none of its data loads fire.
+    return null;
   }
 
   return (

@@ -52,7 +52,8 @@ The HR items deferred in CONSTRAINTS.md stay deferred.
 
 **Status:** slice 1 (campuses) committed (3f40807). Slice 1b split:
 1b-i (allowlist guards, can_read_store, list_staff_names, regression matrix)
-built awaiting review; 1b-ii (Admissions Officer role) not started.
+committed (030234d); 1b-ii (Admissions Officer role) built, awaiting Eyram's review.
+Slice 2 (admissions grade reference data and capabilities layer) not started.
 Decision batches recorded 2026-09-29 (D-2g, D-1b-a/b/c/d confirmed).
 
 Porting TCS OS's live admissions module: inquiries, applications,

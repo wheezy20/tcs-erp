@@ -4,7 +4,15 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/database.types";
 
-export type StaffRole = "Attendant" | "Manager" | "Accountant" | "Auditor";
+export type StaffRole = "Attendant" | "Manager" | "Accountant" | "Auditor" | "Admissions Officer";
+
+/** Admissions only (20260929130000): no store, finance, payroll or HR access.
+ * The database already denies all of it; the UI also avoids mounting anything
+ * that would fetch that data (topbar search, the dashboard, some Settings
+ * tabs) and AuthGate keeps the role on its allowed routes. */
+export function isAdmissionsOfficer(role: StaffRole | undefined | null): boolean {
+  return role === "Admissions Officer";
+}
 
 /** Roles that can *view* the finance-adjacent sections (Payroll, Accounting,
  * Expenses, Reports, Banking, Purchasing, the ledger-derived dashboard KPIs)

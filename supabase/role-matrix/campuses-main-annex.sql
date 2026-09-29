@@ -17,7 +17,7 @@
 -- the precondition; it's a sanity check of the rule getSchoolBranchId() uses.
 
 -- probe: branches select (Main and Annex both visible)
--- expect: Attendant,Manager,Accountant,Auditor
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if (select count(*) from public.branches where name in ('Main', 'Annex')) <> 2 then
     raise exception 'expected Main and Annex both visible';
@@ -25,7 +25,7 @@ do $$ begin
 end $$;
 
 -- probe: oldest-branch rule resolves to Main
--- expect: Attendant,Manager,Accountant,Auditor
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
 update public.branches set default_low_stock_threshold = default_low_stock_threshold where name = 'Main';
 -- as role:
 do $$ begin

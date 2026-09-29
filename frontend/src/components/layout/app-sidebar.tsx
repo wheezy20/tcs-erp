@@ -25,7 +25,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { canViewFinancials, useAuth } from "@/data/auth-store";
+import { canViewFinancials, isAdmissionsOfficer, useAuth } from "@/data/auth-store";
 
 type NavItem = { title: string; url: string; icon: LucideIcon };
 
@@ -122,7 +122,12 @@ export function AppSidebar({
         item.url === "/pos" && posReadOnly ? { ...item, url: "/pos/history" } : item,
       );
 
+  // The Admissions Officer reads no store data, so Procurement & Stores is
+  // hidden outright (Finance and HR already drop out via canViewGated).
+  const hideStores = isAdmissionsOfficer(currentStaff?.role);
+
   const sections = navSections
+    .filter((section) => !(hideStores && section.key === "stores"))
     .map((section) => ({ ...section, items: visibleItems(section.items) }))
     .filter((section) => section.items.length > 0);
 

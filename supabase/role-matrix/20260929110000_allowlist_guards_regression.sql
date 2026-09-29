@@ -33,7 +33,7 @@
 -- ======================================================== A. guards
 
 -- probe: guard: is_active_staff()
--- expect: Attendant,Manager,Accountant,Auditor
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin if not public.is_active_staff() then raise exception 'false'; end if; end $$;
 
 -- probe: guard: can_write()
@@ -65,7 +65,7 @@ do $$ begin if not public.is_active_staff() then raise exception 'false'; end if
 -- ======================================================== B. reads
 
 -- probe: read branches
--- expect: Attendant,Manager,Accountant,Auditor
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin if not exists (select 1 from public.branches) then raise exception 'no rows visible'; end if; end $$;
 
 -- probe: read business_settings
@@ -184,7 +184,7 @@ do $$ begin if not exists (select 1 from public.sale_returns) then raise excepti
 do $$ begin if not exists (select 1 from public.sales) then raise exception 'no rows visible'; end if; end $$;
 
 -- probe: read staff
--- expect: Attendant,Manager,Accountant,Auditor
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin if not exists (select 1 from public.staff) then raise exception 'no rows visible'; end if; end $$;
 
 -- probe: read stock_movements
@@ -200,7 +200,7 @@ do $$ begin
 end $$;
 
 -- probe: read staff: own row visible
--- expect: Attendant,Manager,Accountant,Auditor
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if not exists (select 1 from public.staff where id = auth.uid()) then
     raise exception 'own row not visible';

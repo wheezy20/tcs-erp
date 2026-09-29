@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/components/theme-provider";
 import { matchesProductQuery } from "@/components/product-search-select";
-import { signOut, useAuth } from "@/data/auth-store";
+import { isAdmissionsOfficer, signOut, useAuth } from "@/data/auth-store";
 import { useCurrentBranch } from "@/data/branch-store";
 import { useCustomers } from "@/data/customer-store";
 import { useExpenses } from "@/data/expenses-store";
@@ -102,51 +102,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { name: branchName } = useCurrentBranch();
   const { staff } = useAuth();
   const { notifications } = useNotifications();
-  const { customers } = useCustomers();
-  const { products } = useInventory();
-  const { invoices } = useInvoices();
-  const { expenses } = useExpenses();
-  const { suppliers } = useSuppliers();
-  const [query, setQuery] = useState("");
   const unreadCount = notifications.filter((n) => !n.readAt).length;
-  const search = query.trim().toLowerCase();
-
-  // These mirror the matching rules already used on the individual list pages.
-  // Product matching is deliberately delegated to the shared helper so the global
-  // search finds the same name/SKU/category/size matches as inventory and POS.
-  const results = useMemo(() => {
-    if (!search) return null;
-    const compactQuery = search.replace(/\s/g, "");
-    return {
-      customers: customers.filter(
-        (customer) =>
-          customer.name.toLowerCase().includes(search) ||
-          customer.phone.replace(/\s/g, "").includes(compactQuery) ||
-          customer.email.toLowerCase().includes(search),
-      ),
-      products: products.filter((product) => matchesProductQuery(product, search)),
-      invoices: invoices.filter(
-        (invoice) =>
-          invoice.id.toLowerCase().includes(search) ||
-          invoice.customerName.toLowerCase().includes(search),
-      ),
-      expenses: expenses.filter(
-        (expense) =>
-          expense.description.toLowerCase().includes(search) ||
-          expense.category.toLowerCase().includes(search) ||
-          expense.recordedBy.toLowerCase().includes(search) ||
-          expense.id.toLowerCase().includes(search) ||
-          (expense.reference ?? "").toLowerCase().includes(search),
-      ),
-      suppliers: suppliers.filter(
-        (supplier) =>
-          supplier.name.toLowerCase().includes(search) || supplier.phone.includes(search),
-      ),
-    };
-  }, [customers, expenses, invoices, products, search, suppliers]);
-
-  const hasResults = results && Object.values(results).some((group) => group.length > 0);
-  const clearSearch = () => setQuery("");
 
   return (
     <header className="glass-chrome sticky top-0 z-20 flex h-16 items-center gap-3 border-b px-4 md:px-6">
@@ -160,88 +116,9 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
         <Menu className="size-5" />
       </Button>
 
-      <div className="relative hidden max-w-md flex-1 sm:block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search expenses, customers, invoices…"
-          className="h-10 rounded-xl pl-9"
-          aria-label="Search records"
-          aria-expanded={Boolean(results)}
-          aria-controls="global-search-results"
-        />
-        {results && (
-          <div
-            id="global-search-results"
-            className="absolute left-0 top-12 z-30 max-h-[70vh] w-full overflow-y-auto rounded-xl border bg-popover p-2 text-popover-foreground shadow-lg"
-          >
-            {!hasResults ? (
-              <p className="px-3 py-5 text-center text-sm text-muted-foreground">
-                No records match “{query.trim()}”.
-              </p>
-            ) : (
-              <>
-                <SearchGroup label="Customers" items={results.customers}>
-                  {(customer) => (
-                    <SearchResultLink
-                      to="/customers/$customerId"
-                      params={{ customerId: customer.id }}
-                      primary={customer.name}
-                      secondary={customer.phone || customer.email}
-                      onOpen={clearSearch}
-                    />
-                  )}
-                </SearchGroup>
-                <SearchGroup label="Products" items={results.products}>
-                  {(product) => (
-                    <SearchResultLink
-                      to="/inventory/$productId"
-                      params={{ productId: product.id }}
-                      primary={product.name}
-                      secondary={`${product.sku} · ${product.category}${product.size ? ` · ${product.size}` : ""}`}
-                      onOpen={clearSearch}
-                    />
-                  )}
-                </SearchGroup>
-                <SearchGroup label="Invoices" items={results.invoices}>
-                  {(invoice) => (
-                    <SearchResultLink
-                      to="/sales/$invoiceId"
-                      params={{ invoiceId: invoice.id }}
-                      primary={invoice.id}
-                      secondary={invoice.customerName}
-                      onOpen={clearSearch}
-                    />
-                  )}
-                </SearchGroup>
-                <SearchGroup label="Expenses" items={results.expenses}>
-                  {(expense) => (
-                    <SearchResultLink
-                      to="/expenses/$expenseId"
-                      params={{ expenseId: expense.id }}
-                      primary={expense.description}
-                      secondary={`${expense.category} · ${expense.reference ?? expense.id}`}
-                      onOpen={clearSearch}
-                    />
-                  )}
-                </SearchGroup>
-                <SearchGroup label="Suppliers" items={results.suppliers}>
-                  {(supplier) => (
-                    <SearchResultLink
-                      to="/purchasing/suppliers/$supplierId"
-                      params={{ supplierId: supplier.id }}
-                      primary={supplier.name}
-                      secondary={supplier.phone || supplier.email}
-                      onOpen={clearSearch}
-                    />
-                  )}
-                </SearchGroup>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Its own component so the store hooks it calls never mount (and never
+          fetch) for the Admissions Officer, who can't read store data. */}
+      {staff && !isAdmissionsOfficer(staff.role) && <GlobalSearch />}
 
       <div className="ml-auto flex items-center gap-2">
         <div className="hidden items-center gap-2 rounded-xl border bg-card px-3 py-1.5 text-sm md:flex">
@@ -331,6 +208,140 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
         </DropdownMenu>
       </div>
     </header>
+  );
+}
+
+/** Searches customers, products, invoices, expenses and suppliers. Mounting it
+ * loads all five stores. */
+function GlobalSearch() {
+  const { customers } = useCustomers();
+  const { products } = useInventory();
+  const { invoices } = useInvoices();
+  const { expenses } = useExpenses();
+  const { suppliers } = useSuppliers();
+  const [query, setQuery] = useState("");
+  const search = query.trim().toLowerCase();
+
+  // These mirror the matching rules already used on the individual list pages.
+  // Product matching is deliberately delegated to the shared helper so the global
+  // search finds the same name/SKU/category/size matches as inventory and POS.
+  const results = useMemo(() => {
+    if (!search) return null;
+    const compactQuery = search.replace(/\s/g, "");
+    return {
+      customers: customers.filter(
+        (customer) =>
+          customer.name.toLowerCase().includes(search) ||
+          customer.phone.replace(/\s/g, "").includes(compactQuery) ||
+          customer.email.toLowerCase().includes(search),
+      ),
+      products: products.filter((product) => matchesProductQuery(product, search)),
+      invoices: invoices.filter(
+        (invoice) =>
+          invoice.id.toLowerCase().includes(search) ||
+          invoice.customerName.toLowerCase().includes(search),
+      ),
+      expenses: expenses.filter(
+        (expense) =>
+          expense.description.toLowerCase().includes(search) ||
+          expense.category.toLowerCase().includes(search) ||
+          expense.recordedBy.toLowerCase().includes(search) ||
+          expense.id.toLowerCase().includes(search) ||
+          (expense.reference ?? "").toLowerCase().includes(search),
+      ),
+      suppliers: suppliers.filter(
+        (supplier) =>
+          supplier.name.toLowerCase().includes(search) || supplier.phone.includes(search),
+      ),
+    };
+  }, [customers, expenses, invoices, products, search, suppliers]);
+
+  const hasResults = results && Object.values(results).some((group) => group.length > 0);
+  const clearSearch = () => setQuery("");
+
+  return (
+    <div className="relative hidden max-w-md flex-1 sm:block">
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Search expenses, customers, invoices…"
+        className="h-10 rounded-xl pl-9"
+        aria-label="Search records"
+        aria-expanded={Boolean(results)}
+        aria-controls="global-search-results"
+      />
+      {results && (
+        <div
+          id="global-search-results"
+          className="absolute left-0 top-12 z-30 max-h-[70vh] w-full overflow-y-auto rounded-xl border bg-popover p-2 text-popover-foreground shadow-lg"
+        >
+          {!hasResults ? (
+            <p className="px-3 py-5 text-center text-sm text-muted-foreground">
+              No records match “{query.trim()}”.
+            </p>
+          ) : (
+            <>
+              <SearchGroup label="Customers" items={results.customers}>
+                {(customer) => (
+                  <SearchResultLink
+                    to="/customers/$customerId"
+                    params={{ customerId: customer.id }}
+                    primary={customer.name}
+                    secondary={customer.phone || customer.email}
+                    onOpen={clearSearch}
+                  />
+                )}
+              </SearchGroup>
+              <SearchGroup label="Products" items={results.products}>
+                {(product) => (
+                  <SearchResultLink
+                    to="/inventory/$productId"
+                    params={{ productId: product.id }}
+                    primary={product.name}
+                    secondary={`${product.sku} · ${product.category}${product.size ? ` · ${product.size}` : ""}`}
+                    onOpen={clearSearch}
+                  />
+                )}
+              </SearchGroup>
+              <SearchGroup label="Invoices" items={results.invoices}>
+                {(invoice) => (
+                  <SearchResultLink
+                    to="/sales/$invoiceId"
+                    params={{ invoiceId: invoice.id }}
+                    primary={invoice.id}
+                    secondary={invoice.customerName}
+                    onOpen={clearSearch}
+                  />
+                )}
+              </SearchGroup>
+              <SearchGroup label="Expenses" items={results.expenses}>
+                {(expense) => (
+                  <SearchResultLink
+                    to="/expenses/$expenseId"
+                    params={{ expenseId: expense.id }}
+                    primary={expense.description}
+                    secondary={`${expense.category} · ${expense.reference ?? expense.id}`}
+                    onOpen={clearSearch}
+                  />
+                )}
+              </SearchGroup>
+              <SearchGroup label="Suppliers" items={results.suppliers}>
+                {(supplier) => (
+                  <SearchResultLink
+                    to="/purchasing/suppliers/$supplierId"
+                    params={{ supplierId: supplier.id }}
+                    primary={supplier.name}
+                    secondary={supplier.phone || supplier.email}
+                    onOpen={clearSearch}
+                  />
+                )}
+              </SearchGroup>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

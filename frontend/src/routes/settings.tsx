@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth, type StaffRole } from "@/data/auth-store";
+import { isAdmissionsOfficer, useAuth, type StaffRole } from "@/data/auth-store";
 import { useCurrentBranch } from "@/data/branch-store";
 import { setExpenseCategories, useExpenses } from "@/data/expenses-store";
 import { setDefaultThreshold, useInventory } from "@/data/inventory-store";
@@ -143,10 +143,27 @@ const SECTIONS: { id: SectionId; label: string; icon: LucideIcon; group: string 
   { id: "branches", label: "Branches", icon: Store, group: "Coming soon" },
 ];
 
+// Tabs the Admissions Officer doesn't get: tax, notifications and security
+// read business_settings, and documents, inventory and expenses load store
+// data. The officer can read none of those tables.
+const OFFICER_HIDDEN_SECTIONS = new Set<SectionId>([
+  "documents",
+  "tax",
+  "inventory",
+  "expenses",
+  "notifications",
+  "security",
+]);
+
 function SettingsPage() {
   const [section, setSection] = useState<SectionId>("company");
   const { name: branchName } = useCurrentBranch();
-  const groups = [...new Set(SECTIONS.map((s) => s.group))];
+  const { staff } = useAuth();
+  const sections = isAdmissionsOfficer(staff?.role)
+    ? SECTIONS.filter((s) => !OFFICER_HIDDEN_SECTIONS.has(s.id))
+    : SECTIONS;
+  const visible = new Set(sections.map((s) => s.id));
+  const groups = [...new Set(sections.map((s) => s.group))];
 
   return (
     <>
@@ -164,23 +181,25 @@ function SettingsPage() {
                   {group}
                 </p>
                 <div className="space-y-0.5">
-                  {SECTIONS.filter((s) => s.group === group).map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setSection(s.id)}
-                      aria-current={section === s.id ? "page" : undefined}
-                      className={cn(
-                        "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors",
-                        section === s.id
-                          ? "bg-primary/10 text-foreground"
-                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                      )}
-                    >
-                      <s.icon className="size-4 shrink-0" />
-                      <span className="truncate">{s.label}</span>
-                    </button>
-                  ))}
+                  {sections
+                    .filter((s) => s.group === group)
+                    .map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSection(s.id)}
+                        aria-current={section === s.id ? "page" : undefined}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors",
+                          section === s.id
+                            ? "bg-primary/10 text-foreground"
+                            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                        )}
+                      >
+                        <s.icon className="size-4 shrink-0" />
+                        <span className="truncate">{s.label}</span>
+                      </button>
+                    ))}
                 </div>
               </div>
             ))}
@@ -189,21 +208,21 @@ function SettingsPage() {
 
         <div className="min-w-0">
           {section === "company" && <CompanySection />}
-          {section === "documents" && <DocumentsSection />}
-          {section === "tax" && <TaxSection />}
-          {section === "inventory" && <InventorySection />}
-          {section === "expenses" && <ExpensesSection />}
+          {section === "documents" && visible.has("documents") && <DocumentsSection />}
+          {section === "tax" && visible.has("tax") && <TaxSection />}
+          {section === "inventory" && visible.has("inventory") && <InventorySection />}
+          {section === "expenses" && visible.has("expenses") && <ExpensesSection />}
           {section === "sales" && <SalesSection />}
           {section === "localisation" && <LocalisationSection />}
           {section === "appearance" && <AppearanceSection />}
-          {section === "notifications" && <NotificationsSection />}
-          {section === "security" && <SecuritySection />}
+          {section === "notifications" && visible.has("notifications") && <NotificationsSection />}
+          {section === "security" && visible.has("security") && <SecuritySection />}
           {section === "users" && <StaffSection />}
           {section === "roles" && (
             <ComingSoon
               title="Roles & permissions"
               icon={Lock}
-              note="Attendant, Manager, Accountant and Auditor roles exist and are enforced by database policy (see Staff) — a screen for fine-tuning individual permissions per role isn't built yet."
+              note="Attendant, Manager, Accountant, Auditor and Admissions Officer roles exist and are enforced by database policy (see Staff) — a screen for fine-tuning individual permissions per role isn't built yet."
             />
           )}
           {section === "branches" && (
@@ -1045,7 +1064,13 @@ function SecuritySection() {
   );
 }
 
-const STAFF_ROLES: StaffRole[] = ["Attendant", "Manager", "Accountant", "Auditor"];
+const STAFF_ROLES: StaffRole[] = [
+  "Attendant",
+  "Manager",
+  "Accountant",
+  "Auditor",
+  "Admissions Officer",
+];
 
 function StaffSection() {
   const { staff: roster, pendingIds, loading } = useStaff();

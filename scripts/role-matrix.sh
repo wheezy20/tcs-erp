@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Runs a file of SQL probes once per role (anon, Attendant, Manager,
-# Accountant, Auditor) against the LOCAL database and prints a grid of
+# Accountant, Auditor, Admissions Officer) against the LOCAL database and prints a grid of
 # which role each probe succeeded or failed for. Used by the test-runner
 # subagent for every new/changed RPC or RLS policy — see CLAUDE.md's
 # slice loop and .claude/agents/test-runner.md.
@@ -17,7 +17,9 @@
 #
 # `-- expect:` lists the roles that must SUCCEED; every other role must
 # FAIL (raise an error). `anon`, `Attendant`, `Manager`, `Accountant`,
-# `Auditor` are the valid names; `none` means every role must fail. A
+# `Auditor`, `Admissions Officer` are the valid names, comma-separated
+# (spaces around commas are ignored; the space inside a name is kept);
+# `none` means every role must fail. A
 # mismatch prints MISMATCH and the script exits 1.
 #
 # Each probe runs in its own transaction that is always rolled back, so
@@ -68,9 +70,9 @@ psql_local() {
   docker exec -i "$CONTAINER" psql -U postgres -d postgres -X -At -v ON_ERROR_STOP=1 "$@"
 }
 
-ROLES=(anon Attendant Manager Accountant Auditor)
+ROLES=(anon Attendant Manager Accountant Auditor "Admissions Officer")
 declare -A SUB
-for role in Attendant Manager Accountant Auditor; do
+for role in Attendant Manager Accountant Auditor "Admissions Officer"; do
   SUB[$role]=$(psql_local -c \
     "select id from public.staff where role = '$role' and active order by id limit 1;")
   if [[ -z "${SUB[$role]}" ]]; then
@@ -93,7 +95,10 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     EXPECTS+=("")
     current_body=""
   elif [[ "$line" =~ ^--[[:space:]]*expect:[[:space:]]*(.*)$ ]] && ((${#NAMES[@]} > 0)); then
-    EXPECTS[$((${#NAMES[@]} - 1))]="${BASH_REMATCH[1]// /}"
+    # Trim around each comma-separated name, keeping inner spaces
+    # ("Admissions Officer").
+    expect_list=$(printf '%s' "${BASH_REMATCH[1]}" | sed -E 's/[[:space:]]*,[[:space:]]*/,/g; s/^[[:space:]]+//; s/[[:space:]]+$//')
+    EXPECTS[$((${#NAMES[@]} - 1))]="$expect_list"
   elif [[ "$line" =~ ^--[[:space:]]*as[[:space:]]+role:[[:space:]]*$ ]] && ((${#NAMES[@]} > 0)); then
     SETUPS[$((${#NAMES[@]} - 1))]="$current_body"
     current_body=""

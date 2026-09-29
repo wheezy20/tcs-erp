@@ -199,7 +199,7 @@ Operational specifics not covered there:
 
 ## Local dev-only test accounts
 
-Three throwaway staff accounts, one per role, for signing in at `/login`
+Five throwaway staff accounts, one per role, for signing in at `/login`
 while developing locally. They are **not** created by any migration or by
 `seed.sql` (so a plaintext password never lands in a file a `db push`
 could send to a real project). Create/recreate them with:
@@ -218,6 +218,7 @@ to re-run after every `supabase db reset`.
 | `dev-manager@tcs.test` | `local-dev-2026` | Manager |
 | `dev-accountant@tcs.test` | `local-dev-2026` | Accountant |
 | `dev-auditor@tcs.test` | `local-dev-2026` | Auditor |
+| `dev-admissions@tcs.test` | `local-dev-2026` | Admissions Officer |
 
 Separately, `supabase/seed.sql` still contains historical dummy staff
 accounts (`*.@tcs.internal`, shared password `password123`) that exist

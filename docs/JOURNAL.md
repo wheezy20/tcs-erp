@@ -3246,3 +3246,66 @@ been run on a hosted project with the old bands? Posted payslips must not
 be rewritten, so if yes, a correction path is needed separately, outside
 this slice. The hosted project gets the 2026 set only when Eyram runs
 `npx supabase db push`. Not committed.
+
+---
+
+## 2026-09-29 — Admissions slice 1b-ii: Admissions Officer role
+
+**Adds the fifth staff role on top of 1b-i's allowlist guards.** Slice 1b was split on 2026-09-29 into 1b-i (guards only, committed 030234d) and 1b-ii (the role). The role reaches nothing until admissions tables exist (slice 3 onward). All decisions (D-1b-b, D-1b-d and others 4–7 from PORT-PLAN.md) confirmed 2026-09-29.
+
+**Built:**
+
+- **Migration `supabase/migrations/20260929130000_admissions_officer_role.sql`:**
+  - `staff.role` check constraint: added `'Admissions Officer'` to the allowed list.
+  - `handle_new_staff_signup()` trigger: changed to reject unlisted roles explicitly ('Unknown staff role: <role>') instead of silently defaulting to Attendant. A missing role still defaults to Attendant (seed paths depend on it).
+- **Edge Function `supabase/functions/invite-staff/index.ts`:** added "Admissions Officer" to `ALLOWED_ROLES`.
+- **Frontend:**
+  - `StaffRole` union in `data/auth-store.ts`, and added `isAdmissionsOfficer()` helper.
+  - `STAFF_ROLES` in `routes/settings.tsx` (role dropdown, invite dialog).
+  - Sidebar: hide Procurement & Stores section from the officer (Finance and HR already hidden by `canViewFinancials`).
+  - Dashboard: separate `OfficerDashboard()` component with no data hooks, rendering only a welcome message.
+  - Topbar: global search extracted into a separate `GlobalSearch()` component; it's only mounted for non-officers (since they cannot read store data).
+  - Route guard in `auth-gate.tsx`: Admissions Officer allowlist (`"/"` and `"/settings"`). Any other route redirects to `/`. Guard checks both `pathname` and `resolvedLocation` to prevent blocked pages from mounting data-fetching hooks.
+  - Settings: six tabs hidden from the officer (`documents`, `tax`, `inventory`, `expenses`, `notifications`, `security`). `documents`, `inventory` and `expenses` load store tables; `tax`, `notifications` and `security` read `business_settings`.
+  - Settings "Roles & permissions" note updated to mention five roles.
+- **Scripts:**
+  - `seed-local-dev-staff.sh`: a fifth dev account, `dev-admissions@tcs.test`, role Admissions Officer. Added to CLAUDE.md's dev-accounts table.
+  - `role-matrix.sh`: updated to support six roles. Fixed `-- expect:` parsing to handle spaces inside role names (`Admissions Officer`), trimming around commas only.
+- **Role-matrix probes:**
+  - `supabase/role-matrix/20260929130000_admissions_officer_role.sql` (new): 30 probes proving the officer reads only its own staff row, `branches`, and `list_staff_names()`. Denied on all finance, payroll, HR and storage tables/functions.
+  - `supabase/role-matrix/20260929110000_allowlist_guards_regression.sql` (re-run with sixth column): five existing columns unchanged; officer ✗ on 96 of 100 probes, ✓ on only 4 (`is_active_staff()`, `read branches`, `read staff`, `read staff: own row`).
+  - `supabase/role-matrix/20260929110000_allowlist_guards_new_surface.sql` (re-run): officer included in `list_staff_names()` probes (3), all pass.
+  - `supabase/role-matrix/campuses-main-annex.sql` (re-run): officer added to both campus-read probes.
+
+**Verification:**
+
+- Five-column regression proof: all five existing probe files re-run after removing the officer column; output byte-identical to a baseline run with the committed (five-role) script and committed probe files on the pre-migration schema. Confirmed independently by test-runner.
+- Officer column accuracy: exactly 4 of 100 regression probes pass for the officer (the four named above); denied on stores, finance, payroll, HR, `can_write()`, all 28 `require_writable_role()` RPCs, `compute_day_totals`.
+- New probe file 20260929130000: all 30 probes match expected results (officer sees only own row, branches, staff names; signup with role 'Admissions Officer' lands as that role; 'Janitor' rejected; missing role → Attendant; `staff_role_check` refuses 'Janitor').
+- Catalog diff (before/after migration): only `staff_role_check` constraint and `handle_new_staff_signup` body changed; no grants, policies or other changes.
+- PAYE independence: officer test fixtures (9e1b0000- ids, year 2090) all rolled back; payroll counts unchanged.
+- lint: 0 errors. `tsc`, `vite build`, duplicate-overload check all pass.
+- `database.types.ts`: types regen shows only pre-existing helper formatting drift; `role` stays `text`, no type change.
+- Browser smoke test (Playwright, local dev, `dev-admissions@tcs.test`): visiting `/`, all visible Settings tabs, and direct loads of `/pos`, `/inventory`, `/payroll`, `/expenses`, `/customers`, `/staff`, `/employees`, `/banking`, `/purchasing`, `/accounting`, `/reports`, `/sales` — the only requests were `staff`, `branches`, `notifications`, `business_settings` (406, RLS) and `rpc/staff_sign_in_status`; no store, finance or HR table. All 12 routes redirected to `/`. Attendant and Manager (control): no redirects, search, Stores nav and all 13 Settings tabs unchanged. A first run caught blocked `/pos` page still loading right after redirect (router renders old match until new one resolves); fixed by checking `resolvedLocation` and re-verified.
+- code-reviewer: no blocking findings.
+
+**Deviations from PORT-PLAN 1b-ii text (built as described, intentionally):**
+
+- Dashboard: a separate component (`OfficerDashboard`) with no data hooks, not the full dashboard with some KPIs hidden.
+- Settings tabs: exactly six tabs hidden (`documents`, `tax`, `inventory`, `expenses`, `notifications`, `security`), not the three named in the plan text.
+- Route guard: checks both `location.pathname` and `resolvedLocation.pathname` (the latter to prevent the blocked page mounting while the redirect is in flight).
+- `role-matrix.sh` `-- expect:` parsing: fixed to handle spaces in role names, trimming only around commas.
+
+**Open items / not verified:**
+
+- **Officer inactivity auto-logout never arms:** `InactivityWatcher` reads `business_settings.session_timeout_minutes`. The officer gets a 406 (RLS), so `sessionTimeoutMinutes` stays `null`, and `useInactivityLogout` treats `null` as "don't arm". Not fixed: a fix needs a new narrow read (e.g. a SECURITY DEFINER function returning only the timeout) = a new permission, Eyram's decision. Not blocking now (the officer can see nothing sensitive yet) but must be fixed before slice 3–4 gives the officer admissions or health data.
+- **Missing role in signup metadata still defaults to Attendant:** `handle_new_staff_signup` silently defaults a missing `role` metadata field to Attendant. This is intentional (seed paths and the script both create users without a role and set it afterwards), but Eyram to confirm.
+- Route guards for the other four roles: still not built (existing open item).
+- **Not end-to-end verified:** invite-staff Edge Function change was not exercised end-to-end (no local email invite run); the officer's Staff tab calls `rpc/staff_sign_in_status` (Manager-only), which errors for the officer the same way it does for Attendant today; nothing was run against a hosted project.
+
+**Pending, for Eyram:**
+
+- Review the slice.
+- No commit yet; this session's changes are uncommitted.
+- The hosted project gets the migration only when Eyram runs `npx supabase db push`.
+- The invite-staff Edge Function change takes effect in production only when Eyram runs `npx supabase functions deploy invite-staff`.
