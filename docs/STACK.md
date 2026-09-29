@@ -71,5 +71,9 @@ environment of the Cloudflare build step, not as Worker runtime secrets.
 See CONSTRAINTS.md / DESIGN.md.
 
 Backend stays on hosted Supabase (its own dedicated TCS project — see
-CONSTRAINTS.md). The eventual fold-in to TCS OS's Cloud Run setup is still
-a known future event (PLANNING.md), not affected by this.
+CONSTRAINTS.md). The old plan to fold this into TCS OS's Cloud Run setup
+was reversed on 2026-09-29. This stack is the long-term one, and TCS OS
+(Django on Cloud Run) is being retired into it (PLANNING.md). Its
+Django, Cloud Tasks, and WeasyPrint pieces are not adopted here.
+Admissions' equivalents (background email, server-side documents) get
+chosen fresh for this stack in `docs/admissions/PORT-PLAN.md`.

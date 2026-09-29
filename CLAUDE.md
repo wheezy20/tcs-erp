@@ -9,9 +9,9 @@ before starting work; they are the source of truth, not this file.
 
 | File | What it covers |
 |---|---|
-| `docs/PLANNING.md` | What TCS ERP is, the phase plan, what's in scope vs deferred. |
+| `docs/PLANNING.md` | What TCS ERP is, the phase plan (Phase 2 = Admissions, ported from TCS OS), what's in scope vs deferred. |
 | `docs/STACK.md` | Tech choices (frontend, backend, tooling, hosting) and open questions. |
-| `docs/CONSTRAINTS.md` | Non-negotiables and limitations — data safety, statutory accuracy, solo-dev workflow, the eventual TCS OS merge. |
+| `docs/CONSTRAINTS.md` | Non-negotiables and limitations — data safety, statutory accuracy, solo-dev workflow, retiring TCS OS into this repo (admissions port, hand-migrated real records, domain redirect). |
 | `docs/DESIGN.md` | Backend/architectural conventions the schema and RLS actively depend on. |
 | `docs/JOURNAL.md` | Running dated log of decisions and milestones, newest at the bottom. |
 

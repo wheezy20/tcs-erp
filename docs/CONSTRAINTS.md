@@ -36,6 +36,12 @@ Things that shape how this gets built, not just what gets built.
       — done, `20260916` (see docs/JOURNAL.md).
 - [ ] A true 48×48 favicon (currently downscaled) and a dark-mode
       logomark variant are still outstanding — see docs/JOURNAL.md.
+- [ ] Admissions cutover (Phase 2, see PLANNING.md). TCS OS's ~3 real
+      admissions records, and their attached Storage files, are
+      hand-migrated into this project's hosted Supabase and checked
+      against the TCS OS originals. admissions.tcsch.edu.gh then
+      redirects to this ERP. TCS OS is shut down only after both are
+      done and confirmed.
 
 ## Data safety
 
@@ -46,6 +52,12 @@ Things that shape how this gets built, not just what gets built.
   rebrand, no live connection exists either way — `supabase/config.toml`
   only sets a local Docker container name — but this needs to stay true
   as deployment gets set up.
+- **This project must never connect to TCS OS's Supabase project
+  either.** Three hosted Supabase projects exist across Eyram's work:
+  this one, Wilelik's, and TCS OS's. Admissions
+  data comes across by a reviewed, one-off hand migration (see below),
+  never by pointing this app's URL/keys at TCS OS's database or
+  buckets, and never by sharing a connection string.
 - `supabase/seed.sql` currently contains **Wilelik's dummy retail data**
   (building-materials products, Ghanaian customer/supplier names) plus TCS
   demo people. It is **local-dev only** — `config.toml`'s `[db.seed]
@@ -144,17 +156,25 @@ DESIGN.md. When adding a new table, decide which of these four it's for
 and gate it with the matching predicate; don't invent a fifth role or a
 per-table role check.
 
+**Open as of 2026-09-29 (admissions port):** TCS OS's admissions has
+staff shapes that none of the four roles covers cleanly: an admissions
+officer, the `can_decide` holder, and grade-band coordinators scoped to
+Preschool/Primary/JHS applicants. Whether that justifies a fifth role,
+or can be modelled as a narrower grant layered on an existing role, is
+an **unresolved decision for Eyram**, tracked in
+`docs/admissions/PORT-PLAN.md`. Until it's decided, the "don't invent a
+fifth role" rule above still stands. No admissions slice gets to add
+one on its own authority.
+
 ## Architecture
 
 - Design for **single-campus** operation now (TCS has one campus), but
   keep `branch_id` on every relevant table anyway — same discipline
   Wilelik already used for its own single-branch-first rollout. This
   avoids a restructuring project if TCS ever opens a second campus.
-- The eventual **merge into TCS OS** (Django + Supabase + Cloud Run) is
-  a known future event, not a hypothetical. Avoid one-off hacks or
-  undocumented schema decisions here that would make that merge harder
-  than it needs to be — the DESIGN.md conventions exist partly for this
-  reason.
+- **This ERP is the target system; TCS OS is being retired into it**
+  (reversed 2026-09-29; the old plan was to merge this ERP into TCS OS).
+  See the "TCS OS retirement & admissions port" section below.
 
 ## HR expansion beyond payroll (as of 20260919)
 
@@ -176,6 +196,56 @@ that were never functioning anywhere. If/when one of these becomes real,
 the source spreadsheet's own tab (`05 LEAVE`, `06 KPI & PERFORMANCE`,
 `07 TRAINING`, `08 DISCIPLINARY`, `09 EXIT & OFFBOARDING`) is the
 reference for field names and dropdown enums to start from.
+
+## TCS OS retirement & admissions port (as of 2026-09-29)
+
+Direction reversed on 2026-09-29: **TCS OS (Django, `~/projects/tcs-os`)
+is retired into this ERP**, not the other way round. See PLANNING.md and
+docs/JOURNAL.md.
+
+- **TCS OS is read-only reference.** Sessions in this repo never edit,
+  migrate, deploy, or run management commands in `~/projects/tcs-os`.
+  Its `docs/` (especially `docs/admissions/` and `docs/DESIGN.md`'s
+  payroll section) are the source of truth for the business rules
+  being ported. Read them, cite them, and don't rewrite them.
+- **Port the logic, not the code.** Django models, views, admin
+  actions, and Cloud Tasks wiring don't carry over. Each rule gets
+  re-expressed with this repo's conventions (DESIGN.md): plpgsql RPCs,
+  RLS, and server-forced identity columns. When a TCS OS rule is
+  enforced in `Model.save()`, the port has to enforce it in the
+  database (an RPC or trigger), not in the React client.
+- **HR and Finance are not ported.** TCS OS's versions came from this
+  repo. Its verified payroll parity results (Emmanuel Ansah, basic
+  6,500 → net 5,008.37; Abena Konadu Owusu and Yaw Darko Asamoah
+  matched to the cent) are carried back as **regression-test cases**
+  for `create_payslip()`. Its untested paths (allowances, overtime,
+  fines, IOU, higher PAYE bands) are carried back as **known coverage
+  gaps**, not assumed correct.
+- **Real admissions data: ~3 records, migrated by hand.** They go into
+  this project's own hosted Supabase project, along with any attached
+  documents in TCS OS's Storage buckets. This is a one-off, reviewed
+  step run by Eyram: a script or SQL run by hand against
+  production, never something wired into `supabase db push`,
+  `seed.sql`, or `seed.production.sql`. These records include real
+  child health information and guardian contact details, so their
+  contents never go into docs, the journal, commit messages, test
+  fixtures, or chat transcripts.
+- **admissions.tcsch.edu.gh must keep working until cutover.** It stays
+  served by TCS OS's Cloud Run deployment until the ERP's admissions
+  reaches parity. At cutover it becomes a **redirect** to this ERP's
+  public admissions routes rather than being turned off. Links already
+  sent to parents must keep resolving: offer accept/decline tokens,
+  application save-and-resume drafts, and bulk-email unsubscribe links
+  (RFC 8058 one-click POST included). Either those tokens migrate with
+  their records, or TCS OS keeps honouring them until they expire; the
+  port plan decides which. Separately, TCS OS's own journal records
+  that `app.tcsch.edu.gh` gets repointed from Cloud Run to this ERP.
+  Both are DNS/infra steps Eyram runs.
+- TCS OS stays live and unmodified until cutover. **Proposed, not yet
+  confirmed:** don't have both systems accepting new admissions
+  submissions at the same time. A second set of real records would
+  have to be reconciled by hand. The port plan's cutover slice settles
+  this.
 
 ## Ghana-specific context worth keeping in mind
 

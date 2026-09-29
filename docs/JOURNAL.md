@@ -2610,3 +2610,53 @@ size, and has the right magic bytes" is not evidence a generated
 document is correct — only opening it and looking is. Applies to any
 future binary-output feature (exports, other document types), not just
 this one.
+
+## 2026-09-29 — Direction reversed: TCS OS retires into this ERP; Admissions becomes Phase 2
+
+Eyram decided outside this repo (TCS OS records it in its own
+`docs/JOURNAL.md`, same date) that the planned merge now runs the
+other way. **TCS OS (Django + Supabase + Cloud Run,
+`~/projects/tcs-os`) is being retired, and its logic ported into this
+ERP.** Until now, PLANNING.md, CONSTRAINTS.md, STACK.md, and CLAUDE.md
+all described this ERP eventually folding *into* TCS OS. All four are
+updated in this session. The reason, per TCS OS's entry: TCS's staff
+are non-technical, and this ERP's UI was preferred over what Django
+could deliver without a lot of custom frontend work.
+
+What it means here:
+
+- **HR and Finance: nothing to port.** TCS OS's `hr`/`finance` modules
+  were ported *from* this repo, including the corrected Tier 2 scheme
+  and per-band PAYE rounding. What does come back is TCS OS's parity
+  evidence, as future regression cases: Emmanuel Ansah (basic 6,500 →
+  net 5,008.37), Abena Konadu Owusu, and Yaw Darko Asamoah, all matched
+  to the cent. Also its recorded coverage gaps: allowances, overtime,
+  fines, IOU, and higher PAYE bands, which were never exercised.
+- **Admissions is the real port.** It's live in production on TCS OS
+  at admissions.tcsch.edu.gh, with about 3 real records. It's now
+  PLANNING.md's **Phase 2: Admissions (ported from TCS OS)**. Only the
+  logic comes across. Models, views, and templates get rewritten for
+  plpgsql RPCs, RLS, and TanStack routes.
+- **The 3 real records get migrated by hand** into this project's own
+  hosted Supabase project, with their attached Storage files. It's a
+  one-off step Eyram runs. This ERP never points at TCS OS's database
+  or buckets. The records hold real child health data, so their
+  contents stay out of docs, commits, and fixtures.
+- **admissions.tcsch.edu.gh must keep working until cutover**, and then
+  redirect to this ERP instead of going dark. Tokens in emails parents
+  already have (offer, draft-resume, unsubscribe) must keep resolving.
+  TCS OS also notes `app.tcsch.edu.gh` gets repointed here. Both DNS
+  steps are Eyram's to run.
+- **`~/projects/tcs-os` is read-only** from this repo's sessions.
+
+Two conflicts surfaced and flagged in the docs rather than decided:
+TCS OS models two campuses (Main and Annex, with per-campus capacity),
+against PLANNING.md's "TCS is single-campus" non-goal; and admissions'
+staff shapes (officer, decider, grade-band coordinators) don't fit the
+four-role model, against CONSTRAINTS.md's "don't invent a fifth role".
+Both go to `docs/admissions/PORT-PLAN.md` as open decisions.
+
+Docs only: no code, schema, or migration changes this session. Next,
+in separately reviewed steps: port TCS OS's five subagents plus a
+push/deploy-blocking hook, and write the slice loop into CLAUDE.md.
+Then write `docs/admissions/PORT-PLAN.md`.
