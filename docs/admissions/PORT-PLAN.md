@@ -25,9 +25,9 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | # | Slice | Status | Depends on |
 |---|---|---|---|
 | 0 | Payroll regression carry-back (SQL probes for `create_payslip`) | not started | — |
-| 1 | Campuses: make a second branch safe, seed Main + Annex | built, committed (3f40807) | — |
-| 1b-i | Allowlist guards, can_read_store(), staff read, list_staff_names(), compute_day_totals, regression matrix | committed (030234d) | 1 |
-| 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | committed (7e8de8d) | 1b-i |
+| 1 | Campuses: make a second branch safe, seed Main + Annex | committed (slice 1, campuses) | — |
+| 1b-i | Allowlist guards, can_read_store(), staff read, list_staff_names(), compute_day_totals, regression matrix | committed (slice 1b-i, allowlist guards) | 1 |
+| 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | committed (slice 1b-ii, Admissions Officer role) | 1b-i |
 | 1c | Session timeout readable by every staff role | built, awaiting Eyram's review (uncommitted) | 1b-ii |
 | 2 | Admissions grade reference data + capabilities layer | not started | 1c |
 | 3 | Core admissions schema + staff RLS (no health, no documents) | not started | 2 |
@@ -142,7 +142,7 @@ These come from reading the code. Where a doc and the code disagree, the plan fo
 
 **ERP-side findings that shape the plan:**
 
-- **13 frontend call sites pick "the" branch with `.from("branches").select(...).limit(1).single()` and no `order by`.** They're in `frontend/src/data/` (`payroll-store.ts:329`, `employees-store.ts:297`, `expenses-store.ts:91`, `invoice-store.ts:130`, `pos-store.ts:167`, `customer-store.ts:60`, `inventory-store.ts:122`, `end-of-day-store.ts:149`, `purchasing-store.ts:176`, `suppliers-store.ts:65`, `pro-forma-store.ts:93`, `held-sales-store.ts:127`, `branch-store.ts:32`). The plan first counted 14. The 14th, `inventory-store.ts:197`, is `setDefaultThreshold`'s `branches` UPDATE keyed by the id from `:122`, not a lookup, so fixing `:122` fixes it. Re-verified against HEAD `bd5e9ec` on 2026-09-29. Once a second branch row exists, which branch payroll, expenses and invoices write to is undefined. The unique key `payroll_runs (branch_id, month, year)` (`20260908070000_payroll_schema.sql:183`) could then split a month's run across campuses. The database side already picks deterministically: `handle_new_staff_signup` and `post_journal_entry` use `order by created_at limit 1`. **Slice 1 fixes this before any Annex row exists.**
+- **13 frontend call sites pick "the" branch with `.from("branches").select(...).limit(1).single()` and no `order by`.** They're in `frontend/src/data/` (`payroll-store.ts:329`, `employees-store.ts:297`, `expenses-store.ts:91`, `invoice-store.ts:130`, `pos-store.ts:167`, `customer-store.ts:60`, `inventory-store.ts:122`, `end-of-day-store.ts:149`, `purchasing-store.ts:176`, `suppliers-store.ts:65`, `pro-forma-store.ts:93`, `held-sales-store.ts:127`, `branch-store.ts:32`). The plan first counted 14. The 14th, `inventory-store.ts:197`, is `setDefaultThreshold`'s `branches` UPDATE keyed by the id from `:122`, not a lookup, so fixing `:122` fixes it. Re-verified on 2026-09-29 against the then-HEAD commit "Enable RLS on deposit_number_counters and revoke anon". Once a second branch row exists, which branch payroll, expenses and invoices write to is undefined. The unique key `payroll_runs (branch_id, month, year)` (`20260908070000_payroll_schema.sql:183`) could then split a month's run across campuses. The database side already picks deterministically: `handle_new_staff_signup` and `post_journal_entry` use `order by created_at limit 1`. **Slice 1 fixes this before any Annex row exists.**
 - **No server functions and no Worker `env` access exist today.** There's no `createServerFn` or `*.server.ts` in `frontend/src`, and `frontend/src/server.ts` only wraps SSR errors. The only Edge Function is `supabase/functions/invite-staff` (CORS `*`, SMTP via nodemailer, `index.ts:42-83`). `supabase/config.toml` has no `[functions.*]` blocks. `pg_cron` and `pg_net` are available but not installed locally (`pg_available_extensions`).
 - **Local and production branch names differ.** Locally the one branch is `Ho Main Branch` (id `…0001`, from `seed.sql`). `seed.production.sql` creates `Treasures Christian School`.
 
@@ -377,7 +377,7 @@ Adds the fifth role on top of 1b-i's allowlists. It ships before any admissions 
 - **(b) Missing role defaults to Attendant.** `handle_new_staff_signup` still defaults a missing `role` metadata field to Attendant (seed paths and local-dev scripts rely on it). An explicit unlisted role is now rejected. Tighten it (reject a missing role) once the seed paths (supabase/seed.sql, scripts/seed-local-dev-staff.sh) pass a role explicitly.
 - Route guards for the other four roles are still not built (existing open item).
 
-**Gates:** all permissions (the officer's `branches` read, own `staff` row and `list_staff_names()`) decided 2026-09-29 (D-1b-b, D-1b-d, decisions 4–7 above). Committed (7e8de8d).
+**Gates:** all permissions (the officer's `branches` read, own `staff` row and `list_staff_names()`) decided 2026-09-29 (D-1b-b, D-1b-d, decisions 4–7 above). Committed as slice 1b-ii (Admissions Officer role).
 
 **Size:** one small migration, one Edge Function line, a frontend pass (role type, dropdown, sidebar, Dashboard, topbar, route guard, Settings tabs), two script edits, a new 30-probe file, and the five existing probe files re-run with the sixth column.
 

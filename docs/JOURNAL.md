@@ -3010,7 +3010,8 @@ table preamble saying "none is decided here"; reworded to match.
 files in `frontend/src/data/` have `from("branches")…limit(1).single()`
 with no `order by`. The earlier count was 14; the 14th,
 `inventory-store.ts:197`, is an UPDATE keyed by the id from `:122`, not a
-lookup. Verified against HEAD `bd5e9ec`. The DB side already orders
+lookup. Verified against the then-HEAD commit "Enable RLS on
+deposit_number_counters and revoke anon". The DB side already orders
 (`order by created_at limit 1` in 6 migration functions).
 
 **Slice 1 run through the slice loop.** An implementation existed
@@ -3251,7 +3252,7 @@ this slice. The hosted project gets the 2026 set only when Eyram runs
 
 ## 2026-09-29 — Admissions slice 1b-ii: Admissions Officer role
 
-**Adds the fifth staff role on top of 1b-i's allowlist guards.** Slice 1b was split on 2026-09-29 into 1b-i (guards only, committed 030234d) and 1b-ii (the role). The role reaches nothing until admissions tables exist (slice 3 onward). All decisions (D-1b-b, D-1b-d and others 4–7 from PORT-PLAN.md) confirmed 2026-09-29.
+**Adds the fifth staff role on top of 1b-i's allowlist guards.** Slice 1b was split on 2026-09-29 into 1b-i (guards only, committed as slice 1b-i, allowlist guards) and 1b-ii (the role). The role reaches nothing until admissions tables exist (slice 3 onward). All decisions (D-1b-b, D-1b-d and others 4–7 from PORT-PLAN.md) confirmed 2026-09-29.
 
 **Built:**
 
