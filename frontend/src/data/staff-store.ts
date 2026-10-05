@@ -39,14 +39,16 @@ function setState(next: StaffState) {
 }
 
 let loadPromise: Promise<void> | null = null;
+let generation = 0;
 
-async function loadStaff() {
+async function loadStaff(gen: number) {
   const [staffResult, statusResult] = await Promise.all([
     supabase.from("staff").select("*").order("name"),
     supabase.rpc("staff_sign_in_status"),
   ]);
   if (staffResult.error) throw staffResult.error;
   if (statusResult.error) throw statusResult.error;
+  if (gen !== generation) return;
 
   const pendingIds = new Set(
     (statusResult.data ?? [])
@@ -64,7 +66,9 @@ async function loadStaff() {
 
 function ensureLoaded() {
   if (!loadPromise) {
-    loadPromise = loadStaff().catch((err) => {
+    const gen = generation;
+    loadPromise = loadStaff(gen).catch((err) => {
+      if (gen !== generation) return;
       loadPromise = null;
       setState({
         ...state,
@@ -82,7 +86,34 @@ async function reload() {
   await ensureLoaded();
 }
 
+// What the caller may read depends on who is signed in, so when the signed-in
+// user changes (a different user signs in, or everyone signs out) the previous
+// user's copy is dropped. Supabase also emits SIGNED_IN when a tab regains
+// focus with the same session, so the user id is compared, not the event.
+// The generation counter discards a load that was started for the previous
+// user and finishes late.
+let watchingAuth = false;
+let lastUserId: string | null | undefined;
+function watchAuth() {
+  if (watchingAuth) return;
+  watchingAuth = true;
+  supabase.auth.onAuthStateChange((_event, session) => {
+    const userId = session?.user?.id ?? null;
+    if (lastUserId === undefined) {
+      lastUserId = userId;
+      return;
+    }
+    if (userId === lastUserId) return;
+    lastUserId = userId;
+    generation += 1;
+    loadPromise = null;
+    setState({ staff: [], pendingIds: new Set(), loading: true, error: null });
+    if (listeners.size > 0) ensureLoaded().catch(() => {});
+  });
+}
+
 function subscribe(listener: () => void) {
+  watchAuth();
   listeners.add(listener);
   ensureLoaded();
   return () => listeners.delete(listener);

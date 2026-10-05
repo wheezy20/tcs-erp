@@ -50,12 +50,12 @@ The HR items deferred in CONSTRAINTS.md stay deferred.
 
 ## Phase 2: Admissions (ported from TCS OS)
 
-**Status:** slice 1 (campuses) committed. Slice 1b split:
+**Status:** slice 1 (campuses) committed and deployed. Slice 1b split:
 1b-i (allowlist guards, can_read_store, list_staff_names, regression matrix)
-committed; 1b-ii (Admissions Officer role) committed.
-Slice 1c (session timeout readable by every staff role) built, awaiting Eyram's review.
-Slice 2 (admissions grade reference data and capabilities layer) not started.
-Decision batches recorded 2026-09-29 (D-2g, D-1b-a/b/c/d confirmed).
+committed and deployed; 1b-ii (Admissions Officer role) committed and deployed.
+Slice 1c (session timeout readable by every staff role) committed and deployed.
+Slice 2 (admissions grade reference data and capabilities layer) built, awaiting Eyram's review (uncommitted).
+Decision batches recorded 2026-09-29 (D-2g, D-1b-a/b/c/d confirmed) and 2026-10-05 (O-1 to O-9 confirmed).
 
 Porting TCS OS's live admissions module: inquiries, applications,
 documents, decisions/offers/enrolment gating, reference numbering,

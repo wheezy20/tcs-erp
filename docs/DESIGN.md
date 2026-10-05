@@ -624,6 +624,32 @@ depend on them holding true for every new table/function added.
   Asset Management, Analytics & BI, or anything else TCS eventually
   needs) gets its own new top-level section here the same way, once it's
   an actual route — never an empty/placeholder nav entry pointing nowhere.
+- **Admissions capabilities layer: side table, RPC-only writes, enforced
+  on both sides (admissions slice 2, `20261005100000`).** Capabilities
+  (`staff_admissions_capabilities`) narrow or unlock actions inside
+  admissions on top of the role: `can_decide` (Manager or Admissions
+  Officer), `grade_bands` and `all_grades` (Admissions Officer only),
+  `can_view_health` (any role). Written only through `set_admissions_capabilities()` RPC
+  (active Manager only), never by direct table insert/update. Who-may-hold
+  is enforced on both sides: (1) a check trigger on the capabilities table
+  itself (before insert/update), and (2) a guard trigger on `staff` (before
+  role update) that refuses changing to a role incompatible with an
+  existing capability — the member must clear it first. Deactivating a
+  staff member clears the row via trigger. No row means nothing granted.
+  Empty rows forbidden by check constraint. An all-empty state deletes the
+  row. Bands resolve live from the grade applied for (`applications
+  .year_group_applied_for`), never stored per application, and grade →
+  band comes only from `admissions_grades` (a generated column from
+  `classification_code`). `all_grades` can't be combined with a non-empty
+  `grade_bands` (D-2g); an officer may hold neither. The three predicates
+  (`admissions_grade_band()`, `admissions_grade_visible()`,
+  `has_admissions_capability()`) are SECURITY DEFINER, stable, pinned
+  `search_path`, revoked from public/anon and granted to `authenticated`
+  and `service_role`. Every change is audited via
+  trigger with a new audit action `admissions_capabilities_changed`.
+  Full-state-replacement RPCs keyed by existing row (e.g. `p_staff_id`
+  names a current staff member, not a client-chosen new id) are not
+  "create" functions, so create-can't-overwrite does not apply.
 - **The anon surface is SECURITY DEFINER functions only (codified
   2026-09-29).** Onboarding (`20260921100000`) set the pattern, and the
   admissions port's public forms will lean on it heavily. `anon` never
@@ -710,7 +736,15 @@ depend on them holding true for every new table/function added.
   AuthGate that checks only `location.pathname` would mount the blocked page
   and fire its data hooks for that brief moment. Check `resolvedLocation.pathname`
   too (the route whose components are actually rendered) to prevent it
-  (`auth-gate.tsx`).
+  (`auth-gate.tsx`). (3) **Stores whose contents depend on the signed-in user
+  reset when the user id changes.** A data store subscribed to table reads from
+  the database (e.g. `staff-store.ts`, `admissions-capabilities-store.ts`) may
+  hold data for a previous user if a tab switches users without closing. Both
+  stores watch auth state and compare the signed-in user id with the last one
+  (Supabase also emits SIGNED_IN on a tab refocus with the same user, so the
+  event alone isn't enough); when it differs, the store clears and a load
+  started for the old user is discarded by a generation counter. This prevents a slow previous-user load from completing
+  late and polluting the current user's state.
 
 ## Branding
 

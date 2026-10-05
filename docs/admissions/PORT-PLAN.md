@@ -28,8 +28,8 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 1 | Campuses: make a second branch safe, seed Main + Annex | committed (slice 1, campuses) | — |
 | 1b-i | Allowlist guards, can_read_store(), staff read, list_staff_names(), compute_day_totals, regression matrix | committed (slice 1b-i, allowlist guards) | 1 |
 | 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | committed (slice 1b-ii, Admissions Officer role) | 1b-i |
-| 1c | Session timeout readable by every staff role | built, awaiting Eyram's review (uncommitted) | 1b-ii |
-| 2 | Admissions grade reference data + capabilities layer | not started | 1c |
+| 1c | Session timeout readable by every staff role | committed (slice 1c, session timeout read) | 1b-ii |
+| 2 | Admissions grade reference data + capabilities layer | built, awaiting Eyram's review (uncommitted) | 1c |
 | 3 | Core admissions schema + staff RLS (no health, no documents) | not started | 2 |
 | 4 | Health info (health gate) + documents metadata + private bucket | not started | 3 |
 | 5 | Reference numbering + stage transitions + notes/document review RPCs | not started | 4 |
@@ -166,7 +166,7 @@ These come from reading the code. Where a doc and the code disagree, the plan fo
 
 **Admissions grade reference (slice 2).** One table, `admissions_grades`, replaces TCS OS's hand-kept `STUDENT_ID_CLASSIFICATION` and the `GRADE_BANDS` derived from it (`models.py:24-52`), so the two can't drift apart. Columns: `name`, `position`, `classification_code` (`01`–`04`, null for none), `band` (`preschool` | `primary` | `jhs` | null), `is_preschool_vaccination_required`, `is_active`.
 
-It's seeded in the migration because it's entity-wide reference data. The seed is the 14 TCS OS grades: Pre Nursery, Nursery 1, Nursery 2 and KG 1–2 are preschool (codes `01` and `02`); Grades 1–6 are primary (`03`); Grades 7–9 are JHS (`04`). **No SHS rows get a code**, following the `TODO(SHS)` at `models.py:16-23`. `applications.year_group_applied_for` stays `text`, so free-text "Other" grades still round-trip and resolve to no band. That's the same pattern as `employees.position`.
+It's seeded in the migration because it's entity-wide reference data. The seed is the 14 TCS OS grades: Pre Nursery, Nursery 1, Nursery 2, Kindergarten 1 and Kindergarten 2 are preschool (codes `01` and `02`); Grades 1–6 are primary (`03`); Grades 7–9 are JHS (`04`). **No SHS rows get a code**, following the `TODO(SHS)` at `models.py:16-23`. `applications.year_group_applied_for` stays `text`, so free-text "Other" grades still round-trip and resolve to no band. That's the same pattern as `employees.position`.
 
 **Roles and capabilities (slices 1b and 2). Decided 2026-09-29.**
 
@@ -427,7 +427,28 @@ Each capability case is a separate probe that raises when the boolean is wrong. 
 
 **Decisions:** D-2a, D-2c, D-2d, D-2e and D-2f are decided. D-2b is superseded by the fifth-role decision and its revised capability holders. D-2g is decided (an explicit `all_grades` flag). Nothing is open before this slice starts.
 
-**Size:** one migration of 2 tables, 4 functions and 2 triggers, one small Settings panel, and about 20 probes.
+### Decisions (2026-10-05)
+
+Built and confirmed as recommended:
+
+- **O-1.** Deactivating a staff member clears their admissions access (audited as a change by the deactivating Manager).
+- **O-2.** Grade name matching in `admissions_grade_band()` ignores case and extra whitespace.
+- **O-3.** No SHS rows in the seed (no classification_code yet); decide Grades 10–12 in slice 8.
+- **O-4.** Predicates are executable by every staff role, not anon. The RPC is active-Manager-only.
+- **O-5.** Unknown capability name raises in `has_admissions_capability()`.
+- **O-6.** `can_view_health` is not offered in the UI to Attendant and Accountant unless revoking an existing grant; the DB stays permissive.
+- **O-7.** All-empty row deletes the row; empty rows are forbidden by check.
+- **O-8.** An Accountant reading capability changes via the existing `audit_log` policy is accepted.
+- **O-9.** No guard prevents a Manager from revoking their own `can_decide`.
+
+Also confirmed (2026-09-29, built in slice 2):
+
+- **D-2b-revised.** `can_decide` only Manager/Officer; `grade_bands` and `all_grades` only Officer; `can_view_health` any role.
+- **D-2g.** `all_grades` can't be combined with a non-empty `grade_bands` (an officer may hold neither).
+
+Gates confirmed by Eyram (2026-10-05): the new reads (capability rows: own row for every active staff member, all rows for Manager and Auditor; `admissions_grades` for Manager, Auditor and Admissions Officer); the Accountant reading capability changes through the existing `audit_log` policy; a Manager's role change refused while a disallowed capability is held; the predicates executable by every staff role, not anon.
+
+**Size (as built):** one migration (2 tables, 10 functions, 5 triggers, one `audit_log_action_check` value), a Staff-tab column with a Manager dialog, and 87 probes in two files.
 
 ## Slice 3 — Core admissions schema and staff RLS (no health, no documents)
 

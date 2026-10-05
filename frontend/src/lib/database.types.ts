@@ -87,6 +87,39 @@ export type Database = {
           },
         ]
       }
+      admissions_grades: {
+        Row: {
+          band: string | null
+          classification_code: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          is_preschool_vaccination_required: boolean
+          name: string
+          position: number
+        }
+        Insert: {
+          band?: string | null
+          classification_code?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_preschool_vaccination_required?: boolean
+          name: string
+          position: number
+        }
+        Update: {
+          band?: string | null
+          classification_code?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_preschool_vaccination_required?: boolean
+          name?: string
+          position?: number
+        }
+        Relationships: []
+      }
       allowance_types: {
         Row: {
           branch_id: string
@@ -3454,6 +3487,51 @@ export type Database = {
           },
         ]
       }
+      staff_admissions_capabilities: {
+        Row: {
+          all_grades: boolean
+          can_decide: boolean
+          can_view_health: boolean
+          grade_bands: string[]
+          granted_by: string | null
+          staff_id: string
+          updated_at: string
+        }
+        Insert: {
+          all_grades?: boolean
+          can_decide?: boolean
+          can_view_health?: boolean
+          grade_bands?: string[]
+          granted_by?: string | null
+          staff_id: string
+          updated_at?: string
+        }
+        Update: {
+          all_grades?: boolean
+          can_decide?: boolean
+          can_view_health?: boolean
+          grade_bands?: string[]
+          granted_by?: string | null
+          staff_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_admissions_capabilities_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_admissions_capabilities_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: true
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       statutory_rates: {
         Row: {
           created_at: string
@@ -3678,6 +3756,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _admissions_capability_holder_problem: {
+        Args: {
+          p_all_grades: boolean
+          p_can_decide: boolean
+          p_grade_bands: string[]
+          p_role: string
+        }
+        Returns: string
+      }
       _payroll_run_unaccounted: {
         Args: { p_run_id: string }
         Returns: {
@@ -3741,6 +3828,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      admissions_grade_band: { Args: { p_grade: string }; Returns: string }
+      admissions_grade_visible: { Args: { p_grade: string }; Returns: boolean }
       approve_employee: {
         Args: {
           p_account_no?: string
@@ -4664,6 +4753,10 @@ export type Database = {
         }[]
       }
       get_session_timeout_minutes: { Args: never; Returns: number }
+      has_admissions_capability: {
+        Args: { p_capability: string }
+        Returns: boolean
+      }
       has_role: { Args: { p_roles: string[] }; Returns: boolean }
       import_bank_statement_lines: {
         Args: { p_bank_account_id: string; p_lines: Json }
@@ -5508,6 +5601,16 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_admissions_capabilities: {
+        Args: {
+          p_all_grades: boolean
+          p_can_decide: boolean
+          p_can_view_health: boolean
+          p_grade_bands: string[]
+          p_staff_id: string
+        }
+        Returns: undefined
       }
       set_employee_status: {
         Args: { p_employee_id: string; p_status: string }

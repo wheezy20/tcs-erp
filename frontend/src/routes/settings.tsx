@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { PrintableInvoice } from "@/components/print/printable-invoice";
 import { PrintableReceipt } from "@/components/print/printable-receipt";
+import { AdmissionsAccessDialog } from "@/components/settings/admissions-access-dialog";
 import { ListEditor } from "@/components/settings/list-editor";
 import { useTheme } from "@/components/theme-provider";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  reloadAdmissionsCapabilities,
+  summarizeCapabilities,
+  useAdmissionsCapabilities,
+} from "@/data/admissions-capabilities-store";
 import { isAdmissionsOfficer, useAuth, type StaffRole } from "@/data/auth-store";
 import { useCurrentBranch } from "@/data/branch-store";
 import { setExpenseCategories, useExpenses } from "@/data/expenses-store";
@@ -1076,22 +1082,30 @@ function StaffSection() {
   const { staff: roster, pendingIds, loading } = useStaff();
   const { staff: currentStaff } = useAuth();
   const isManager = currentStaff?.role === "Manager";
+  const { byStaffId: capabilities } = useAdmissionsCapabilities();
+  // RLS shows every member's admissions access to a Manager or Auditor, and
+  // only your own to anyone else; other rows show "—", not "None".
+  const seesAllAccess = isManager || currentStaff?.role === "Auditor";
   const [resendingId, setResendingId] = useState<string | null>(null);
 
   function onRoleChange(id: string, role: StaffRole) {
     setStaffRole(id, role).catch((err) => {
       toast.error("Could not update role", {
-        description: err instanceof Error ? err.message : String(err),
+        description: getErrorMessage(err, "Could not update role."),
       });
     });
   }
 
   function onActiveChange(id: string, active: boolean) {
-    setStaffActive(id, active).catch((err) => {
-      toast.error("Could not update status", {
-        description: err instanceof Error ? err.message : String(err),
+    setStaffActive(id, active)
+      // Deactivating clears the member's admissions access in the database.
+      // The status change is committed either way, so a failed refresh is ignored.
+      .then(() => reloadAdmissionsCapabilities().catch(() => {}))
+      .catch((err) => {
+        toast.error("Could not update status", {
+          description: getErrorMessage(err, "Could not update status."),
+        });
       });
-    });
   }
 
   async function onResend(id: string, email: string) {
@@ -1125,6 +1139,7 @@ function StaffSection() {
                 <th className="pb-2 pr-4 font-medium">Email</th>
                 <th className="pb-2 pr-4 font-medium">Role</th>
                 <th className="pb-2 pr-4 font-medium">Active</th>
+                <th className="pb-2 pr-4 font-medium">Admissions access</th>
                 {isManager && <th className="pb-2 pr-4 font-medium">Status</th>}
               </tr>
             </thead>
@@ -1181,6 +1196,23 @@ function StaffSection() {
                         />
                       )}
                     </td>
+                    <td className="py-3 pr-4">
+                      {seesAllAccess || member.id === currentStaff?.id ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">
+                            {summarizeCapabilities(capabilities.get(member.id))}
+                          </span>
+                          {isManager && member.active && (
+                            <AdmissionsAccessDialog
+                              member={member}
+                              current={capabilities.get(member.id)}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                     {isManager && (
                       <td className="py-3 pr-4">
                         {pending ? (
@@ -1211,9 +1243,14 @@ function StaffSection() {
           </table>
         </div>
       )}
-      {!isManager && (
+      {isManager ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          Only a Manager can change roles or deactivate staff.
+          Deactivating a staff member also clears their admissions access. A role change is refused
+          while they hold admissions access the new role can't hold; clear it first.
+        </p>
+      ) : (
+        <p className="mt-4 text-sm text-muted-foreground">
+          Only a Manager can change roles, deactivate staff or change admissions access.
         </p>
       )}
     </Card>

@@ -3367,3 +3367,122 @@ restriction on `business_settings`.
 
 - Eyram reviews the slice.
 - Not committed; `npx supabase db push` is Eyram's step.
+
+## 2026-10-05 — Admissions slice 2: grade reference data and capabilities layer
+
+Eyram approved the slice 2 plan, confirmed its four gates and accepted O-1
+to O-9 as recommended (2026-10-05; recorded in PORT-PLAN.md slice 2).
+
+**Gates confirmed:**
+
+1. New reads: capability rows (own row for every active staff member; all
+   rows for Manager and Auditor) and `admissions_grades` (Manager, Auditor,
+   Admissions Officer).
+2. The Accountant can read capability changes through the existing
+   `audit_log` policy.
+3. A Manager's role change is refused while the member holds a capability
+   the new role can't hold.
+4. The three predicates are executable by every staff role, not anon.
+
+**Built:** migration `20261005100000_admissions_grades_and_capabilities.sql`.
+
+- **`admissions_grades`:** the 14 TCS OS grades. `band` is a generated
+  column from `classification_code`, so the two can't drift. The
+  vaccination flag is set on the five preschool grades. There is a
+  case-insensitive unique name, and no SHS rows (O-3). Manager, Auditor and
+  Admissions Officer can read it; nobody writes it except by migration.
+  - **Correction to PORT-PLAN:** the TCS OS names are "Kindergarten 1/2",
+    not "KG 1–2".
+- **`staff_admissions_capabilities`:** `staff_id` is the primary key and
+  cascades from `staff`. The columns are `can_decide`, `can_view_health`,
+  `grade_bands`, `all_grades`, and the server-forced `granted_by` and
+  `updated_at`.
+  - **Checks:** only the three band names, each at most once; `all_grades`
+    can't be combined with a band list (D-2g); no all-empty row (O-7).
+  - **RLS:** a member reads their own row; Manager and Auditor read every
+    row.
+  - **Grants:** `authenticated` has select only; `anon` has nothing.
+- **Who may hold what:** one helper holds the rules, enforced in three
+  places:
+  - the capabilities table's own trigger, which locks the holder's staff
+    row with `for share`;
+  - a trigger on `staff` role changes, which refuses a change until the
+    capability is cleared;
+  - the RPC.
+- **Deactivation:** deactivating a member clears their row (O-1).
+- **`set_admissions_capabilities()`:** active Manager only, and self-grant
+  is allowed.
+  - It replaces the member's full state, with no defaults.
+  - It validates the bands and refuses grants to inactive members.
+  - An all-empty call deletes the row; an identical call writes nothing.
+- **Audit:** a trigger writes `audit_log` action
+  `admissions_capabilities_changed`, with `before`/`after` values plus the
+  holder's role and name. Writes with no signed-in actor aren't audited.
+  The `audit_log_action_check` gains only the new value.
+- **Predicates:** `admissions_grade_band()` ignores case and extra
+  whitespace (O-2). `admissions_grade_visible()` and
+  `has_admissions_capability()` follow; an unknown capability name raises
+  (O-5).
+  - All three are SECURITY DEFINER and stable, with `search_path` pinned.
+  - They are revoked from public and anon, and granted to `authenticated`
+    and `service_role`.
+- **Frontend:**
+  - **Settings → Staff:** a new "Admissions access" column. A Manager sees
+    every member with a Manage dialog; an Auditor sees every member
+    read-only; anyone else sees their own row and "—" for the rest.
+  - **The dialog:** it offers only what the member's role may hold, and
+    `can_view_health` only where it has an effect or is being revoked
+    (O-6). The database stays the authority.
+  - **Error handling:** the role and active handlers use
+    `getErrorMessage()`. A failed refresh after a committed write is no
+    longer reported as a failed write.
+  - **`staff-store.ts`:** it now drops its data when the signed-in user
+    changes, as the new capabilities store does. Since slice 1b-ii an
+    officer sees only their own staff row, so switching users in the same
+    tab had left the next user with that one-row roster.
+- **Probes:** `…_admissions_grades_and_capabilities.sql` (57) and
+  `…_predicates.sql` (30). Fixture ids are `9e020000-`.
+
+**Verification:**
+
+- The seven existing probe files are byte-identical (all six columns) with
+  and without the migration; test-runner reproduced this independently.
+  - The new files pass 57/57 and 30/30.
+  - The catalog diff is additions plus `audit_log_action_check` gaining
+    exactly one value.
+  - The anon-executable function count is unchanged.
+- **Mutation checks** by test-runner: each of five deliberate breakages
+  made the right probe fail. The five were dropping either holding
+  trigger, opening `admissions_grade_visible` to the Attendant, removing
+  the role check from 'decide', and removing the no-op guard.
+- **Browser (Playwright):**
+  - **Manager:** a dialog grant is stored and audited. A refused role
+    change shows the guard's message and leaves the role unchanged.
+    Deactivating clears the row, and reactivating doesn't restore it.
+  - **Officer:** fetches only its allowed requests plus
+    `staff_admissions_capabilities`, and sees only its own row.
+  - **Auditor:** sees every row, read-only.
+  - **Attendant and Accountant:** see their own row and "—" for the rest.
+  - **Same-tab user switch** (officer → Manager): the roster and access
+    are correct.
+  - **A simulated tab refocus** causes no reload.
+- **Fixes after review:**
+  - **Non-blocking:** stale per-user caches; a refresh failure reported as
+    a write failure; `getErrorMessage()`; grade trimming now covers tabs
+    and newlines (probe F2 gained that case); a comment on the cascade
+    audit skip.
+  - **From the re-review:** reset only on a real user change, plus a
+    generation guard.
+- Lint (0 errors), tsc, build and the overload check pass.
+- **Bug in my harness loops, earlier slices included:** `echo
+  "$(basename $f) exit=$?"` printed 0 regardless, because the command
+  substitution resets `$?`. Failures were still caught by grepping the
+  outputs and comparing against baselines. Exit codes are captured
+  correctly now.
+
+**Pending (Eyram's steps):**
+
+1. Review. Not committed.
+2. `npx supabase db push`.
+3. Deploy the frontend.
+4. Grant the real officer's capabilities in Settings → Staff.

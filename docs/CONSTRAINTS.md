@@ -191,11 +191,11 @@ DESIGN.md). When adding a new table, decide which roles it's for and
 gate it with the matching predicate. Don't hand-roll a per-table role
 check.
 
-**A fifth role, Admissions Officer, is built locally (2026-09-29, slice
-1b-ii)** in migration `20260929130000` and the frontend. It's awaiting
-Eyram's review and not yet committed or deployed. This is a **deliberate, confirmed exception**
-to the earlier "don't invent a fifth role" rule, and it supersedes the same day's
-earlier decision to model admissions as capabilities on the four roles alone.
+**A fifth role, Admissions Officer** (slice 1b-ii, migration `20260929130000`,
+committed and deployed) is a **deliberate, confirmed exception** to the
+earlier "don't invent a fifth role" rule, and it supersedes the same day's (2026-09-29)
+earlier decision to model admissions as capabilities on the four roles alone. Real
+Admissions Officer and Accountant accounts exist in the hosted project.
 
 The reason is that none of the four fits an admissions coordinator:
 
@@ -257,8 +257,10 @@ for a role. Each is **ungranted by default**: granting one is a
 deliberate human decision by an active Manager, audited, never a
 migration default. That's the same rule TCS OS followed for
 `can_decide`, `can_view_health_info` and `can_send_bulk_email`. The
-storage shape (a side table) is decided and recorded in PORT-PLAN.md,
-and goes into DESIGN.md when built.
+capabilities layer (side table `staff_admissions_capabilities`, with
+`set_admissions_capabilities()` RPC, predicates and audit trigger) is
+built in admissions slice 2 (uncommitted, awaiting Eyram's review) and
+documented in DESIGN.md.
 
 ## Architecture
 
