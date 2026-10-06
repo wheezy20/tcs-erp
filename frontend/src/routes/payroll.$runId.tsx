@@ -771,11 +771,22 @@ function PostRunDialog({
       ssnitEmployer: a.ssnitEmployer + p.ssnitEmployer,
       tier2: a.tier2 + p.tier2,
       paye: a.paye + p.tax,
+      overtimeTax: a.overtimeTax + p.overtimeTax,
       fines: a.fines + p.fines,
       iou: a.iou + p.iou,
       net: a.net + p.netPay,
     }),
-    { gross: 0, ssnit: 0, ssnitEmployer: 0, tier2: 0, paye: 0, fines: 0, iou: 0, net: 0 },
+    {
+      gross: 0,
+      ssnit: 0,
+      ssnitEmployer: 0,
+      tier2: 0,
+      paye: 0,
+      overtimeTax: 0,
+      fines: 0,
+      iou: 0,
+      net: 0,
+    },
   );
   // Descriptions mirror exactly what post_payroll_run() will actually
   // write onto each journal_lines row, so this preview and the posted
@@ -839,6 +850,14 @@ function PostRunDialog({
       debit: 0,
       credit: sums.paye,
       description: `PAYE withheld — ${period}`,
+    },
+    {
+      key: "2330o",
+      code: "2330",
+      name: "PAYE Payable (overtime tax)",
+      debit: 0,
+      credit: sums.overtimeTax,
+      description: `Overtime tax withheld — ${period}`,
     },
     {
       key: "1350",
@@ -1011,8 +1030,8 @@ function GeneratePayslipDialog({
         <DialogHeader>
           <DialogTitle>Generate payslip — {employeeName}</DialogTitle>
           <DialogDescription>
-            Basic salary, SSNIT, Tier 2 and PAYE are computed server-side from this employee's
-            approved pay config. Adjust the month-specific figures below.
+            Basic salary, SSNIT, Tier 2, PAYE and any overtime tax are computed server-side from
+            this employee's approved pay config. Adjust the month-specific figures below.
           </DialogDescription>
         </DialogHeader>
 
@@ -1039,6 +1058,10 @@ function GeneratePayslipDialog({
               />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Extra-class payments are entered here as overtime: the number of classes as hours and
+            the fee per class as the rate.
+          </p>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">

@@ -18,7 +18,7 @@ const money = (n: number) => currencyPrecise(n);
 /** A4 payslip, laid out to mirror the columns of the payroll Google Sheet
  * it replaces: Basic Salary, allowances (Extra Classes etc.), Overtime,
  * Total Earning / Gross Salary, Taxable Income, then the deduction stack
- * (Tax, Tier 2, SSNIT, Fines, IOU) and Net Pay. */
+ * (Tax, Overtime tax, Tier 2, SSNIT, Fines, IOU) and Net Pay. */
 export function PrintablePayslip({
   payslip,
   meta,
@@ -45,6 +45,9 @@ export function PrintablePayslip({
 
   const deductions: [string, number][] = [
     ["PAYE (income tax)", payslip.tax],
+    ...(payslip.overtimeTax > 0
+      ? ([["Overtime tax", payslip.overtimeTax]] as [string, number][])
+      : []),
     ["Tier 2 (5%)", payslip.tier2],
     ["SSNIT (0.5%)", payslip.ssnit],
     ...(payslip.fines > 0 ? ([["Fines", payslip.fines]] as [string, number][]) : []),
@@ -112,6 +115,11 @@ export function PrintablePayslip({
           <Row label="Taxable income" value={money(payslip.taxableIncome)} align="right" />
         </tbody>
       </table>
+      {payslip.overtimeConcession && (
+        <p style={{ margin: "4px 0 0", color: "#555", fontSize: "9.5px" }}>
+          Overtime is taxed separately at the concessionary rate and is not part of taxable income.
+        </p>
+      )}
 
       <div
         style={{

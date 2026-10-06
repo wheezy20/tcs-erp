@@ -61,6 +61,12 @@ export type Payslip = {
   grossSalary: number;
   taxableIncome: number;
   tax: number;
+  /** Concessionary overtime tax (20261006100000) — snapshot at generation,
+   * part of totalDeductions. 0 unless overtimeConcession. */
+  overtimeTax: number;
+  /** The concession was applied: overtime was taxed on its own and left out
+   * of taxableIncome. */
+  overtimeConcession: boolean;
   tier2: number;
   ssnit: number;
   /** Employer's 13% SSNIT contribution — snapshot at generation, gated on
@@ -100,6 +106,15 @@ export type StatutoryRates = {
   effectiveFrom: string;
 };
 
+export type OvertimeTaxRates = {
+  id: string;
+  effectiveFrom: string;
+  qualifyingAnnualBasicMax: number;
+  overtimeCapPctOfBasic: number;
+  rateWithinCapPct: number;
+  rateAboveCapPct: number;
+};
+
 export type PayeBand = {
   id: string;
   effectiveFrom: string;
@@ -126,6 +141,7 @@ type PayslipRow = Database["public"]["Tables"]["payslips"]["Row"] & {
 type AllowanceTypeRow = Database["public"]["Tables"]["allowance_types"]["Row"];
 type RatesRow = Database["public"]["Tables"]["statutory_rates"]["Row"];
 type BandRow = Database["public"]["Tables"]["paye_bands"]["Row"];
+type OvertimeTaxRatesRow = Database["public"]["Tables"]["overtime_tax_rates"]["Row"];
 
 const num = (v: number | string | null | undefined) => Number(v ?? 0);
 
@@ -174,6 +190,8 @@ function mapPayslip(row: PayslipRow): Payslip {
     grossSalary: num(row.gross_salary),
     taxableIncome: num(row.taxable_income),
     tax: num(row.tax),
+    overtimeTax: num(row.overtime_tax),
+    overtimeConcession: row.overtime_concession,
     tier2: num(row.tier2),
     ssnit: num(row.ssnit),
     ssnitEmployer: num(row.ssnit_employer),
@@ -213,6 +231,17 @@ function mapRates(row: RatesRow): StatutoryRates {
   };
 }
 
+function mapOvertimeTaxRates(row: OvertimeTaxRatesRow): OvertimeTaxRates {
+  return {
+    id: row.id,
+    effectiveFrom: row.effective_from,
+    qualifyingAnnualBasicMax: num(row.qualifying_annual_basic_max),
+    overtimeCapPctOfBasic: num(row.overtime_cap_pct_of_basic),
+    rateWithinCapPct: num(row.rate_within_cap_pct),
+    rateAboveCapPct: num(row.rate_above_cap_pct),
+  };
+}
+
 function mapBand(row: BandRow): PayeBand {
   return {
     id: row.id,
@@ -233,6 +262,7 @@ type PayrollState = {
   allowanceTypes: AllowanceType[];
   rates: StatutoryRates[];
   bands: PayeBand[];
+  overtimeTaxRates: OvertimeTaxRates[];
   loading: boolean;
   error: string | null;
 };
@@ -244,6 +274,7 @@ let state: PayrollState = {
   allowanceTypes: [],
   rates: [],
   bands: [],
+  overtimeTaxRates: [],
   loading: true,
   error: null,
 };
@@ -258,21 +289,23 @@ function setState(next: PayrollState) {
 let loadPromise: Promise<void> | null = null;
 
 async function loadPayroll() {
-  const [runs, payslips, exclusions, allowanceTypes, rates, bands] = await Promise.all([
-    supabase
-      .from("payroll_runs")
-      .select("*, staff!payroll_runs_created_by_fkey(name)")
-      .order("year", { ascending: false }),
-    supabase
-      .from("payslips")
-      .select("*, employees(name), payslip_allowances(*, allowance_types(name))"),
-    supabase.from("payroll_run_exclusions").select("*, employees(name)"),
-    supabase.from("allowance_types").select("*").order("position"),
-    supabase.from("statutory_rates").select("*").order("effective_from", { ascending: false }),
-    supabase.from("paye_bands").select("*").order("band_order"),
-  ]);
+  const [runs, payslips, exclusions, allowanceTypes, rates, bands, overtimeTaxRates] =
+    await Promise.all([
+      supabase
+        .from("payroll_runs")
+        .select("*, staff!payroll_runs_created_by_fkey(name)")
+        .order("year", { ascending: false }),
+      supabase
+        .from("payslips")
+        .select("*, employees(name), payslip_allowances(*, allowance_types(name))"),
+      supabase.from("payroll_run_exclusions").select("*, employees(name)"),
+      supabase.from("allowance_types").select("*").order("position"),
+      supabase.from("statutory_rates").select("*").order("effective_from", { ascending: false }),
+      supabase.from("paye_bands").select("*").order("band_order"),
+      supabase.from("overtime_tax_rates").select("*").order("effective_from", { ascending: false }),
+    ]);
 
-  for (const r of [runs, payslips, exclusions, allowanceTypes, rates, bands]) {
+  for (const r of [runs, payslips, exclusions, allowanceTypes, rates, bands, overtimeTaxRates]) {
     if (r.error) throw r.error;
   }
 
@@ -283,6 +316,7 @@ async function loadPayroll() {
     allowanceTypes: (allowanceTypes.data as AllowanceTypeRow[]).map(mapAllowanceType),
     rates: (rates.data as RatesRow[]).map(mapRates),
     bands: (bands.data as BandRow[]).map(mapBand),
+    overtimeTaxRates: (overtimeTaxRates.data as OvertimeTaxRatesRow[]).map(mapOvertimeTaxRates),
     loading: false,
     error: null,
   });

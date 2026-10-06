@@ -121,11 +121,11 @@ depend on them holding true for every new table/function added.
 
 - **Effective-dated config instead of mutable single rows.** Employee pay
   configuration (`employee_pay_config`), statutory rates
-  (`statutory_rates`), and PAYE bands (`paye_bands`) are all
-  effective-dated (`effective_from`/`effective_to`) rather than a row
-  that gets updated in place. A payslip references the config row that
-  was active at the time it was generated, so a later raise or rate
-  correction never silently rewrites a historical payslip.
+  (`statutory_rates`), PAYE bands (`paye_bands`), and overtime tax rates
+  (`overtime_tax_rates`) are all effective-dated (`effective_from`/`effective_to`)
+  rather than a row that gets updated in place. A payslip references the
+  config row that was active at the time it was generated, so a later raise
+  or rate correction never silently rewrites a historical payslip.
 - **Flexible allowance system, not fixed columns.** `allowance_types`
   (a school-editable list — Extra Classes, Transport, etc., each flagged
   taxable or not) + `employee_allowances` (standing per-employee defaults) +
@@ -166,6 +166,17 @@ depend on them holding true for every new table/function added.
   named amount), so it stays as its own `overtime_hours` /
   `overtime_rate` /computed `overtime_pay` fields directly on the
   payslip.
+- **Concessionary overtime tax** (GRA overtime rule, migrations
+  `20261006100000` and `20261006110000`): an effective-dated scalar row
+  picked by payroll month from `overtime_tax_rates`, the same pattern as
+  `statutory_rates` but a missing row means no concession rather than an
+  error. The first row (threshold 18,000, cap 50%, rates 5% and 10%,
+  effective 2026-10-01) is its own migration. Decision is made once per
+  payslip (a rate row for the run month, `pays_paye`, overtime as shown on
+  the payslip > 0, and
+  basic × 12 at or under `qualifying_annual_basic_max`), and both the
+  decision and the tax are snapshotted on `payslips.overtime_concession`
+  and `overtime_tax`. Separate Cr 2330 line on posting.
 - **Per-employee statutory exemption flags.** `pays_ssnit`, `pays_tier2`,
   `pays_paye` on `employee_pay_config`, independently toggleable — covers
   National Service personnel and any other temporary/contract staff who
@@ -234,15 +245,15 @@ depend on them holding true for every new table/function added.
   are omitted (a zero-amount `journal_lines` row violates
   `journal_lines_has_amount`). Payroll's mapping: Dr `5140` gross; Cr
   `2300` net (payable — accrued, not disbursed); Cr `2310`/`2320`/`2330`
-  SSNIT / Tier 2 / PAYE withheld; Cr `1350` IOU (repayment reduces the
-  advance asset — the counterpart to `post_expense_journal_entry()`
-  debiting `1350` for a "Staff advances" expense); Cr `4910` fines. The
-  employer's 13% SSNIT contribution (`payslips.ssnit_employer`,
-  snapshotted by `create_payslip()` on the same `pays_ssnit` flag) posts
-  as a self-balancing pair on top — Dr `5145` Employer SSNIT Contribution
-  / Cr `2310` SSNIT Payable — so `2310` carries both the withheld employee
-  portion and the employer portion, and total staffing cost reads as
-  `5140 + 5145` (`20260909120000`).
+  SSNIT / Tier 2 / PAYE withheld; Cr `2330` overtime tax withheld (separate
+  line, `20261006100000`); Cr `1350` IOU (repayment reduces the advance asset
+  — the counterpart to `post_expense_journal_entry()` debiting `1350` for a
+  "Staff advances" expense); Cr `4910` fines. The employer's 13% SSNIT
+  contribution (`payslips.ssnit_employer`, snapshotted by `create_payslip()`
+  on the same `pays_ssnit` flag) posts as a self-balancing pair on top —
+  Dr `5145` Employer SSNIT Contribution / Cr `2310` SSNIT Payable — so
+  `2310` carries both the withheld employee portion and the employer portion,
+  and total staffing cost reads as `5140 + 5145` (`20260909120000`).
 - **Multi-row RPC input is `jsonb`, not a composite-type array.**
   `create_payslip(p_allowances jsonb)` follows `create_invoice()` /
   `create_sale()`'s `p_lines jsonb` convention — `jsonb_array_elements` in

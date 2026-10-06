@@ -88,6 +88,9 @@ export async function downloadPayslipPdf(
 
   const deductions: [string, string][] = [
     ["PAYE (income tax)", money(payslip.tax)],
+    ...(payslip.overtimeTax > 0
+      ? ([["Overtime tax", money(payslip.overtimeTax)]] as [string, string][])
+      : []),
     ["Tier 2 (5%)", money(payslip.tier2)],
     ["SSNIT (0.5%)", money(payslip.ssnit)],
   ];
@@ -134,6 +137,15 @@ export async function downloadPayslipPdf(
   doc.text(money(payslip.totalEarning), right, ty, { align: "right" });
   doc.text("Taxable income", margin, ty + 5);
   doc.text(money(payslip.taxableIncome), right, ty + 5, { align: "right" });
+  if (payslip.overtimeConcession) {
+    doc.setFontSize(8);
+    doc.text(
+      "Overtime is taxed separately at the concessionary rate and is not part of taxable income.",
+      margin,
+      ty + 10,
+    );
+    ty += 5;
+  }
 
   ty += 12;
   doc.setDrawColor(210);

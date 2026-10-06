@@ -3486,3 +3486,132 @@ to O-9 as recommended (2026-10-05; recorded in PORT-PLAN.md slice 2).
 2. `npx supabase db push`.
 3. Deploy the frontend.
 4. Grant the real officer's capabilities in Settings → Staff.
+
+## 2026-10-06 — Overtime tax slice (migration A): concessionary overtime engine, no rate row
+
+Eyram approved the plan. TCS's accountant has accepted the GRA overtime
+concession; written confirmation is pending. This reverses two 2026-09-29
+decisions (the concession not applying to TCS, and extra classes staying a
+taxable allowance) and the 2026-09-18 "New flag" entry. Those entries stay
+as written; CONSTRAINTS.md now records the reversal as "reported by Eyram
+2026-10-06, written confirmation pending".
+
+The rule as decided: the qualifying test is basic salary only, that month's
+basic × 12, before SSNIT and Tier 2, with overtime and allowances excluded.
+"Not more than": exactly 18,000 qualifies, and overtime of exactly 50% of
+basic stays at 5%. Overtime up to 50% of monthly basic is taxed at 5%, the
+excess at 10%, and overtime stays out of the PAYE base. Above the threshold
+nothing changes. `pays_paye = false` (including National Service) means no
+overtime tax. Extra-class payments are entered as overtime. Eyram's other
+accepted defaults: qualification is computed per payslip (no stored flag);
+overtime tax posts as its own Cr 2330 line; the "Extra Classes"
+allowance type stays. Rounding (Eyram, later the same day): overtime tax
+is worked from the overtime amount as shown on the payslip (rounded to
+2 dp), not the unrounded hours × rate; the cap is round(basic × 50%);
+each of the two tax parts is rounded to 2 dp; PAYE rounding is
+unchanged.
+
+**Built (migration A only), `20261006100000_overtime_tax_engine.sql`:**
+- `overtime_tax_rates`: effective-dated, one row per date, picked by
+  payroll month. A missing row means no concession (not an error). Access
+  as `paye_bands`: Manager, Accountant and Auditor read; Manager and
+  Accountant write; anon nothing. **No row is shipped.** The row (figures
+  and effective date) is a later migration, after the written confirmation
+  and Eyram's confirmation of the numbers.
+- `payslips.overtime_tax` (default 0) and `overtime_concession` (default
+  false), with checks. No backfill.
+- `create_payslip()` and `post_payroll_run()`: `create or replace`, same
+  signatures. With the table empty both behave exactly as before.
+- Frontend: overtime tax on the payslip screen, print and PDF (with a note
+  when the concession applied); a separate 2330 line in the posting
+  preview; the concession on the Payroll → Setup card; hint text in the
+  payslip dialog for entering extra classes as overtime; regenerated types.
+- `supabase/role-matrix/20261006100000_overtime_tax_engine.sql`, 28 probes:
+  table access and checks, "no row shipped" (A9, which the rate-row
+  migration must update), oracle cases A–M plus K2 through
+  `create_payslip()` under a fixture row, two posting probes, and posted
+  payslips.
+
+**Verification:**
+- Before the migration, a local dataset of 21 payslips across a Posted, a
+  Ready for Review and a Draft run (with overtime and an allowance) was
+  created through the real RPCs. After `supabase migration up`, an md5 of
+  every pre-existing column of `payslips`, `payslip_allowances`,
+  `payroll_runs`, `journal_entries` and `journal_lines` was identical.
+  Posting the Ready for Review run gave identical journal lines.
+  Regenerating the Draft run's payslips gave identical figures.
+- All 9 older probe files give byte-identical output with and without the
+  migration; the new file passes 28/28. Exit codes captured directly this
+  time.
+- Case M (3.5 h × 40.37 = 141.295, shown as 141.30) gives overtime tax
+  7.07. With the unrounded basis put back in the local database it gives
+  7.06 and only M fails; A–L and the older files are unchanged by the
+  rounding change. That mutant was not part of the test-runner's run,
+  which preceded the rounding change.
+- Test-runner: six mutants (overtime left in the PAYE base, `<` for `<=`,
+  `pays_paye` ignored, a single rate, no posting line, Attendant added to
+  the select policy) each turned the expected probes red. It recomputed
+  every oracle figure independently.
+- The catalog diff is additions plus the two function bodies. 169
+  functions anon can execute, unchanged.
+- Lint (0 errors), tsc, build and the overload check pass.
+- In the browser as Manager, with a local fixture row: payslip, PDF,
+  posting preview (balanced, 2330 overtime line), setup card and hint
+  text. With no row, the setup card says the concession is not in effect
+  (Manager and Auditor).
+- The code review found nothing blocking.
+
+## 2026-10-06 — Overtime tax slice: migration B (the 2026-10-01 rate row)
+
+Eyram confirmed the figures and effective date (threshold 18,000, cap
+share 50%, rates 5% and 10%, effective 2026-10-01); accountant approval
+reported by Eyram, written copy to be saved. This supersedes the earlier
+entry's "no row is shipped" and "28 probes".
+
+**Built:** `20261006110000_overtime_tax_rates_2026.sql`, one
+`overtime_tax_rates` row (`on conflict (effective_from) do nothing`).
+Payroll months from October 2026 get the concession; earlier months keep
+the old treatment. Payslips already generated are snapshots and are not
+recomputed.
+
+**Migration A, small changes since the earlier entry:**
+- The concession test now uses the overtime as shown on the payslip
+  (`round(hours x rate, 2) > 0`), so overtime that rounds to 0.00 no longer
+  sets the concession flag. This changes no oracle case.
+- Comment fixes: the previous `create_payslip()` definition is
+  `20260909130000`, and the header now points at migration B.
+
+**Probes** (`supabase/role-matrix/20261006100000_overtime_tax_engine.sql`,
+now 30):
+- A9 asserts exactly the shipped row.
+- Oracle cases A-O run under the real row with October 2026 runs. K is
+  September 2026 with the real row present (no concession); K2 has no row.
+- New B-N: each tax part is rounded separately (basic 1,200.20, overtime
+  600.15, tax 30.02; rounding only the sum gives 30.01). New B-O: the cap is
+  rounded (basic 1,000.19, overtime 500.10 exactly at the cap, tax 25.01;
+  an unrounded cap gives 25.00). The test-runner had found both mistakes
+  survived the 28-probe file.
+- Posting probes C1 and C2 now run October 2026 under the real row.
+
+**Verification:**
+- Clean reset with A and B: all 10 probe files pass. The overtime file
+  passes 30/30, and the 9 older files are byte-identical to their output
+  from before migration A.
+- Existing data: payroll data (Posted August, Ready for Review September,
+  Draft October with overtime, 21 payslips) was created through the real
+  functions before both migrations. After applying A and B, the checksum of
+  every pre-existing payroll and journal row is identical, and posting the
+  September run gives identical lines. Regenerating an October Draft
+  payslip (basic 1,200, overtime 400) picks up the concession (overtime tax
+  20.00).
+- Mutants, each caught by a probe: unrounded basis (B-M), sum-only
+  rounding (B-N), unrounded cap (B-O), `<` for `<=` (B-D), overtime left in
+  PAYE (ten probes), `pays_paye` ignored (B-I, B-J), no 2330 line (C1), the
+  row's above-cap rate changed to 11 (A9, B-B, B-G).
+- Test-runner brute force: 12,000 October 2026 payslips under the real row
+  matched an independent Decimal model, with net = gross - deductions on
+  every row. Non-qualifying cases, and 1,152 September 2026 payslips, were
+  identical to the pre-slice function.
+- Lint (0 errors), tsc, build, overload check and types diff pass. 169
+  functions anon can execute (unchanged); anon has no access to the table.
+- Code review: nothing blocking.

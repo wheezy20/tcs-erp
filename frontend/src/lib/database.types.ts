@@ -2248,6 +2248,36 @@ export type Database = {
         }
         Relationships: []
       }
+      overtime_tax_rates: {
+        Row: {
+          created_at: string
+          effective_from: string
+          id: string
+          overtime_cap_pct_of_basic: number
+          qualifying_annual_basic_max: number
+          rate_above_cap_pct: number
+          rate_within_cap_pct: number
+        }
+        Insert: {
+          created_at?: string
+          effective_from: string
+          id?: string
+          overtime_cap_pct_of_basic: number
+          qualifying_annual_basic_max: number
+          rate_above_cap_pct: number
+          rate_within_cap_pct: number
+        }
+        Update: {
+          created_at?: string
+          effective_from?: string
+          id?: string
+          overtime_cap_pct_of_basic?: number
+          qualifying_annual_basic_max?: number
+          rate_above_cap_pct?: number
+          rate_within_cap_pct?: number
+        }
+        Relationships: []
+      }
       paye_bands: {
         Row: {
           band_order: number
@@ -2478,9 +2508,11 @@ export type Database = {
           id: string
           iou: number
           net_pay: number
+          overtime_concession: boolean
           overtime_hours: number
           overtime_pay: number
           overtime_rate: number
+          overtime_tax: number
           payroll_run_id: string
           pdf_path: string | null
           ssnit: number
@@ -2502,9 +2534,11 @@ export type Database = {
           id?: string
           iou?: number
           net_pay: number
+          overtime_concession?: boolean
           overtime_hours?: number
           overtime_pay?: number
           overtime_rate?: number
+          overtime_tax?: number
           payroll_run_id: string
           pdf_path?: string | null
           ssnit?: number
@@ -2526,9 +2560,11 @@ export type Database = {
           id?: string
           iou?: number
           net_pay?: number
+          overtime_concession?: boolean
           overtime_hours?: number
           overtime_pay?: number
           overtime_rate?: number
+          overtime_tax?: number
           payroll_run_id?: string
           pdf_path?: string | null
           ssnit?: number
@@ -4430,9 +4466,11 @@ export type Database = {
           id: string
           iou: number
           net_pay: number
+          overtime_concession: boolean
           overtime_hours: number
           overtime_pay: number
           overtime_rate: number
+          overtime_tax: number
           payroll_run_id: string
           pdf_path: string | null
           ssnit: number

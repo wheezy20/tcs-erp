@@ -40,6 +40,8 @@ import {
   useQualifications,
   type RefListItem,
 } from "@/data/org-lists-store";
+import { currency } from "@/data/dashboard";
+import { formatDate } from "@/data/settings-store";
 import { getErrorMessage } from "@/lib/utils";
 
 export const Route = createFileRoute("/payroll/pay-config")({
@@ -52,13 +54,18 @@ export const Route = createFileRoute("/payroll/pay-config")({
 function PayrollSetupPage() {
   const { staff: currentStaff } = useAuth();
   const canWrite = canWriteFinancials(currentStaff?.role);
-  const { allowanceTypes, rates, bands, loading } = usePayroll();
+  const { allowanceTypes, rates, bands, overtimeTaxRates, loading } = usePayroll();
   const { providers } = usePaymentProviders();
   const { items: positions } = usePositions();
   const { items: departments } = useDepartments();
   const { items: qualifications } = useQualifications();
 
   const activeRates = rates[0];
+  // Newest first; the row create_payslip() would use for this month.
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const activeOvertimeRates = overtimeTaxRates.find((r) => r.effectiveFrom <= thisMonth);
+  const nextOvertimeRates = overtimeTaxRates.filter((r) => r.effectiveFrom > thisMonth).at(-1);
 
   if (loading) {
     return <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>;
@@ -74,11 +81,24 @@ function PayrollSetupPage() {
             employer · Tier 2 {activeRates.tier2EmployeePct}% employee · PAYE {bands.length}{" "}
             graduated band
             {bands.length === 1 ? "" : "s"}. <br />
+            {activeOvertimeRates ? (
+              <>
+                Overtime concession: basic salary up to{" "}
+                {currency(activeOvertimeRates.qualifyingAnnualBasicMax)} a year — overtime up to{" "}
+                {activeOvertimeRates.overtimeCapPctOfBasic}% of basic taxed at{" "}
+                {activeOvertimeRates.rateWithinCapPct}%, the excess at{" "}
+                {activeOvertimeRates.rateAboveCapPct}%, outside PAYE.
+              </>
+            ) : (
+              <>Overtime concession: not in effect; overtime is taxed as ordinary income.</>
+            )}
+            {nextOvertimeRates && <> Changes from {formatDate(nextOvertimeRates.effectiveFrom)}.</>}
+            <br />
             <span className="text-amber-600 dark:text-amber-500">
               SSNIT/Tier 2 rates confirmed against TCS's actual payroll practice; PAYE bands sourced
               from GRA's published table (gra.gov.gh) — see docs/CONSTRAINTS.md for the one noted
-              ambiguity (top-band threshold) and the still-open overtime/bonus tax treatment
-              question.
+              ambiguity (top-band threshold), the overtime concession awaiting the accountant's
+              written confirmation, and the still-open bonus tax treatment.
             </span>
           </p>
         ) : (

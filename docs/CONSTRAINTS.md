@@ -14,9 +14,13 @@ Things that shape how this gets built, not just what gets built.
       The new set is built in the repo and applied locally
       (`20260929120000_paye_bands_2026.sql`); the hosted project gets it
       on `npx supabase db push`. The Year 2024 set now governs only
-      payroll months before 2026-09. Overtime concession: decided
-      not applicable to TCS. Bonus rule: its own later slice. See "Statutory
-      accuracy" below.
+      payroll months before 2026-09. Overtime concession: applies to TCS
+      (accountant approval reported by Eyram, written copy to be saved);
+      engine built in `20261006100000_overtime_tax_engine.sql`; rate row
+      (threshold 18,000, cap share 50%, rates 5% and 10%, effective
+      2026-10-01) built in `20261006110000_overtime_tax_rates_2026.sql`.
+      The hosted project gets both on `npx supabase db push`. Bonus rule:
+      its own later slice. See "Statutory accuracy" below.
 - [ ] Confirm the SSNIT / Tier 2 split (0.5% / 13% / 5%) against an
       official SSNIT source — currently only confirmed verbally against
       the school's current practice (see "Statutory accuracy" below).
@@ -145,23 +149,33 @@ Things that shape how this gets built, not just what gets built.
   explicitly labeled "Exceeding 50,000.00" — GHS 50,000 is used as
   authoritative here, per GRA's literal stated threshold, not the arithmetic
   sum.
-- **The overtime concession does not apply to TCS (decided 2026-09-29,
-  confirmed by TCS's accountant).** GRA's concessionary overtime rate is
-  for qualifying junior employees only. Qualifying also requires annual
-  income of GHS 18,000 or less. TCS's overtime stays ordinary income
-  taxed on the graduated bands, which is what `create_payslip()` already
-  does. Don't build a concessionary overtime path. (This supersedes the
-  earlier "unconfirmed" flag, which quoted a GHS 800/month, 9,600/year
-  threshold from the Year 2024 notes.)
+- **The overtime concession applies to TCS (accountant approval reported by
+  Eyram, written copy to be saved; figures 18,000 / 50% / 5% / 10% and
+  effective date 2026-10-01 confirmed by Eyram 2026-10-06).** The
+  concessionary rule: qualifying test is basic salary only, measured per
+  month as basic × 12, before SSNIT and Tier 2, with overtime and
+  allowances excluded; "not more than" means exactly GHS 18,000 qualifies;
+  overtime up to 50% of monthly basic at 5%, excess at 10%, worked from
+  the overtime amount as shown on the payslip (2 dp), each part rounded to
+  2 dp; overtime stays out of the PAYE base; an employee with `pays_paye =
+  false` (including National Service staff) pays no overtime tax; SSNIT/Tier
+  2 stay on basic only, unchanged. The engine is
+  `20261006100000_overtime_tax_engine.sql`; the rate row (18,000 / 50% /
+  5% / 10%, effective 2026-10-01) is
+  `20261006110000_overtime_tax_rates_2026.sql`. Months before October 2026
+  keep the old treatment. Superseded: "The overtime concession does not
+  apply to TCS (decided 2026-09-29, confirmed by TCS's accountant) … Don't
+  build a concessionary overtime path."
 - **GRA's bonus rule is its own later slice (decided 2026-09-29), not
   built yet.** A bonus up to 15% of annual basic salary is taxed at a
   flat 5%. Any excess is added to employment income and taxed on the
   graduated bands. Until that slice lands, the engine has no bonus
   treatment.
-- **Extra classes stay a normal taxable allowance (decided 2026-09-29)**
-  until TCS's accountant confirms in writing how they're classified.
-  Don't give them special tax treatment without that written
-  confirmation.
+- **Extra-class payments are entered as overtime (Eyram, 2026-10-06;
+  accountant approval reported by Eyram, written copy to be saved).** Users
+  enter them as the number of classes in the overtime hours field and the
+  fee per class in the overtime rate field. (This supersedes the 2026-09-29
+  decision to keep them as a normal taxable allowance.)
 - Rates and bands are stored as **editable database rows, never
   hardcoded constants** — a correction or an annual update should be a
   data change, not a code deploy.
@@ -321,9 +335,10 @@ docs/JOURNAL.md.
   repo. Its verified payroll parity results (Emmanuel Ansah, basic
   6,500 → net 5,008.37; Abena Konadu Owusu and Yaw Darko Asamoah
   matched to the cent) are carried back as **regression-test cases**
-  for `create_payslip()`. Its untested paths (allowances, overtime,
-  fines, IOU, higher PAYE bands) are carried back as **known coverage
-  gaps**, not assumed correct.
+  for `create_payslip()`. Its untested paths (allowances, fines, IOU,
+  higher PAYE bands) are carried back as **known coverage gaps**, not
+  assumed correct. Overtime is now covered by the oracle probes in
+  `supabase/role-matrix/20261006100000_overtime_tax_engine.sql`.
 - **Real admissions data: ~3 records, migrated by hand.** They go into
   this project's own hosted Supabase project, along with any attached
   documents in TCS OS's Storage buckets. This is a one-off, reviewed
