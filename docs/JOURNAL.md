@@ -3743,3 +3743,54 @@ Verification:
   taken.
 - docs-updater worked from the diff and Eyram's instructions. Its PORT-PLAN
   table had wrong case inputs and statuses, which I rewrote.
+
+## 2026-10-07 — Overtime pay rounded to the printed figure
+
+Accountant confirmed (reported, written copy to be saved), reported by Eyram
+2026-10-07: for staff who do not qualify for the overtime concession,
+overtime enters the PAYE base at the amount printed on the payslip, rounded
+to 2 dp, not the exact hours × rate. 2.5 h × 40.05 = 100.125 is printed and
+taxed as 100.13, so PAYE on basic 1,900 in September 2026 is 211.34, not
+211.33.
+
+- Migration `20261007100000_overtime_pay_rounded.sql`: `create or replace`
+  of `create_payslip` with the same signature, `security definer` and
+  `search_path`; no grant changes. The one change is
+  `v_overtime_pay := round(hours × rate, 2)`. Gross, total earning, taxable
+  income, PAYE, total deductions and net pay all read that figure. The
+  concession test and overtime tax already used the rounded figure, so the
+  concession cases' figures are unchanged. Existing payslips, draft or
+  posted, are not recalculated. Hosted has no payroll runs (Eyram), so no
+  hosted payslip is affected.
+- Golden suite: the pending case Q-OT-UNR is now asserted as E-R1 (211.34,
+  deductions 315.84, net 1,684.29). New case E-R2: October 2026, basic
+  4,500 (no concession, 54,000 > 18,000), 1.5 h × 20.05 = 30.075 taxed as
+  30.08, PAYE 675.15 in the 25% band (675.14 unrounded), net 3,607.43.
+  PENDING cases now: Q-ALW-N, Q-ALW-MIX, Q-NSS-ALW, Q-POST-3.
+- Found while tracing overtime, not changed: hours, rate, allowance amounts,
+  fines and IOU with more than 2 dp are stored rounded but computed exact
+  (hours 2.555 at 40.00 prints "2.56h @ 40.00" beside 102.20; an allowance
+  of 100.125 enters PAYE unrounded). Recorded in CONSTRAINTS as an open
+  question for the accountant.
+
+Verification:
+- Before, fresh reset at `08d69dd`: all 10 role-matrix files and
+  `./scripts/golden-payslips.sh` exit 0.
+- The new golden file run against the old engine: only E-R1 and E-R2 red,
+  each on PAYE, deductions and net by one pesewa.
+- After, fresh reset with the migration: the golden suite passes (41 + 4
+  cases), and its output differs from the before run only by the two new
+  cases. The 10 role-matrix files are byte-identical to the before run.
+  The catalog definition of `create_payslip` differs by the one line; its
+  ACL is identical; one overload.
+- test-runner: lint, tsc, build and the overload check pass. The types
+  regen differs from the committed file only in helper-type parentheses
+  (no table, function or enum differs; no schema change in this slice).
+  It recomputed E-R1 and E-R2 from the live rows with no disagreement.
+  Four mutants each turned the suite red: unrounded overtime (E-R1, E-R2);
+  rounding gross only (E-R1, E-R2); truncating (E-M, E-R1, E-R2);
+  half-down (E-M, E-R1, E-R2). The concession cases E-A, E-B and GA-X1
+  stayed green under all four.
+- code-reviewer: no blocking findings.
+- docs-updater called this a schema change and missed the PORT-PLAN case
+  table and pending list; I corrected those.

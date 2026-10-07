@@ -247,7 +247,7 @@ Role and capability matrix (decided except where marked):
 **Decisions (made 2026-10-07):**
 
 - **D-0a (written off).** Abena Konadu Owusu and Yaw Darko Asamoah were dummy records. They are removed from the plan, with no pending cases.
-- **D-0b.** Moved from pending to asserted, accountant confirmed (reported, written copy to be saved), reported by Eyram 2026-10-07: fines and IOU repayments come off after tax and don't reduce taxable income, with no cap on total deductions; a PAYE amount of exactly half a pesewa rounds up; the contribution split (employee SSNIT 0.5%, employee Tier 2 5%, employer SSNIT 13%, employer Tier 2 0); no SSNIT contribution ceiling known to the accountant (high-earner cases); normal PAYE rates for non-qualifying overtime. Still PENDING (commented out): non-taxable allowances ("subject to GRA policy"; all allowances stay taxable until he names an exemption), non-qualifying overtime entering PAYE unrounded, a National Service payslip showing taxable income with no PAYE, and the posting accounts for fines (4910) and IOU (1350).
+- **D-0b.** Moved from pending to asserted, accountant confirmed (reported, written copy to be saved), reported by Eyram 2026-10-07: fines and IOU repayments come off after tax and don't reduce taxable income, with no cap on total deductions; a PAYE amount of exactly half a pesewa rounds up; the contribution split (employee SSNIT 0.5%, employee Tier 2 5%, employer SSNIT 13%, employer Tier 2 0); no SSNIT contribution ceiling known to the accountant (high-earner cases); normal PAYE rates for non-qualifying overtime; non-qualifying overtime enters the PAYE base at the printed amount (hours × rate rounded to 2 dp), asserted as probes E-R1 and E-R2. Still PENDING (commented out): non-taxable allowances ("subject to GRA policy"; all allowances stay taxable until he names an exemption), a National Service payslip showing taxable income with no PAYE, and the posting accounts for fines (4910) and IOU (1350).
 - **D-0c (decided yes).** The TCS OS hand-computed cases are in their own file, `payslips-tcsos-hand.sql`, labelled "TCS OS hand-computed, not ERP-confirmed".
 - **D-0d (decided).** The 2025-01-01 band set is asserted but labelled "current behaviour, not confirmed correct"; the accountant said only that the new bands apply from now. The 2026-09-01 set is what applies to the first real payroll.
 
@@ -1273,11 +1273,12 @@ The 400 case has SSNIT 2.00 and Tier 2 20.00. These carry the D-0c label.
 | S26-D | fines 100, IOU 250, both (basic 3,100); half-pesewa PAYE tie (449.225 to 449.23) | asserted; accountant confirmed (reported, written copy to be saved) |
 | S25 | 2025 band edges 490 to 60,000, an allowance edge, set picked by month, basic 2,000 | asserted; current behaviour, not confirmed correct |
 | E | Eyram's overtime figures (20.00 / 78.05 / 1,435.95; 50.00 / 1,805.95; 263.81 / 1,931.69; 3.5 h at 40.37 gives 7.07) | asserted |
+| E-R | non-qualifying overtime at the printed figure: 2.5 h × 40.05 = 100.125, taxed as 100.13 (September, basic 1,900, PAYE 211.34; was Q-OT-UNR); 1.5 h × 20.05 = 30.075, taxed as 30.08 (October, basic 4,500, PAYE 675.15) | asserted; accountant confirmed (reported, written copy to be saved) |
 | P | Emmanuel Ansah, August 2026 (net 5,008.37, the parity figure) and September 2026 (5,002.37, derived) | asserted |
 | GA-X | October run with one excluded employee, posted (overtime-tax line present); September run posted (no overtime-tax line); unaccounted employee blocks submission | asserted |
 | H (`payslips-tcsos-hand.sql`) | the four TCS OS cases above, August 2026 (H3 doesn't assert taxable income) | asserted; TCS OS hand-computed, not ERP-confirmed |
 
-**PENDING, commented out with expected values:** Q-ALW-N (non-taxable allowance 500), Q-ALW-MIX (taxable 500 plus non-taxable 300), Q-NSS-ALW (National Service plus allowance 300, taxable income 1,800 shown with no PAYE), Q-OT-UNR (non-qualifying overtime 2.5 h × 40.05; the engine gives PAYE 211.33 from the unrounded figure, 211.34 from the figure shown), Q-POST-3 (posting fines to 4910 and IOU to 1350).
+**PENDING, commented out with expected values:** Q-ALW-N (non-taxable allowance 500), Q-ALW-MIX (taxable 500 plus non-taxable 300), Q-NSS-ALW (National Service plus allowance 300, taxable income 1,800 shown with no PAYE), Q-POST-3 (posting fines to 4910 and IOU to 1350).
 
 ## Cutover runbook (slice 15)
 

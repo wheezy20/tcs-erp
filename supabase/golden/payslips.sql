@@ -1701,6 +1701,112 @@ select pg_temp.golden_check(
 
 
 -- ==========================================================================
+-- E-R. Non-qualifying overtime at the printed figure: accountant confirmed (reported, written copy to be saved)
+-- For staff outside the concession, overtime enters the PAYE base at the
+-- amount printed on the payslip, round(hours x rate, 2), not the exact
+-- product. Both cases land on a half pesewa that changes PAYE.
+
+-- Taxable 1,900 + 100.13 - 9.50 - 95 = 1,895.63; PAYE 4 + 10 + 1,127.63 x 17.5%
+-- (197.33525 -> 197.34) = 211.34 (211.33 from the unrounded 100.125).
+-- probe: E-R1 non-qualifying OT 2.5 x 40.05 = 100.125 -> 100.13 (was Q-OT-UNR)
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN E-R1', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 9, 2026);
+create function pg_temp.golden_check(p_case text, p_got jsonb, p_exp jsonb) returns void
+language plpgsql as $f$
+declare
+  k text; v_label text; v_line text := ''; v_bad boolean := false; v_ok boolean;
+begin
+  foreach k in array array['gross_salary', 'total_allowances', 'overtime_pay', 'taxable_income',
+    'tax', 'overtime_tax', 'overtime_concession', 'ssnit', 'tier2', 'ssnit_employer', 'fines',
+    'iou', 'total_deductions', 'net_pay'] loop
+    continue when not (p_exp ? k);
+    v_label := case k when 'gross_salary' then 'gross' when 'total_allowances' then 'allowances'
+      when 'overtime_pay' then 'OT pay' when 'taxable_income' then 'taxable' when 'tax' then 'PAYE'
+      when 'overtime_tax' then 'OT tax' when 'overtime_concession' then 'concession'
+      when 'ssnit' then 'SSNIT' when 'tier2' then 'Tier 2' when 'ssnit_employer' then 'employer SSNIT'
+      when 'iou' then 'IOU' when 'total_deductions' then 'deductions' when 'net_pay' then 'net' else k end;
+    v_ok := case when jsonb_typeof(p_exp -> k) = 'boolean' then (p_got ->> k) = (p_exp ->> k)
+                 else (p_got ->> k)::numeric = (p_exp ->> k)::numeric end;
+    v_ok := coalesce(v_ok, false);
+    v_bad := v_bad or not v_ok;
+    v_line := v_line || format('%s exp=%s got=%s%s; ', v_label, p_exp ->> k,
+      coalesce(p_got ->> k, 'null'), case when v_ok then '' else ' <<WRONG' end);
+  end loop;
+  select string_agg(key, ', ') into k from jsonb_object_keys(p_exp) key
+    where key <> all (array['gross_salary', 'total_allowances', 'overtime_pay', 'taxable_income',
+      'tax', 'overtime_tax', 'overtime_concession', 'ssnit', 'tier2', 'ssnit_employer', 'fines',
+      'iou', 'total_deductions', 'net_pay']);
+  if k is not null then
+    raise exception '%: unknown expected key(s): %', p_case, k;
+  end if;
+  if v_bad then
+    raise exception '%: %', p_case, rtrim(v_line, '; ');
+  end if;
+end $f$;
+-- as role:
+select pg_temp.golden_check(
+  'E-R1',
+  to_jsonb(public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 2.5, 40.05, '[]'::jsonb, 0, 0)),
+  '{"gross_salary": "2000.13", "total_allowances": "0.00", "overtime_pay": "100.13", "taxable_income": "1895.63", "tax": "211.34", "overtime_tax": "0.00", "overtime_concession": false, "ssnit": "9.50", "tier2": "95.00", "ssnit_employer": "247.00", "fines": "0.00", "iou": "0.00", "total_deductions": "315.84", "net_pay": "1684.29"}');
+
+-- 4,500 x 12 = 54,000 > 18,000: no concession. Taxable 4,500 + 30.08 - 22.50 -
+-- 225 = 4,282.58; PAYE 4 + 10 + 507.50 + 614.58 x 25% (153.645 -> 153.65) =
+-- 675.15 (675.14 from the unrounded 30.075).
+-- probe: E-R2 non-qualifying OT 1.5 x 20.05 = 30.075 -> 30.08, Oct (row exists)
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN E-R2', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 4500, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+create function pg_temp.golden_check(p_case text, p_got jsonb, p_exp jsonb) returns void
+language plpgsql as $f$
+declare
+  k text; v_label text; v_line text := ''; v_bad boolean := false; v_ok boolean;
+begin
+  foreach k in array array['gross_salary', 'total_allowances', 'overtime_pay', 'taxable_income',
+    'tax', 'overtime_tax', 'overtime_concession', 'ssnit', 'tier2', 'ssnit_employer', 'fines',
+    'iou', 'total_deductions', 'net_pay'] loop
+    continue when not (p_exp ? k);
+    v_label := case k when 'gross_salary' then 'gross' when 'total_allowances' then 'allowances'
+      when 'overtime_pay' then 'OT pay' when 'taxable_income' then 'taxable' when 'tax' then 'PAYE'
+      when 'overtime_tax' then 'OT tax' when 'overtime_concession' then 'concession'
+      when 'ssnit' then 'SSNIT' when 'tier2' then 'Tier 2' when 'ssnit_employer' then 'employer SSNIT'
+      when 'iou' then 'IOU' when 'total_deductions' then 'deductions' when 'net_pay' then 'net' else k end;
+    v_ok := case when jsonb_typeof(p_exp -> k) = 'boolean' then (p_got ->> k) = (p_exp ->> k)
+                 else (p_got ->> k)::numeric = (p_exp ->> k)::numeric end;
+    v_ok := coalesce(v_ok, false);
+    v_bad := v_bad or not v_ok;
+    v_line := v_line || format('%s exp=%s got=%s%s; ', v_label, p_exp ->> k,
+      coalesce(p_got ->> k, 'null'), case when v_ok then '' else ' <<WRONG' end);
+  end loop;
+  select string_agg(key, ', ') into k from jsonb_object_keys(p_exp) key
+    where key <> all (array['gross_salary', 'total_allowances', 'overtime_pay', 'taxable_income',
+      'tax', 'overtime_tax', 'overtime_concession', 'ssnit', 'tier2', 'ssnit_employer', 'fines',
+      'iou', 'total_deductions', 'net_pay']);
+  if k is not null then
+    raise exception '%: unknown expected key(s): %', p_case, k;
+  end if;
+  if v_bad then
+    raise exception '%: %', p_case, rtrim(v_line, '; ');
+  end if;
+end $f$;
+-- as role:
+select pg_temp.golden_check(
+  'E-R2',
+  to_jsonb(public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 1.5, 20.05, '[]'::jsonb, 0, 0)),
+  '{"gross_salary": "4530.08", "total_allowances": "0.00", "overtime_pay": "30.08", "taxable_income": "4282.58", "tax": "675.15", "overtime_tax": "0.00", "overtime_concession": false, "ssnit": "22.50", "tier2": "225.00", "ssnit_employer": "585.00", "fines": "0.00", "iou": "0.00", "total_deductions": "922.65", "net_pay": "3607.43"}');
+
+
+-- ==========================================================================
 -- P. TCS OS parity (ERP-confirmed)
 -- The parity FIGURE is confirmed; the 2025 band set it runs under is not
 -- (current behaviour, see S25).
@@ -2110,59 +2216,6 @@ end $$;
 --   'Q-NSS-ALW',
 --   to_jsonb(public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[{"allowance_type_id": "90d00000-0000-0000-0000-0000000000b1", "amount": 300}]'::jsonb, 0, 0)),
 --   '{"gross_salary": "1800.00", "total_allowances": "300.00", "overtime_pay": "0.00", "taxable_income": "1800.00", "tax": "0.00", "overtime_tax": "0.00", "overtime_concession": false, "ssnit": "0.00", "tier2": "0.00", "ssnit_employer": "0.00", "fines": "0.00", "iou": "0.00", "total_deductions": "0.00", "net_pay": "1800.00"}');
-
--- PENDING (non-qualifying overtime entering PAYE unrounded: only the rates were
--- confirmed, not this detail): not asserted until confirmed.
--- Current engine: PAYE on the unrounded 1,895.625 = 14 + 1,127.625 x 17.5%
--- (197.334375 -> 197.33) = 211.33. If PAYE must use the figure shown on
--- the payslip (1,895.63): 14 + 197.335 (-> 197.34) = 211.34, deductions
--- 315.84, net 1,684.29.
--- -- probe: Q-OT-UNR non-qualifying OT 2.5 x 40.05 = 100.125
--- -- expect: Manager,Accountant
--- insert into public.employees (id, branch_id, name, employment_status) values
---   ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN Q-OT-UNR', 'Active');
--- insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
---   pays_ssnit, pays_tier2, pays_paye)
--- values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
--- insert into public.payroll_runs (id, branch_id, month, year)
--- values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 9, 2026);
--- create function pg_temp.golden_check(p_case text, p_got jsonb, p_exp jsonb) returns void
--- language plpgsql as $f$
--- declare
---   k text; v_label text; v_line text := ''; v_bad boolean := false; v_ok boolean;
--- begin
---   foreach k in array array['gross_salary', 'total_allowances', 'overtime_pay', 'taxable_income',
---     'tax', 'overtime_tax', 'overtime_concession', 'ssnit', 'tier2', 'ssnit_employer', 'fines',
---     'iou', 'total_deductions', 'net_pay'] loop
---     continue when not (p_exp ? k);
---     v_label := case k when 'gross_salary' then 'gross' when 'total_allowances' then 'allowances'
---       when 'overtime_pay' then 'OT pay' when 'taxable_income' then 'taxable' when 'tax' then 'PAYE'
---       when 'overtime_tax' then 'OT tax' when 'overtime_concession' then 'concession'
---       when 'ssnit' then 'SSNIT' when 'tier2' then 'Tier 2' when 'ssnit_employer' then 'employer SSNIT'
---       when 'iou' then 'IOU' when 'total_deductions' then 'deductions' when 'net_pay' then 'net' else k end;
---     v_ok := case when jsonb_typeof(p_exp -> k) = 'boolean' then (p_got ->> k) = (p_exp ->> k)
---                  else (p_got ->> k)::numeric = (p_exp ->> k)::numeric end;
---     v_ok := coalesce(v_ok, false);
---     v_bad := v_bad or not v_ok;
---     v_line := v_line || format('%s exp=%s got=%s%s; ', v_label, p_exp ->> k,
---       coalesce(p_got ->> k, 'null'), case when v_ok then '' else ' <<WRONG' end);
---   end loop;
---   select string_agg(key, ', ') into k from jsonb_object_keys(p_exp) key
---     where key <> all (array['gross_salary', 'total_allowances', 'overtime_pay', 'taxable_income',
---       'tax', 'overtime_tax', 'overtime_concession', 'ssnit', 'tier2', 'ssnit_employer', 'fines',
---       'iou', 'total_deductions', 'net_pay']);
---   if k is not null then
---     raise exception '%: unknown expected key(s): %', p_case, k;
---   end if;
---   if v_bad then
---     raise exception '%: %', p_case, rtrim(v_line, '; ');
---   end if;
--- end $f$;
--- -- as role:
--- select pg_temp.golden_check(
---   'Q-OT-UNR',
---   to_jsonb(public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 2.5, 40.05, '[]'::jsonb, 0, 0)),
---   '{"gross_salary": "2000.13", "total_allowances": "0.00", "overtime_pay": "100.13", "taxable_income": "1895.63", "tax": "211.33", "overtime_tax": "0.00", "overtime_concession": false, "ssnit": "9.50", "tier2": "95.00", "ssnit_employer": "247.00", "fines": "0.00", "iou": "0.00", "total_deductions": "315.83", "net_pay": "1684.30"}');
 
 -- PENDING (posting accounts for fines, 4910, and IOU, 1350): not asserted until confirmed.
 -- Working: basic 3,100, fines 100, IOU 250 (as S26-FINE-IOU). Debits 3,100 + 403 =

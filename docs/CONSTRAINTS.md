@@ -233,14 +233,27 @@ Things that shape how this gets built, not just what gets built.
   - A PAYE amount of exactly half a pesewa rounds up (449.225 gives 449.23).
   - No SSNIT contribution ceiling known to the accountant.
   - Overtime for non-qualifying staff is taxed at the normal PAYE rates.
+  - Non-qualifying overtime enters the PAYE base at the amount printed on the
+    payslip (hours × rate rounded to 2 dp), not the unrounded product: 2.5 h
+    × 40.05 = 100.125 is printed and taxed as 100.13 (PAYE 211.34, not
+    211.33, on basic 1,900). Built in `20261007100000`; golden cases E-R1
+    and E-R2. Gross, taxable income, PAYE, deductions and net all read the
+    same rounded figure. Existing payslips are not recalculated.
 - **Not confirmed, held as PENDING cases in `supabase/golden/`** (commented
   out until the accountant confirms):
   - Non-taxable allowances: he said only "subject to GRA policy". All
     allowances stay taxable until he names an exemption.
-  - Non-qualifying overtime entering PAYE unrounded (only the rates were
-    confirmed, not that detail).
   - A National Service payslip showing taxable income with no PAYE charged.
   - The posting accounts for fines (4910) and IOU (1350).
+- **Open question, not yet put to the accountant: inputs with more than 2
+  dp.** `create_payslip` accepts overtime hours and rate, allowance amounts,
+  fines and IOU with any number of decimals. It stores each rounded to 2 dp
+  but computes from the exact value (checked locally 2026-10-07): hours
+  2.555 at 40.00 prints as "2.56h @ 40.00" beside overtime pay 102.20, and
+  an allowance of 100.125 prints as 100.13 but enters PAYE as 100.125
+  (211.33 instead of 211.34 on basic 1,900). The payroll form's step hints
+  are not enforced by the database. Unchanged until decided (round each
+  input at source, or refuse more than 2 dp).
 - **The 2025-01-01 PAYE band set is "current behaviour, not confirmed"**: the
   accountant said only that the new bands apply from now. The suite asserts
   it with that label. The 2026-09-01 set is what applies to the first real

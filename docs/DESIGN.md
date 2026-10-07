@@ -165,7 +165,10 @@ depend on them holding true for every new table/function added.
   It's structurally different (an hours × rate calculation, not a flat
   named amount), so it stays as its own `overtime_hours` /
   `overtime_rate` /computed `overtime_pay` fields directly on the
-  payslip.
+  payslip. `overtime_pay` is rounded to 2 dp where `create_payslip`
+  computes it (`20261007100000`), and gross, taxable income, PAYE, the
+  concession test and net all read that one figure, so a payslip foots
+  from its printed lines.
 - **Concessionary overtime tax** (GRA overtime rule, migrations
   `20261006100000` and `20261006110000`): an effective-dated scalar row
   picked by payroll month from `overtime_tax_rates`, the same pattern as
