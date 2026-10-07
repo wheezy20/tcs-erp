@@ -121,12 +121,19 @@ confirmation before building or continuing past:
   `bootstrap-production-manager.sh`. Eyram runs these. Hand over the
   exact command instead.
 
+**Frontend deploys:** never deploy from a build that contains the local
+Supabase address. Always deploy with `frontend/scripts/deploy-production.sh`
+(Eyram runs it); never hand over a bare `wrangler deploy` or
+`npm run build && wrangler deploy`. See docs/CONSTRAINTS.md, "Deployment".
+
 A PreToolUse hook (`.claude/hooks/block-production-commands.sh`, wired
 in `.claude/settings.json`) hard-blocks the command-level subset:
 `git push`, `supabase db push`, `supabase db reset --linked/--db-url`,
 `supabase functions deploy`, `supabase secrets set`, `wrangler deploy`,
-and `bootstrap-production-manager.sh`. The hook is a backstop. The gate
-rule above applies whether or not a command is caught.
+`frontend/scripts/deploy-production.sh` (every mode, including
+`--build-only` and `--check-only`), and `bootstrap-production-manager.sh`.
+The hook is a backstop. The gate rule above applies whether or not a
+command is caught.
 
 `feature-researcher` sits outside the loop. Use it only when explicitly
 asked.

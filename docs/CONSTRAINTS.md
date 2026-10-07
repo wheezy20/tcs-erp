@@ -34,9 +34,11 @@ Things that shape how this gets built, not just what gets built.
       supabase/seed.production.sql`) after `supabase db push`.
 - [ ] Create a dedicated hosted Supabase project for TCS and run
       `scripts/bootstrap-production-manager.sh` for the first real Manager
-- [ ] Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the
-      **Cloudflare Workers build environment** (build-time — see below),
-      then `wrangler deploy` from a Node ≥ 22 runner with a CF API token.
+- [x] Put the hosted project's `VITE_SUPABASE_URL` and
+      `VITE_SUPABASE_ANON_KEY` in `frontend/.env.deploy` (gitignored), then
+      deploy only with `frontend/scripts/deploy-production.sh` (Node ≥ 22,
+      Cloudflare credentials). Done: the live site now deploys through the
+      script against the hosted project. See "Deployment" below.
 - [x] Real TCS logo / favicon assets — done (favicons + manifest in
       `frontend/public/`, logomark in the sidebar + login).
 - [x] Re-theme `--primary` from indigo to the brand deep teal (`#005e61`)
@@ -100,8 +102,39 @@ Things that shape how this gets built, not just what gets built.
 
 - The frontend deploys to **Cloudflare Workers** via
   `@cloudflare/vite-plugin` (`frontend/vite.config.ts` +
-  `frontend/wrangler.jsonc`). Build with `npm run build`, deploy with
-  `wrangler deploy` (Node ≥ 22, CF API token). See STACK.md.
+  `frontend/wrangler.jsonc`). See STACK.md.
+- **Never deploy from a build that contains the local Supabase address.
+  Always deploy with `frontend/scripts/deploy-production.sh`; never run
+  `wrangler deploy` by hand (decided 2026-10-07).** A plain
+  `npm run build` reads `frontend/.env.local`, which points at the local
+  Supabase (`http://127.0.0.1:54321`), and bakes that address in. That is
+  how the live site ended up sending its requests to 127.0.0.1 and showing
+  the local `seed.sql` demo data (found 2026-10-07). That retail demo
+  data was local seed data and was never in the hosted database. The
+  script:
+  - reads the hosted URL and anon key from `frontend/.env.deploy`
+    (gitignored, created by Eyram; Vite never loads it on its own) and
+    refuses anything but `https://<ref>.supabase.co` or a service_role /
+    secret key;
+  - sets every `.env` file Vite would load (`.env`, `.env.local`,
+    `.env.production`, `.env.production.local`) aside for the build, so the
+    build cannot read them, and restores them afterwards, including on a
+    failed build or Ctrl-C (after a hard kill they stay in
+    `frontend/.env-hidden-during-deploy/`, and the next run refuses to
+    start until they are moved back);
+  - refuses to deploy if `dist/client` or `dist/server` contains the local
+    Supabase address (a loopback host on a Supabase CLI port, 54xxx), the
+    `.env.local` key, or a Supabase CLI demo key, or lacks the hosted URL
+    and key; then runs `wrangler deploy`.
+
+  `--build-only` and `--check-only` stop before deploying (`--check-only`
+  checks an existing `dist/` for local values only, not for the hosted
+  ones). `.env.deploy` takes plain `NAME=value` lines, no inline comments.
+  The URL check accepts only `https://<ref>.supabase.co`; a custom domain
+  would need the script changed. Bare
+  `localhost` / `127.0.0.1` strings are not on their own a reason to stop:
+  supabase-js and TanStack Router contain them in every build (for example
+  supabase-js's own `http://localhost:9999` default).
 - **`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are build-time, not
   runtime.** Vite statically replaces `import.meta.env.VITE_*` at build
   time (the Lovable config wrapper's `envDefine` step does this from
@@ -209,7 +242,10 @@ check.
 committed and deployed) is a **deliberate, confirmed exception** to the
 earlier "don't invent a fifth role" rule, and it supersedes the same day's (2026-09-29)
 earlier decision to model admissions as capabilities on the four roles alone. Real
-Admissions Officer and Accountant accounts exist in the hosted project.
+Admissions Officer and Accountant accounts exist in the hosted project. The
+hosted project has five staff accounts in all, including a test Accountant
+login and a test Auditor login; all five were kept on purpose in the
+2026-10 hosted cleanup (see docs/JOURNAL.md).
 
 The reason is that none of the four fits an admissions coordinator:
 

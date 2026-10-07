@@ -3615,3 +3615,68 @@ now 30):
 - Lint (0 errors), tsc, build, overload check and types diff pass. 169
   functions anon can execute (unchanged); anon has no access to the table.
 - Code review: nothing blocking.
+
+## 2026-10-07 — Live site was using the local Supabase; deploy script added
+
+Eyram found the live site's requests going to `127.0.0.1:54321`, so it
+showed the local `seed.sql` demo data (INV-2404 to INV-2429, Samuel
+Tetteh, the paint and tile products) instead of the hosted database. The
+hosted discovery query had found none of those rows. Cause: the URL and
+anon key are baked in at build time, the only env file in `frontend/` is
+`.env.local` (local Supabase), and the Lovable config wrapper's
+`loadEnv(mode, cwd, "VITE_")` reads `.env.local` in every mode, including
+production builds. The deploy shipped a build made that way. The hand-over
+commands given in earlier sessions (`npm run build && npx wrangler deploy`)
+did not say to build with the hosted values.
+
+Every sales, customers, inventory, pro-forma, customer deposits, POS, end
+of day and purchasing screen reads Supabase through `src/lib/supabase.ts`;
+none uses mock data or browser storage.
+
+Added `frontend/scripts/deploy-production.sh`, now the only way to deploy
+(rule in CONSTRAINTS.md "Deployment" and CLAUDE.md). It reads the hosted
+values from the gitignored `frontend/.env.deploy`, sets every `.env` file
+Vite would load aside during the build, refuses the local Supabase
+address, the `.env.local` key or a CLI demo key in `dist/`, requires the
+hosted URL and key in both bundles, and only then runs `wrangler deploy`.
+The literal rule "refuse any `127.0.0.1` or `localhost`" could not be
+used: supabase-js and TanStack Router contain those strings in every
+build.
+
+Verification, without deploying (`--check-only` / `--build-only`, fake
+project ref and an unsigned fake anon key):
+- The existing local build was refused, listing the five places the local
+  address was baked in.
+- A missing `.env.deploy`, a local URL, a service_role key, a secret key
+  and a leftover folder from an interrupted run were each refused.
+- A build with the fake hosted values passed every check. `.env.local`
+  came back byte-identical, and so it did after a build killed mid-way.
+- The test `.env.deploy` and `dist/` were removed afterwards.
+
+Not done: no deploy, nothing on hosted. Eyram creates `.env.deploy` and
+runs the script.
+
+## 2026-10-07 — Hosted cleanup of dummy records; live site deploy fixed
+
+This week's one-off cleanup of the hosted project (scripts kept outside
+the repo) removed:
+- 9 dummy employees;
+- the September 2026 payroll run (7 payslips) and its journal entry
+  JE-26090002;
+- 39 audit rows about those records;
+- 8 Storage files: 6 generated documents and 2 onboarding documents;
+- the QA test expense EXP-1043, its journal entry JE-26090001 and its
+  receipt file.
+
+JE-26090001 and JE-26090002 are left unused on purpose, a gap in the
+journal entry sequence.
+
+All 5 hosted staff accounts were kept, including the test Accountant and
+Auditor logins.
+
+Live site: it had been built with the local Supabase address and was
+reading the local database (previous entry). It now deploys through
+`frontend/scripts/deploy-production.sh` against the hosted project. The
+retail demo data seen on the live site was local seed data and was never
+in the hosted database. This supersedes the previous entry's "Not done:
+no deploy".

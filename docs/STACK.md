@@ -55,20 +55,22 @@ Start's current supported deploy path). `frontend/vite.config.ts` runs
 `frontend/wrangler.jsonc` holds the Worker settings (name `tcs-erp`,
 `nodejs_compat`, `main: src/server.ts`, assets from `dist/client`).
 
-- Build: `cd frontend && npm ci && npm run build` → emits `dist/client/`
-  (static assets) + `dist/server/` (`index.js` Worker bundle +
-  `wrangler.json`).
-- Deploy: `npx wrangler deploy` from `frontend/` (auto-detects the build
-  output). Needs **Node ≥ 22** and a Cloudflare API token in CI.
-- `wrangler deploy --dry-run` validates the config/bundle with no
-  Cloudflare account.
+- Build: `npm run build` → emits `dist/client/` (static assets) +
+  `dist/server/` (`index.js` Worker bundle + `wrangler.json`). A plain
+  build reads `.env.local` and bakes in the **local** Supabase address, so
+  it is for local checks only.
+- Deploy: only `frontend/scripts/deploy-production.sh`. It builds with the
+  hosted values from `frontend/.env.deploy`, checks the bundle, then runs
+  `wrangler deploy` (which deploys `dist/server/wrangler.json` via
+  `.wrangler/deploy/config.json`). Needs **Node ≥ 22** and Cloudflare
+  credentials. See CONSTRAINTS.md, "Deployment".
 - The old Vercel setup (`frontend/vercel.json`, `nitro` dep, Nitro
   `preset: "vercel"`) has been removed.
 
 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are **build-time**
-variables (Vite inlines them into the bundle) — they must be set in the
-environment of the Cloudflare build step, not as Worker runtime secrets.
-See CONSTRAINTS.md / DESIGN.md.
+variables (Vite inlines them into the bundle) — the deploy script passes
+them from `frontend/.env.deploy` into the build; they are not Worker
+runtime secrets. See CONSTRAINTS.md / DESIGN.md.
 
 Backend stays on hosted Supabase (its own dedicated TCS project — see
 CONSTRAINTS.md). The old plan to fold this into TCS OS's Cloud Run setup

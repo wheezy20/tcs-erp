@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # PreToolUse hook (Bash): blocks commands with production side effects that
-# Eyram runs by hand — pushing code, pushing schema, deploying, and the
+# Eyram runs by hand — pushing code, pushing schema, deploying (including
+# frontend/scripts/deploy-production.sh, in every mode), and the
 # production-Manager bootstrap. See CLAUDE.md's slice loop. Exit 2 blocks the
 # tool call and shows the message on stderr to Claude.
 #
@@ -42,6 +43,7 @@ blocked=(
   "supabase[[:space:]]+(functions[[:space:]]+deploy|secrets[[:space:]]+set)|supabase functions deploy / secrets set"
   "wrangler[[:space:]]+(versions[[:space:]]+)?deploy|wrangler deploy"
   "[A-Za-z0-9_./~-]*bootstrap-production-manager\.sh|bootstrap-production-manager.sh"
+  "[A-Za-z0-9_./~-]*deploy-production\.sh|deploy-production.sh"
 )
 
 for entry in "${blocked[@]}"; do
