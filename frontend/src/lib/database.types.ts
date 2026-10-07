@@ -3568,6 +3568,195 @@ export type Database = {
           },
         ]
       }
+      staff_advance_change_requests: {
+        Row: {
+          advance_id: string
+          id: string
+          kind: string
+          new_instalment: number | null
+          proposed_at: string
+          proposed_by: string | null
+          reason: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          advance_id: string
+          id?: string
+          kind: string
+          new_instalment?: number | null
+          proposed_at?: string
+          proposed_by?: string | null
+          reason?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          advance_id?: string
+          id?: string
+          kind?: string
+          new_instalment?: number | null
+          proposed_at?: string
+          proposed_by?: string | null
+          reason?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_advance_change_requests_advance_id_fkey"
+            columns: ["advance_id"]
+            isOneToOne: false
+            referencedRelation: "staff_advances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_advance_change_requests_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_advance_change_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_advance_repayments: {
+        Row: {
+          advance_id: string
+          amount: number
+          created_at: string
+          id: string
+          instalment_due: number
+          payslip_id: string
+        }
+        Insert: {
+          advance_id: string
+          amount: number
+          created_at?: string
+          id?: string
+          instalment_due: number
+          payslip_id: string
+        }
+        Update: {
+          advance_id?: string
+          amount?: number
+          created_at?: string
+          id?: string
+          instalment_due?: number
+          payslip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_advance_repayments_advance_id_fkey"
+            columns: ["advance_id"]
+            isOneToOne: false
+            referencedRelation: "staff_advances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_advance_repayments_payslip_id_fkey"
+            columns: ["payslip_id"]
+            isOneToOne: false
+            referencedRelation: "payslips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_advances: {
+        Row: {
+          amount: number
+          bank_account_id: string | null
+          disbursed_on: string
+          disbursement_method: string
+          employee_id: string
+          first_repayment_month: string
+          id: string
+          instalment: number
+          note: string | null
+          proposed_at: string
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          amount: number
+          bank_account_id?: string | null
+          disbursed_on: string
+          disbursement_method: string
+          employee_id: string
+          first_repayment_month: string
+          id?: string
+          instalment: number
+          note?: string | null
+          proposed_at?: string
+          proposed_by?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number
+          bank_account_id?: string | null
+          disbursed_on?: string
+          disbursement_method?: string
+          employee_id?: string
+          first_repayment_month?: string
+          id?: string
+          instalment?: number
+          note?: string | null
+          proposed_at?: string
+          proposed_by?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_advances_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_advances_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_advances_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_advances_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       statutory_rates: {
         Row: {
           created_at: string
@@ -3843,6 +4032,14 @@ export type Database = {
         Args: { p_bank_name: string; p_created_by?: string }
         Returns: string
       }
+      _staff_advance_change_problem: {
+        Args: {
+          p_advance: Database["public"]["Tables"]["staff_advances"]["Row"]
+          p_kind: string
+          p_new_instalment: number
+        }
+        Returns: string
+      }
       account_id_by_code: { Args: { p_code: string }; Returns: string }
       adjust_product_stock: {
         Args: { p_new_stock: number; p_product_id: string; p_reason: string }
@@ -3948,6 +4145,54 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "employee_pay_config"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      approve_staff_advance: {
+        Args: { p_advance_id: string }
+        Returns: {
+          amount: number
+          bank_account_id: string | null
+          disbursed_on: string
+          disbursement_method: string
+          employee_id: string
+          first_repayment_month: string
+          id: string
+          instalment: number
+          note: string | null
+          proposed_at: string
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_advances"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      approve_staff_advance_change: {
+        Args: { p_request_id: string }
+        Returns: {
+          advance_id: string
+          id: string
+          kind: string
+          new_instalment: number | null
+          proposed_at: string
+          proposed_by: string | null
+          reason: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_advance_change_requests"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -5373,6 +5618,68 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      propose_staff_advance: {
+        Args: {
+          p_amount: number
+          p_bank_account_id?: string
+          p_disbursed_on: string
+          p_employee_id: string
+          p_first_repayment_month: string
+          p_instalment: number
+          p_method: string
+          p_note?: string
+        }
+        Returns: {
+          amount: number
+          bank_account_id: string | null
+          disbursed_on: string
+          disbursement_method: string
+          employee_id: string
+          first_repayment_month: string
+          id: string
+          instalment: number
+          note: string | null
+          proposed_at: string
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_advances"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      propose_staff_advance_change: {
+        Args: {
+          p_advance_id: string
+          p_kind: string
+          p_new_instalment?: number
+          p_reason?: string
+        }
+        Returns: {
+          advance_id: string
+          id: string
+          kind: string
+          new_instalment: number | null
+          proposed_at: string
+          proposed_by: string | null
+          reason: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_advance_change_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       receive_purchase_order: {
         Args: {
           p_lines: Json
@@ -5595,6 +5902,54 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reject_staff_advance: {
+        Args: { p_advance_id: string; p_reason: string }
+        Returns: {
+          amount: number
+          bank_account_id: string | null
+          disbursed_on: string
+          disbursement_method: string
+          employee_id: string
+          first_repayment_month: string
+          id: string
+          instalment: number
+          note: string | null
+          proposed_at: string
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_advances"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reject_staff_advance_change: {
+        Args: { p_reason: string; p_request_id: string }
+        Returns: {
+          advance_id: string
+          id: string
+          kind: string
+          new_instalment: number | null
+          proposed_at: string
+          proposed_by: string | null
+          reason: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_advance_change_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       require_finance_writer: { Args: never; Returns: undefined }
       require_staff: {
         Args: never
@@ -5743,6 +6098,53 @@ export type Database = {
       settlement_account: {
         Args: { p_bank_account_id: string; p_method: string }
         Returns: string
+      }
+      staff_advance_deduction_preview: {
+        Args: { p_employee_id: string; p_payroll_run_id: string }
+        Returns: {
+          advance_id: string
+          balance: number
+          due: number
+          instalment: number
+          ord: number
+          skip_reason: string
+        }[]
+      }
+      staff_advance_payslip_lines: {
+        Args: { p_payslip_id: string }
+        Returns: {
+          advance_amount: number
+          advance_id: string
+          amount: number
+          balance_after: number
+          disbursed_on: string
+          instalment_due: number
+        }[]
+      }
+      staff_advance_summary: {
+        Args: { p_employee_id?: string }
+        Returns: {
+          amount: number
+          balance: number
+          bank_account_id: string
+          disbursed_on: string
+          disbursement_method: string
+          display_status: string
+          employee_id: string
+          employee_name: string
+          employee_status: string
+          first_repayment_month: string
+          id: string
+          instalment: number
+          note: string
+          proposed_at: string
+          proposed_by: string
+          rejection_reason: string
+          repaid: number
+          reviewed_at: string
+          reviewed_by: string
+          status: string
+        }[]
       }
       staff_sign_in_status: {
         Args: never
@@ -6072,6 +6474,54 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "employee_pay_config"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      withdraw_staff_advance_change: {
+        Args: { p_request_id: string }
+        Returns: {
+          advance_id: string
+          id: string
+          kind: string
+          new_instalment: number | null
+          proposed_at: string
+          proposed_by: string | null
+          reason: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_advance_change_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      withdraw_staff_advance_proposal: {
+        Args: { p_advance_id: string }
+        Returns: {
+          amount: number
+          bank_account_id: string | null
+          disbursed_on: string
+          disbursement_method: string
+          employee_id: string
+          first_repayment_month: string
+          id: string
+          instalment: number
+          note: string | null
+          proposed_at: string
+          proposed_by: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_advances"
           isOneToOne: true
           isSetofReturn: false
         }

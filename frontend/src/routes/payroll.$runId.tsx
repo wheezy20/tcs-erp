@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -37,7 +37,13 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
-import { currency } from "@/data/dashboard";
+import { currency, currencyPrecise } from "@/data/dashboard";
+import { formatDate } from "@/data/settings-store";
+import {
+  fetchAdvanceDeductionPreview,
+  useStaffAdvances,
+  type AdvanceDeductionPreview,
+} from "@/data/staff-advances-store";
 import { currentConfigFor, standingAllowancesFor, useEmployees } from "@/data/employees-store";
 import {
   createPayslip,
@@ -304,7 +310,8 @@ function RunDetailPage() {
                 </div>
                 <p className="mb-2 text-xs text-muted-foreground">
                   Bulk generate uses each employee's standing config and allowances with no
-                  overtime, fines or IOU. Use “Adjust” for month-specific figures.
+                  overtime, fines or other IOU; any staff advance due is still deducted. Use
+                  “Adjust” for month-specific figures.
                 </p>
                 <div className="flex flex-col divide-y">
                   {notAccountedFor.map((e) => (
@@ -992,6 +999,23 @@ function GeneratePayslipDialog({
     })),
   );
   const [submitting, setSubmitting] = useState(false);
+  const { advances } = useStaffAdvances();
+  const [advancePreview, setAdvancePreview] = useState<AdvanceDeductionPreview[] | null>(null);
+  const [advancePreviewFailed, setAdvancePreviewFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAdvanceDeductionPreview(employeeId, runId)
+      .then((rows) => !cancelled && setAdvancePreview(rows))
+      .catch(() => !cancelled && setAdvancePreviewFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [employeeId, runId]);
+
+  // An advance being deducted rules out a manual IOU on the same payslip
+  // (create_payslip refuses both, so they can't double count).
+  const advanceApplies = (advancePreview ?? []).some((p) => p.due > 0);
 
   const usedTypeIds = new Set(rows.map((r) => r.allowanceTypeId));
   const addableTypes = allowanceTypes.filter((t) => !usedTypeIds.has(t.id));
@@ -1013,7 +1037,7 @@ function GeneratePayslipDialog({
         overtimeRate: Number(overtimeRate) || 0,
         allowances,
         fines: Number(fines) || 0,
-        iou: Number(iou) || 0,
+        iou: advanceApplies ? 0 : Number(iou) || 0,
       });
       toast.success(`Payslip generated for ${employeeName}`);
       onClose();
@@ -1129,16 +1153,48 @@ function GeneratePayslipDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label>IOU / advance recovery</Label>
+              <Label>Other IOU (not a recorded advance)</Label>
               <Input
                 type="number"
                 min="0"
                 step="0.01"
-                value={iou}
+                value={advanceApplies ? "0" : iou}
+                disabled={advanceApplies}
                 onChange={(e) => setIou(e.target.value)}
               />
             </div>
           </div>
+
+          {advancePreviewFailed && (
+            <p className="text-xs text-muted-foreground">
+              Couldn&apos;t check this employee&apos;s staff advances. Any advance due is still
+              deducted, and an IOU entered alongside one is refused.
+            </p>
+          )}
+          {advancePreview && advancePreview.length > 0 && (
+            <div className="space-y-1 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+              <p className="font-medium">Staff advances</p>
+              {advancePreview.map((p) => {
+                const adv = advances.find((a) => a.id === p.advanceId);
+                const label = adv
+                  ? `Advance of ${currencyPrecise(adv.amount)} (${formatDate(adv.disbursedOn)})`
+                  : "Advance";
+                return (
+                  <p key={p.advanceId} className="text-muted-foreground">
+                    {label}:{" "}
+                    {p.skipReason
+                      ? `not deducted — ${p.skipReason}`
+                      : `deducts ${currencyPrecise(p.due)} (balance ${currencyPrecise(p.balance)}), less if net pay can't cover it`}
+                  </p>
+                );
+              })}
+              {advanceApplies && (
+                <p className="text-muted-foreground">
+                  The advance is recovered on the IOU line, so the other IOU box is off.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>

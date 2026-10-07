@@ -37,7 +37,8 @@ import { RefListMultiSelect } from "@/components/employees/ref-list-multi-select
 import { RefListSelect } from "@/components/employees/ref-list-select";
 import { RejectButton } from "@/components/employees/reject-reason-dialog";
 import { actionLabel, summarizeAuditEntry, useEmployeeAuditHistory } from "@/data/audit-history";
-import { canWriteFinancials, useAuth } from "@/data/auth-store";
+import { EmployeeAdvancesSection } from "@/components/payroll/staff-advances";
+import { canViewFinancials, canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
 import {
   approveEmployee,
@@ -96,6 +97,7 @@ import { listContractTemplates } from "@/data/contract-templates-store";
 import { usePayroll, type AllowanceType } from "@/data/payroll-store";
 import { getSettings } from "@/data/settings-store";
 import { useStaff } from "@/data/staff-store";
+import { useStaffAdvances } from "@/data/staff-advances-store";
 import {
   buildDocumentMergeData,
   mergeTemplate,
@@ -121,6 +123,8 @@ function EmployeeProfilePage() {
   const { employees, configs, allowances, loading } = useEmployees();
   const { allowanceTypes } = usePayroll();
   const { staff: roster } = useStaff();
+  const canViewAdvances = canViewFinancials(currentStaff?.role);
+  const { advances, changeRequests } = useStaffAdvances();
 
   if (loading) {
     return <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>;
@@ -224,6 +228,18 @@ function EmployeeProfilePage() {
           )}
 
           {history.length > 0 && <HistoryTable rows={history} />}
+
+          {canViewAdvances && emp.status !== "Pending Approval" && emp.status !== "Rejected" && (
+            <EmployeeAdvancesSection
+              employee={{ id: emp.id, name: emp.name, status: emp.status }}
+              advances={advances}
+              changeRequests={changeRequests}
+              canWrite={canWrite}
+              isManager={isManager}
+              currentStaffId={currentStaff?.id ?? null}
+              staffName={(id) => staffName(id) ?? "—"}
+            />
+          )}
 
           <HistorySection
             employeeId={emp.id}

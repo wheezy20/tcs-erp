@@ -50,6 +50,7 @@ import { Route as InventoryIndexRouteImport } from './routes/inventory.index'
 import { Route as OnboardingTokenRouteImport } from './routes/onboarding.$token'
 import { Route as PayrollIndexRouteImport } from './routes/payroll.index'
 import { Route as PayrollRunIdRouteImport } from './routes/payroll.$runId'
+import { Route as PayrollAdvancesRouteImport } from './routes/payroll.advances'
 import { Route as PayrollPayConfigRouteImport } from './routes/payroll.pay-config'
 import { Route as PayslipsPayslipIdRouteImport } from './routes/payslips.$payslipId'
 import { Route as PosIndexRouteImport } from './routes/pos.index'
@@ -280,6 +281,11 @@ const PayrollRunIdRoute = PayrollRunIdRouteImport.update({
   path: '/$runId',
   getParentRoute: () => PayrollRoute,
 } as any)
+const PayrollAdvancesRoute = PayrollAdvancesRouteImport.update({
+  id: '/advances',
+  path: '/advances',
+  getParentRoute: () => PayrollRoute,
+} as any)
 const PayrollPayConfigRoute = PayrollPayConfigRouteImport.update({
   id: '/pay-config',
   path: '/pay-config',
@@ -422,6 +428,7 @@ export interface FileRoutesByFullPath {
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
   '/onboarding/$token': typeof OnboardingTokenRoute
   '/payroll/$runId': typeof PayrollRunIdRoute
+  '/payroll/advances': typeof PayrollAdvancesRoute
   '/payroll/pay-config': typeof PayrollPayConfigRoute
   '/payslips/$payslipId': typeof PayslipsPayslipIdRoute
   '/pos/history': typeof PosHistoryRoute
@@ -476,6 +483,7 @@ export interface FileRoutesByTo {
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
   '/onboarding/$token': typeof OnboardingTokenRoute
   '/payroll/$runId': typeof PayrollRunIdRoute
+  '/payroll/advances': typeof PayrollAdvancesRoute
   '/payroll/pay-config': typeof PayrollPayConfigRoute
   '/payslips/$payslipId': typeof PayslipsPayslipIdRoute
   '/pos/history': typeof PosHistoryRoute
@@ -541,6 +549,7 @@ export interface FileRoutesById {
   '/expenses/$expenseId': typeof ExpensesExpenseIdRoute
   '/onboarding/$token': typeof OnboardingTokenRoute
   '/payroll/$runId': typeof PayrollRunIdRoute
+  '/payroll/advances': typeof PayrollAdvancesRoute
   '/payroll/pay-config': typeof PayrollPayConfigRoute
   '/payslips/$payslipId': typeof PayslipsPayslipIdRoute
   '/pos/history': typeof PosHistoryRoute
@@ -607,6 +616,7 @@ export interface FileRouteTypes {
     | '/expenses/$expenseId'
     | '/onboarding/$token'
     | '/payroll/$runId'
+    | '/payroll/advances'
     | '/payroll/pay-config'
     | '/payslips/$payslipId'
     | '/pos/history'
@@ -661,6 +671,7 @@ export interface FileRouteTypes {
     | '/expenses/$expenseId'
     | '/onboarding/$token'
     | '/payroll/$runId'
+    | '/payroll/advances'
     | '/payroll/pay-config'
     | '/payslips/$payslipId'
     | '/pos/history'
@@ -725,6 +736,7 @@ export interface FileRouteTypes {
     | '/expenses/$expenseId'
     | '/onboarding/$token'
     | '/payroll/$runId'
+    | '/payroll/advances'
     | '/payroll/pay-config'
     | '/payslips/$payslipId'
     | '/pos/history'
@@ -1075,6 +1087,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PayrollRunIdRouteImport
       parentRoute: typeof PayrollRoute
     }
+    '/payroll/advances': {
+      id: '/payroll/advances'
+      path: '/advances'
+      fullPath: '/payroll/advances'
+      preLoaderRoute: typeof PayrollAdvancesRouteImport
+      parentRoute: typeof PayrollRoute
+    }
     '/payroll/pay-config': {
       id: '/payroll/pay-config'
       path: '/pay-config'
@@ -1314,12 +1333,14 @@ const InventoryRouteWithChildren = InventoryRoute._addFileChildren(
 
 interface PayrollRouteChildren {
   PayrollRunIdRoute: typeof PayrollRunIdRoute
+  PayrollAdvancesRoute: typeof PayrollAdvancesRoute
   PayrollPayConfigRoute: typeof PayrollPayConfigRoute
   PayrollIndexRoute: typeof PayrollIndexRoute
 }
 
 const PayrollRouteChildren: PayrollRouteChildren = {
   PayrollRunIdRoute: PayrollRunIdRoute,
+  PayrollAdvancesRoute: PayrollAdvancesRoute,
   PayrollPayConfigRoute: PayrollPayConfigRoute,
   PayrollIndexRoute: PayrollIndexRoute,
 }

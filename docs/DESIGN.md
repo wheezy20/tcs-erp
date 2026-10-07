@@ -277,6 +277,25 @@ depend on them holding true for every new table/function added.
   Dr `5145` Employer SSNIT Contribution / Cr `2310` SSNIT Payable — so
   `2310` carries both the withheld employee portion and the employer portion,
   and total staffing cost reads as `5140 + 5145` (`20260909120000`).
+- **Staff advances (2026-10-07, `20261008100000` / `20261008110000`).**
+  A balance is never stored: it is the amount minus the sum of
+  `staff_advance_repayments`, and "Settled" is a display status for an
+  Active or Paused advance whose balance is 0. Repayment rows reference
+  their payslip `on delete cascade`, so deleting or regenerating a draft
+  payslip (or deleting a draft run) restores the balance with no other
+  code; posted payslips can't be deleted. `staff_advances`,
+  `staff_advance_change_requests` and `staff_advance_repayments` are
+  select-only (Manager, Accountant, Auditor) and written only by SECURITY
+  DEFINER RPCs; an approved advance's amount, dates and payout are frozen
+  by trigger. Which advances a payslip deducts is decided by
+  `staff_advance_deduction_preview()`, which `create_payslip()` and the
+  screens both call, so they can't disagree: Active, due by that month, no
+  repayment in a later month, balance above 0, oldest approval first,
+  `least(instalment, balance)`, capped at net pay. A change to an advance
+  applies only to payslips generated after it; existing draft and posted
+  payslips are never recalculated. The payout posts on Main (the oldest
+  branch) through `settlement_account()`. The new money columns follow the
+  2 dp / non-negative pattern above.
 - **Multi-row RPC input is `jsonb`, not a composite-type array.**
   `create_payslip(p_allowances jsonb)` follows `create_invoice()` /
   `create_sale()`'s `p_lines jsonb` convention — `jsonb_array_elements` in

@@ -1,6 +1,8 @@
 import { currencyPrecise } from "@/data/dashboard";
 import type { Payslip } from "@/data/payroll-store";
 import type { DocumentSettings } from "@/data/settings-store";
+import type { PayslipAdvanceLine } from "@/data/staff-advances-store";
+import { iouDeductionRows } from "@/data/staff-advances-format";
 
 export type PayslipDocMeta = {
   periodLabel: string;
@@ -11,6 +13,10 @@ export type PayslipDocMeta = {
   bank: string | null;
   accountNo: string | null;
   branchName: string;
+  /** Staff advance repayments on this payslip (20261008100000). When there
+   * are any, they make up payslips.iou and are shown instead of the single
+   * IOU line. */
+  advanceLines?: PayslipAdvanceLine[];
 };
 
 const money = (n: number) => currencyPrecise(n);
@@ -51,7 +57,7 @@ export function PrintablePayslip({
     ["Tier 2 (5%)", payslip.tier2],
     ["SSNIT (0.5%)", payslip.ssnit],
     ...(payslip.fines > 0 ? ([["Fines", payslip.fines]] as [string, number][]) : []),
-    ...(payslip.iou > 0 ? ([["IOU / advance recovery", payslip.iou]] as [string, number][]) : []),
+    ...iouDeductionRows(payslip, meta.advanceLines),
   ];
 
   return (

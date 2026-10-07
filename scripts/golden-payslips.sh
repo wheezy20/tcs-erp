@@ -19,7 +19,8 @@ cd "$(dirname "$0")/.."
 worst=0
 for entry in \
   "supabase/golden/payslips.sql|statutory-derived, Eyram-given and TCS OS parity" \
-  "supabase/golden/payslips-tcsos-hand.sql|TCS OS hand-computed, not ERP-confirmed"; do
+  "supabase/golden/payslips-tcsos-hand.sql|TCS OS hand-computed, not ERP-confirmed" \
+  "supabase/golden/staff-advances.sql|staff advances, statutory-derived"; do
   file="${entry%%|*}"
   tier="${entry#*|}"
   echo "=== $file ($tier)"

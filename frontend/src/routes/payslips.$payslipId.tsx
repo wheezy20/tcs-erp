@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Download, Printer } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { usePayroll } from "@/data/payroll-store";
 import { currentConfigFor, useEmployees } from "@/data/employees-store";
 import { useDocumentSettings } from "@/data/settings-store";
 import { MONTHS } from "@/data/payroll-format";
+import { fetchPayslipAdvanceLines, type PayslipAdvanceLine } from "@/data/staff-advances-store";
 
 export const Route = createFileRoute("/payslips/$payslipId")({
   head: () => ({ meta: [{ title: "Payslip — TCS" }] }),
@@ -27,6 +28,20 @@ function PayslipPage() {
   const { name: branchName } = useCurrentBranch();
   const settings = useDocumentSettings();
   const [downloading, setDownloading] = useState(false);
+  const [advanceLines, setAdvanceLines] = useState<PayslipAdvanceLine[]>([]);
+
+  // The staff advance repayments on this payslip, with the balance left
+  // after it (computed by the database, 20261008100000).
+  useEffect(() => {
+    if (!canView) return;
+    let cancelled = false;
+    fetchPayslipAdvanceLines(payslipId)
+      .then((lines) => !cancelled && setAdvanceLines(lines))
+      .catch(() => !cancelled && setAdvanceLines([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [payslipId, canView]);
 
   if (!canView) {
     return (
@@ -67,6 +82,7 @@ function PayslipPage() {
     bank: config?.bank ?? null,
     accountNo: config?.accountNo ?? null,
     branchName: branchName ?? "",
+    advanceLines,
   };
 
   async function downloadPdf() {

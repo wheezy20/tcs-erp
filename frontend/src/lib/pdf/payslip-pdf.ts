@@ -7,6 +7,7 @@ import type { DocumentSettings } from "@/data/settings-store";
 import { INTER_BOLD_TTF_BASE64 } from "@/lib/pdf/fonts/inter-bold";
 import { INTER_REGULAR_TTF_BASE64 } from "@/lib/pdf/fonts/inter-regular";
 import type { PayslipDocMeta } from "@/components/print/printable-payslip";
+import { iouDeductionRows } from "@/data/staff-advances-format";
 
 // Same Unicode-font workaround as invoice-pdf.ts — jsPDF's built-in fonts
 // can't render the Ghana Cedi sign, so embed Inter.
@@ -95,7 +96,9 @@ export async function downloadPayslipPdf(
     ["SSNIT (0.5%)", money(payslip.ssnit)],
   ];
   if (payslip.fines > 0) deductions.push(["Fines", money(payslip.fines)]);
-  if (payslip.iou > 0) deductions.push(["IOU / advance recovery", money(payslip.iou)]);
+  for (const [label, amount] of iouDeductionRows(payslip, meta.advanceLines)) {
+    deductions.push([label, money(amount)]);
+  }
   deductions.push(["Total deductions", money(payslip.totalDeductions)]);
 
   autoTable(doc, {

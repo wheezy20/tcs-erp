@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
 import { reloadJournalEntries } from "@/data/journal-store";
+import { reloadStaffAdvances } from "@/data/staff-advances-store";
 
 // Payroll runs + payslips + allowance types + statutory rates. Employees,
 // their pay configs and standing allowances live in employees-store.ts
@@ -385,6 +386,8 @@ export async function deletePayrollRun(id: string): Promise<void> {
   const { error } = await supabase.from("payroll_runs").delete().eq("id", id);
   if (error) throw error;
   await reload();
+  // Payslips carry staff advance repayments (20261008110000).
+  await reloadStaffAdvances().catch(() => {});
 }
 
 /** Draft -> Ready for Review. Any finance writer. Server-side rejects a
@@ -469,6 +472,8 @@ async function callCreatePayslip(input: CreatePayslipInput) {
 export async function createPayslip(input: CreatePayslipInput): Promise<void> {
   await callCreatePayslip(input);
   await reload();
+  // Payslips carry staff advance repayments (20261008110000).
+  await reloadStaffAdvances().catch(() => {});
 }
 
 /** Generate several payslips in one action — each at its standing config
@@ -492,6 +497,8 @@ export async function createPayslipsBulk(
     }
   }
   await reload();
+  // Payslips carry staff advance repayments (20261008110000).
+  await reloadStaffAdvances().catch(() => {});
   return { ok, failed };
 }
 
@@ -499,6 +506,8 @@ export async function deletePayslip(id: string): Promise<void> {
   const { error } = await supabase.rpc("delete_payslip", { p_payslip_id: id });
   if (error) throw error;
   await reload();
+  // Payslips carry staff advance repayments (20261008110000).
+  await reloadStaffAdvances().catch(() => {});
 }
 
 // --- allowance types

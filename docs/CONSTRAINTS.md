@@ -239,10 +239,15 @@ Things that shape how this gets built, not just what gets built.
     211.33, on basic 1,900). Built in `20261007100000`; golden cases E-R1
     and E-R2. Gross, taxable income, PAYE, deductions and net all read the
     same rounded figure. Existing payslips are not recalculated.
+  - All allowances are taxable (a later answer the same day, replacing
+    "subject to GRA policy"). Not yet reflected in the app: the engine taxes
+    an allowance only if its type is marked taxable, and Payroll → Setup
+    still lets a type be marked non-taxable (the three seeded types are all
+    taxable). The PENDING non-taxable cases Q-ALW-N and Q-ALW-MIX stay
+    commented out; what to do with them and the flag is not decided.
+  - TCS pays no health insurance and no extra pension, so neither is built.
 - **Not confirmed, held as PENDING cases in `supabase/golden/`** (commented
   out until the accountant confirms):
-  - Non-taxable allowances: he said only "subject to GRA policy". All
-    allowances stay taxable until he names an exemption.
   - A National Service payslip showing taxable income with no PAYE charged.
   - The posting accounts for fines (4910) and IOU (1350).
 - **Payroll inputs: more than 2 decimal places refused (owner decision
@@ -269,6 +274,35 @@ Things that shape how this gets built, not just what gets built.
   refuse a negative salary with their own existing messages before the
   trigger is reached. Built in `20261007110000_payroll_inputs_two_dp.sql`;
   golden section N covers every field and path.
+- **Staff advances (IOU loans), decided by Eyram 2026-10-07** (built in
+  `20261008100000` / `20261008110000`, awaiting review):
+  - An Accountant or Manager proposes an advance (amount, monthly
+    instalment, first repayment month, payout date and method) and any
+    pause, resume, cancel or instalment change; a Manager approves or
+    rejects. A Manager may approve their own proposal; proposer and
+    approver are both recorded and audited.
+  - Approval posts the payout, Dr 1350 Advances to Staff / Cr the payout
+    account. Account 1350 is **not yet confirmed by the accountant** (as
+    for payroll IOU recovery, Q-POST-3), so the posting golden cases are
+    PENDING. Don't also record the same advance as a "Staff advances"
+    expense: that category posts Dr 1350 too.
+  - Repayments are deducted automatically by `create_payslip` on the IOU
+    line, after tax and without reducing taxable income (accountant
+    confirmed (reported, written copy to be saved)), oldest approval
+    first, the last one smaller so the advance settles itself.
+  - A manual IOU stays available as a one-off "other IOU", but is refused
+    on a payslip that deducts an advance, so the two can't double count.
+  - Cancel only stops deductions; the balance stays outstanding on 1350.
+- **Staff advances: PENDING, not confirmed by the accountant:**
+  - Net-pay cap. Built as Eyram's default: repayments never take net pay
+    below zero, and the shortfall stays on the balance. This sits beside
+    the accountant's reported "no cap on total deductions" (which was about
+    fines and IOU). Golden cases ADV-P3 and ADV-P4 stay commented out.
+  - A leaver's outstanding balance: settlement from final pay, and how a
+    write-off is approved and posted. Not built; once the employee isn't
+    Active nothing is deducted, and the profile says so.
+  - Interest or fees: assumed none; not built.
+  - A maximum advance or maximum share of salary: none built.
 - **The 2025-01-01 PAYE band set is "current behaviour, not confirmed"**: the
   accountant said only that the new bands apply from now. The suite asserts
   it with that label. The 2026-09-01 set is what applies to the first real

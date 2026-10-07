@@ -31,6 +31,8 @@ Django could offer without a lot of custom frontend work.
 
 **Status:** built and in use for test runs; no real payroll month run yet.
 The HR items deferred in CONSTRAINTS.md stay deferred.
+Staff advances (IOU loans repaid through payroll) were built 2026-10-07 as
+Phase 1 payroll work while Phase 2 Admissions is the active phase.
 
 - **Accounting** — chart of accounts, journal entries, ledger, trial
   balance, P&L, balance sheet, cash flow, bank reconciliation. Inherited

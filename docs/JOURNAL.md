@@ -3917,3 +3917,89 @@ framework, so the check's logic was run directly on "", "   ", "abc",
 confirmed the throw happens before the RPC call and reaches the toast via
 `getErrorMessage`, and that each adjust section has the Cancel button the
 message names.
+
+## 2026-10-07 — Staff advances (IOU loans)
+
+An advance is now recorded once and repaid automatically through payroll
+until it is repaid or a Manager approves a pause or cancellation. Design
+and new surface approved by Eyram before the build, with his answers:
+build the net-pay cap as the default but keep its golden case PENDING;
+keep the 1350 run-posting case PENDING alongside Q-POST-3; a Manager may
+approve their own proposal, both names shown; cancel only stops
+deductions and leaves the balance on 1350.
+
+- `20261008100000_staff_advances.sql`: tables `staff_advances`,
+  `staff_advance_change_requests` (pause, resume, cancel, instalment;
+  one pending per advance) and `staff_advance_repayments` (one per advance
+  per payslip, `on delete cascade` with the payslip). Select-only for
+  Manager, Accountant and Auditor; no direct writes. Balance and Settled
+  are computed (`staff_advance_summary`), never stored. Write RPCs: propose,
+  approve, reject and withdraw, for advances and for changes; approve and
+  reject are Manager only, and approving an advance posts Dr 1350 / Cr the
+  payout account (Cash 1000, Mobile Money 1020, Bank Transfer the chosen
+  bank account) on Main, dated the payout date. Audit rows for proposals,
+  approvals and rejections (six new `audit_log` actions; the 22 existing
+  ones kept). An approved advance's amount, dates and payout are frozen by
+  trigger. Money columns follow the 2 dp / non-negative trigger and checks.
+  Read functions `staff_advance_deduction_preview` and
+  `staff_advance_payslip_lines` (balance remaining after a payslip,
+  computed at display).
+- `20261008110000_create_payslip_staff_advances.sql`: `create_payslip`
+  (same signature) deducts each eligible advance after every other
+  deduction, oldest approval first, `least(instalment, balance)`, capped
+  so net pay can't go below zero; the total joins `payslips.iou` (which
+  `post_payroll_run` already credits to 1350) and `total_deductions`;
+  taxable income and PAYE are untouched. A manual IOU on a payslip that
+  deducts an advance is refused. A payslip with no eligible advance is
+  computed exactly as before.
+- Frontend: a Staff Advances tab under Payroll (propose, approvals,
+  change requests); an advances card on the employee profile (finance
+  roles only, with a banner when a non-active employee has a balance);
+  the payslip dialog shows what each advance will deduct and turns the
+  manual IOU box off when one applies; the printed payslip and its PDF
+  show one line per advance repayment with the balance remaining.
+- Golden: new `supabase/golden/staff-advances.sql`, run by
+  `./scripts/golden-payslips.sh`: 20 cases (normal instalment; 600 at 250
+  settling with a final 100 and nothing after; paused; cancelled; two
+  advances; manual IOU refused; draft delete restores the balance;
+  a later draft month doesn't over-deduct; a backdated run is skipped;
+  not before the first repayment month; draft and posted payslips not
+  recalculated; refusals of 3 dp, negative, zero, an instalment above the
+  amount, a repayment month before the payout, and a 3 dp instalment
+  change). PENDING, commented out with figures: run posting to 1350,
+  the payout entry, the net-pay cap (fines 2,400 leave 137.24), and the
+  cap's oldest-first order with two advances. Role matrix:
+  `supabase/role-matrix/20261008100000_staff_advances.sql`.
+- CONSTRAINTS: the decisions and PENDING items (cap, leaver settlement and
+  write-off, interest, maximum size), 1350 unconfirmed; and the
+  accountant's further answers: all allowances taxable, no health
+  insurance, no extra pension.
+
+Verification:
+- Before, fresh reset at `94723eb`: the 10 role-matrix files and the
+  golden suite exit 0.
+- After both migrations: the 10 role-matrix files are byte-identical, and
+  the existing golden files' output is byte-identical to the before run.
+  The new golden file passes (20 cases), and the 4 PENDING cases pass
+  when run uncommented (they stay commented). The new role-matrix file
+  passes: propose and withdraw Manager and Accountant; approve, reject and
+  others' withdrawals Manager only; reads Manager, Accountant, Auditor;
+  direct writes and the internal helper nobody; anon executes none of the
+  new functions. Checked directly: audit rows written by proposer and
+  approver, the payout entry (Dr 1350 / Cr 1020 for Mobile Money), and the
+  freeze trigger refusing an amount change.
+- test-runner: lint (0 errors, 13 warnings as before), tsc, build,
+  overload check pass; types regen differs only in the known helper
+  parentheses; ADV-1, ADV-2, ADV-5 and ADV-P3 recomputed independently.
+  Mutants, each from a fresh reset: ignoring advances, no balance cap,
+  counting only posted repayments, no manual-IOU refusal, and Paused
+  treated as Active each turned staff-advances cases red, with the older
+  golden files green. Newest-first ordering survived, because order only
+  changes figures under the cap; covered by PENDING case ADV-P4.
+- code-reviewer: no blocking findings. Taken from its notes: a load error
+  now uses `getErrorMessage`, a failed deduction preview shows a note, the
+  payout posts on Main rather than the employee's branch, and a first
+  repayment month before the payout month is refused (ADV-R8). The full
+  suite was re-run after these.
+- docs-updater placed the CONSTRAINTS block inside the retirement
+  checklist and misdescribed tables and statuses; I rewrote its edits.

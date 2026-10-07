@@ -21,6 +21,7 @@ export const Route = createFileRoute("/payroll")({
 
 const TABS = [
   { to: "/payroll", label: "Payroll Runs", exact: true },
+  { to: "/payroll/advances", label: "Staff Advances", exact: false },
   { to: "/payroll/pay-config", label: "Setup", exact: false },
 ] as const;
 
