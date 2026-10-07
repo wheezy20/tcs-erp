@@ -1042,7 +1042,7 @@ function GeneratePayslipDialog({
               <Input
                 type="number"
                 min="0"
-                step="0.5"
+                step="0.01"
                 value={overtimeHours}
                 onChange={(e) => setOvertimeHours(e.target.value)}
               />

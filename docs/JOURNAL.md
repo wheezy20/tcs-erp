@@ -3794,3 +3794,126 @@ Verification:
 - code-reviewer: no blocking findings.
 - docs-updater called this a schema change and missed the PORT-PLAN case
   table and pending list; I corrected those.
+
+## 2026-10-07 — Payroll inputs: more than 2 decimal places or a negative value refused
+
+Owner decision (Eyram, 2026-10-07), recommended to the accountant: any
+payroll input that is a money amount or an hours figure has at most 2
+decimal places, refused rather than rounded, enforced in the database so the
+form cannot be bypassed. Closes the CONSTRAINTS open question from the
+overtime-rounding slice.
+
+- The inputs and their write paths: `employee_pay_config.basic_salary`
+  (`propose_employee`, `propose_pay_config_change`, `approve_employee`,
+  `approve_pay_config`); `employee_allowances.default_amount` (direct
+  client insert/update under RLS); `payslips.overtime_hours`,
+  `overtime_rate`, `fines`, `iou` and `payslip_allowances.amount`
+  (`create_payslip`). There is no IOU or repayment table; IOU exists only
+  as the payslip input. Rate tables are written only by migrations and are
+  out of scope.
+- Migration `20261007110000_payroll_inputs_two_dp.sql`: a `numeric(p,2)`
+  column rounds a value before any trigger or check sees it, so the seven
+  columns become plain `numeric`. Each gets a `*_2dp` check (value =
+  round(value, 2), plus the old magnitude bound) and a BEFORE INSERT OR
+  UPDATE trigger, `_refuse_over_2dp()`, which raises e.g. "Fines must have
+  at most 2 decimal places (got 10.005)" (or "... is not a valid amount"
+  for NaN or out-of-range) and stores round(value, 2), so stored values
+  keep scale 2. No function body, grant or RLS change; the trigger
+  function is not executable by anon or authenticated.
+- Frontend: overtime hours `step` 0.5 → 0.01 (the other inputs were already
+  0.01). `setStandingAllowances` now inserts the new rows before deleting
+  the old, so a refused amount keeps the old allowances; if the delete
+  fails, the new rows are deleted again, and the list reloads either way.
+  Still two client calls, not one transaction. All affected forms already
+  show the server message via `getErrorMessage`.
+- Golden section V, 17 cases: refusals V-SAL-1 to 4 (each basic-salary
+  RPC), V-ALW-1 and 2 (standing allowance insert and update), V-PS-1 to 8
+  (hours, rate, allowance, fines, IOU, 10.00001, the string "1e-3", NaN);
+  accepted V-OK-1 (OT 1.25 × 40.05, allowance 100.12, fines 10.05, IOU
+  20.25: PAYE 220.09, net 1,695.29), V-OK-2 and V-OK-3 (2 dp salary and
+  standing allowance accepted; 1500 and 100 stored as 1500.00 and 100.00).
+- Found, not changed: fines, IOU, overtime hours and rate have no `>= 0`
+  check (recorded in CONSTRAINTS).
+
+Verification:
+- Before, fresh reset at `173bb11`: all 10 role-matrix files and the golden
+  suite exit 0.
+- After the migration: the 10 role-matrix files and the existing golden
+  output are byte-identical to the before run. With section V the golden
+  suite passes (58 + 4 cases).
+- Through the API as the local dev Manager, a direct standing-allowance
+  insert of 100.125 returns code 22023 with the message above; nothing is
+  written.
+- test-runner: lint, tsc, build, the overload check pass; types regen
+  differs only in helper-type parentheses; seeded values all scale 2;
+  V-OK-1 recomputed from the live rows. Mutants, each from a fresh reset:
+  triggers dropped (refusals come back as raw check-constraint text and
+  V-OK-2/3 lose scale 2: 16 V cases red); triggers and checks dropped (the
+  same 16 red, values accepted); the old `numeric(p,2)` types restored (13
+  refusal cases red, silently rounded). No non-V case went red.
+- code-reviewer: no blocking findings. Its point that insert-then-delete
+  could leave duplicate standing allowances (paid twice by bulk generation)
+  if the delete failed led to the compensating delete above; a single RPC
+  would make it atomic.
+- docs-updater miscounted the V cases and cited invented line numbers; I
+  rewrote this entry.
+
+Extension, same day, same unapplied migration (owner decision, Eyram
+2026-10-07): negative amounts and hours are refused on the same seven
+inputs.
+
+- The trigger also raises "<Label> cannot be negative (got X)" (after the
+  NaN/range check, before the decimals check). `payslips.overtime_hours`,
+  `overtime_rate`, `fines` and `iou` gained a `>= 0` check; the other three
+  columns already had one. This closes the CONSTRAINTS item about negative
+  payslip inputs.
+- Zero stays allowed on all seven. For basic salary I checked whether zero
+  is ever legitimate: the schema has allowed it since `20260908070000`
+  ("Basic salary must be zero or more"), the forms accept 0, Volunteer and
+  Intern are employment types (allowance-only pay is plausible), and the
+  TCS OS pay-config model sets no minimum. No seeded record has a zero
+  salary. So zero is allowed rather than requiring more than zero.
+- Golden section N, 14 cases: N-SAL-1 to 4 (each basic-salary RPC refuses
+  -100 with its existing message; these exercise the RPCs' own checks, not
+  the new trigger branch, since salary is only written through them),
+  N-ALW-1 and 2 (standing allowance insert and update, -50), N-PS-1 to 6
+  (hours, rate, allowance, fines, IOU, fines -0.01), N-OK-1 (basic 0
+  accepted, stored 0.00), N-OK-2 (October 2026, basic 0, taxable allowance
+  500: PAYE 0, net 500).
+- Found: the four approval "Adjust before approving" paths sent
+  `Number(override.basicSalary) || 0`, so clearing the salary box approved
+  a basic salary of 0 without warning (older than this slice; with zero
+  allowed the database cannot tell it from an intended 0). Fixed below.
+
+Verification of the extension:
+- Before (fresh reset with the slice as it stood): 10 role-matrix files and
+  the golden suite exit 0.
+- After: the 10 files are byte-identical to that run; the golden suite
+  passes (72 + 4 cases) and its output differs only by the N cases.
+- test-runner: lint, tsc, build, the overload check pass; types regen only
+  the known parentheses; N-OK-2 recomputed from the live rows; no seeded
+  value negative. Mutants from a fresh reset: the negative branch removed
+  (N-ALW-1/2 and N-PS-1 to 6 red, refused by raw check text instead); the
+  branch and the `>= 0` checks removed (the same 8 red, negatives
+  accepted). No other case went red.
+- code-reviewer: no blocking findings.
+
+Approve-screen salary check, same slice (Eyram, 2026-10-07): the four
+"Adjust before approving" screens (new employee and pay change, on the
+Employees list and on the employee page) now refuse a blank or invalid
+salary box on approve, like the propose forms do. A new
+`overrideBasicSalary()` in `components/employees/payment-fields.tsx`
+replaces `Number(override.basicSalary) || 0` at all four sites. A blank,
+whitespace-only, non-numeric, infinite or negative box throws "Enter a
+basic salary (0 or more) to approve with, or press Cancel to approve as
+proposed.", which the screen's existing error toast shows, and the approve
+RPC is not called. An explicit 0 is still sent. Approving without
+adjusting is unchanged. No database change.
+
+Verification: lint, tsc and build pass. There is no frontend test
+framework, so the check's logic was run directly on "", "   ", "abc",
+"-5" and "Infinity" (each refused) and "0", "0.00", "1500", "1500.25" and
+" 2000 " (each accepted). code-reviewer: no blocking findings; it
+confirmed the throw happens before the RPC call and reaches the toast via
+`getErrorMessage`, and that each adjust section has the Cancel button the
+message names.

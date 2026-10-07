@@ -40,6 +40,21 @@ export function payOverrideFrom(cfg: {
   };
 }
 
+/** The adjusted basic salary to send on approve. Refuses a blank or invalid
+ * box (which `Number(...)` would otherwise turn into 0 and approve a salary
+ * of 0 without warning); an explicit 0 is allowed, as on the propose forms.
+ * The database still enforces the real rules (no negatives, 2 dp). Throws
+ * an Error whose message the approve handler's toast shows. */
+export function overrideBasicSalary(raw: string): number {
+  const value = Number(raw);
+  if (raw.trim() === "" || !Number.isFinite(value) || value < 0) {
+    throw new Error(
+      "Enter a basic salary (0 or more) to approve with, or press Cancel to approve as proposed.",
+    );
+  }
+  return value;
+}
+
 const NONE = "__none__";
 
 /** Provider picker backed by the school-editable `payment_providers`

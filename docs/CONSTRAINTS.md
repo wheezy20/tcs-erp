@@ -245,15 +245,30 @@ Things that shape how this gets built, not just what gets built.
     allowances stay taxable until he names an exemption.
   - A National Service payslip showing taxable income with no PAYE charged.
   - The posting accounts for fines (4910) and IOU (1350).
-- **Open question, not yet put to the accountant: inputs with more than 2
-  dp.** `create_payslip` accepts overtime hours and rate, allowance amounts,
-  fines and IOU with any number of decimals. It stores each rounded to 2 dp
-  but computes from the exact value (checked locally 2026-10-07): hours
-  2.555 at 40.00 prints as "2.56h @ 40.00" beside overtime pay 102.20, and
-  an allowance of 100.125 prints as 100.13 but enters PAYE as 100.125
-  (211.33 instead of 211.34 on basic 1,900). The payroll form's step hints
-  are not enforced by the database. Unchanged until decided (round each
-  input at source, or refuse more than 2 dp).
+- **Payroll inputs: more than 2 decimal places refused (owner decision
+  Eyram, 2026-10-07, recommended to the accountant).** Seven inputs
+  (`employee_pay_config.basic_salary`, `employee_allowances.default_amount`,
+  `payslips.overtime_hours`, `payslips.overtime_rate`, `payslips.fines`,
+  `payslips.iou`, `payslip_allowances.amount`) accept at most 2 decimal
+  places, enforced in the database on every write path (the four
+  basic-salary RPCs, the direct standing-allowance insert/update, and
+  `create_payslip`). More is refused with e.g. "Fines must have at most 2
+  decimal places (got 10.005)", never rounded; this replaces the silent
+  rounding on write that let `create_payslip` compute from a value other
+  than the one printed. Built in `20261007110000_payroll_inputs_two_dp.sql`
+  (see DESIGN.md). Golden section V covers every field and path.
+- **Payroll inputs: negative values refused (owner decision Eyram,
+  2026-10-07).** The same seven inputs refuse a negative value, e.g. "Fines
+  cannot be negative (got -10)", on every write path; zero stays allowed on
+  all seven. Basic salary keeps allowing zero (no minimum above zero) because
+  the schema has allowed it since `20260908070000` ("Basic salary must be
+  zero or more"), the forms accept it, and allowance-only pay is plausible
+  for the Volunteer and Intern employment types; the TCS OS pay-config
+  model sets no minimum either. `overtime_hours`, `overtime_rate`, `fines` and `iou` gained a
+  `>= 0` check; the other three already had one. The basic-salary RPCs
+  refuse a negative salary with their own existing messages before the
+  trigger is reached. Built in `20261007110000_payroll_inputs_two_dp.sql`;
+  golden section N covers every field and path.
 - **The 2025-01-01 PAYE band set is "current behaviour, not confirmed"**: the
   accountant said only that the new bands apply from now. The suite asserts
   it with that label. The 2026-09-01 set is what applies to the first real

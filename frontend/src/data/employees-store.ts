@@ -505,35 +505,55 @@ export async function setPayConfigExemptions(
   await reload();
 }
 
-/** Replace an employee's standing allowances with `rows` — full
- * delete-and-reinsert of the open-ended rows. Not approval-gated: plain
- * RLS write (Manager/Accountant). */
+/** Replace an employee's standing allowances with `rows` — insert the new
+ * open-ended rows, then delete the old ones. Inserting first means a refused
+ * insert (e.g. an amount with more than 2 decimal places) leaves the old
+ * allowances in place. If the delete then fails, the new rows are removed
+ * again so the employee isn't left with both sets (which bulk payslip
+ * generation would pay twice); the list is reloaded either way so any
+ * leftover shows. Two client calls, not one transaction. Not
+ * approval-gated: plain RLS write (Manager/Accountant). */
 export async function setStandingAllowances(
   employeeId: string,
   rows: { allowanceTypeId: string; defaultAmount: number }[],
   effectiveFrom: string,
 ): Promise<void> {
   const current = standingAllowancesFor(state.allowances, employeeId);
-  if (current.length > 0) {
-    const del = await supabase
-      .from("employee_allowances")
-      .delete()
-      .in(
-        "id",
-        current.map((c) => c.id),
-      );
-    if (del.error) throw del.error;
+  try {
+    let insertedIds: string[] = [];
+    if (rows.length > 0) {
+      const ins = await supabase
+        .from("employee_allowances")
+        .insert(
+          rows.map((r) => ({
+            employee_id: employeeId,
+            allowance_type_id: r.allowanceTypeId,
+            default_amount: r.defaultAmount,
+            effective_from: effectiveFrom,
+          })),
+        )
+        .select("id");
+      if (ins.error) throw ins.error;
+      insertedIds = ins.data.map((r) => r.id);
+    }
+    if (current.length > 0) {
+      const del = await supabase
+        .from("employee_allowances")
+        .delete()
+        .in(
+          "id",
+          current.map((c) => c.id),
+        );
+      if (del.error) {
+        if (insertedIds.length > 0) {
+          await supabase.from("employee_allowances").delete().in("id", insertedIds);
+        }
+        throw del.error;
+      }
+    }
+  } finally {
+    // A failed reload is already recorded in state.error; don't let it mask
+    // the save error the form shows.
+    await reload().catch(() => {});
   }
-  if (rows.length > 0) {
-    const ins = await supabase.from("employee_allowances").insert(
-      rows.map((r) => ({
-        employee_id: employeeId,
-        allowance_type_id: r.allowanceTypeId,
-        default_amount: r.defaultAmount,
-        effective_from: effectiveFrom,
-      })),
-    );
-    if (ins.error) throw ins.error;
-  }
-  await reload();
 }

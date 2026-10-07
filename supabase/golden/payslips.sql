@@ -2058,6 +2058,951 @@ end $$;
 
 
 -- ==========================================================================
+-- V. Input precision: more than 2 dp refused (Eyram's owner decision 2026-10-07: refuse, do not round)
+-- Money and hours inputs with more than 2 decimal places are refused by the
+-- database, with the message the form shows; nothing is rounded silently.
+-- One refusal per field and per write path; a refusal case passes only on
+-- that exact message (roles without access fail on their usual guard).
+-- Then 2 dp inputs still work, and are stored at scale 2.
+
+-- probe: V-SAL-1 basic salary 1500.005 via propose_employee
+-- expect: Manager,Accountant
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-SAL-1',
+  $q$select public.propose_employee('GOLDEN V-SAL-1', '00000000-0000-0000-0000-000000000001', p_basic_salary => 1500.005)$q$,
+  'Basic salary must have at most 2 decimal places (got 1500.005)');
+
+-- probe: V-SAL-2 basic salary 2000.125 via propose_pay_config_change
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-SAL-2', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-SAL-2',
+  $q$select public.propose_pay_config_change('90d00000-0000-0000-0000-000000000001', date '2026-11-01', 2000.125, null, null, true, true, true)$q$,
+  'Basic salary must have at most 2 decimal places (got 2000.125)');
+
+-- probe: V-SAL-3 basic salary 2000.125 via approve_employee
+-- expect: Manager
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-SAL-3', 'Pending Approval');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye, approval_status)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true, 'Pending Approval');
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-SAL-3',
+  $q$select public.approve_employee('90d00000-0000-0000-0000-000000000001', 2000.125)$q$,
+  'Basic salary must have at most 2 decimal places (got 2000.125)');
+
+-- probe: V-SAL-4 basic salary 2100.125 via approve_pay_config
+-- expect: Manager
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-SAL-4', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true);
+insert into public.employee_pay_config (id, employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye, approval_status)
+values ('90d00000-0000-0000-0000-0000000000c1', '90d00000-0000-0000-0000-000000000001', 2100, date '2026-11-01', true, true, true, 'Pending Approval');
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-SAL-4',
+  $q$select public.approve_pay_config('90d00000-0000-0000-0000-0000000000c1', 2100.125)$q$,
+  'Basic salary must have at most 2 decimal places (got 2100.125)');
+
+-- V-ALW-1: the trigger runs before row-level security, so every signed-in role
+-- gets the decimal message on a 3 dp insert; RLS still refuses a valid 2 dp
+-- insert by Attendant, Auditor and Admissions Officer (V-OK-3). anon has no grant.
+-- probe: V-ALW-1 standing allowance 100.125, direct insert
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-ALW-1', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-ALW-1',
+  $q$insert into public.employee_allowances (employee_id, allowance_type_id, default_amount, effective_from) values ('90d00000-0000-0000-0000-000000000001', '90d00000-0000-0000-0000-0000000000b1', 100.125, date '2026-01-01')$q$,
+  'Allowance amount must have at most 2 decimal places (got 100.125)');
+
+-- V-ALW-2: for roles without write access, RLS makes the update match no row,
+-- so nothing changes; they show as denied ("accepted") here.
+-- probe: V-ALW-2 standing allowance updated to 100.125
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-ALW-2', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+insert into public.employee_allowances (id, employee_id, allowance_type_id, default_amount, effective_from)
+values ('90d00000-0000-0000-0000-0000000000d1', '90d00000-0000-0000-0000-000000000001', '90d00000-0000-0000-0000-0000000000b1', 100, date '2026-01-01');
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-ALW-2',
+  $q$update public.employee_allowances set default_amount = 100.125 where id = '90d00000-0000-0000-0000-0000000000d1'$q$,
+  'Allowance amount must have at most 2 decimal places (got 100.125)');
+
+-- probe: V-PS-1 overtime hours 2.555
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-PS-1',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 2.555, 40, '[]'::jsonb, 0, 0)$q$,
+  'Overtime hours must have at most 2 decimal places (got 2.555)');
+
+-- probe: V-PS-2 overtime rate 40.005
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-PS-2',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 2, 40.005, '[]'::jsonb, 0, 0)$q$,
+  'Overtime rate must have at most 2 decimal places (got 40.005)');
+
+-- probe: V-PS-3 payslip allowance 100.125
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-PS-3',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[{"allowance_type_id": "90d00000-0000-0000-0000-0000000000b1", "amount": 100.125}]'::jsonb, 0, 0)$q$,
+  'Allowance amount must have at most 2 decimal places (got 100.125)');
+
+-- probe: V-PS-4 fines 10.005
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-PS-4',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[]'::jsonb, 10.005, 0)$q$,
+  'Fines must have at most 2 decimal places (got 10.005)');
+
+-- probe: V-PS-5 IOU 20.255
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-PS-5',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[]'::jsonb, 0, 20.255)$q$,
+  'IOU must have at most 2 decimal places (got 20.255)');
+
+-- probe: V-PS-6 fines 10.00001 (would round onto 10.00)
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-PS-6',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[]'::jsonb, 10.00001, 0)$q$,
+  'Fines must have at most 2 decimal places (got 10.00001)');
+
+-- probe: V-PS-7 allowance as the string 1e-3
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-PS-7',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[{"allowance_type_id": "90d00000-0000-0000-0000-0000000000b1", "amount": "1e-3"}]'::jsonb, 0, 0)$q$,
+  'Allowance amount must have at most 2 decimal places (got 0.001)');
+
+-- probe: V-PS-8 overtime hours NaN
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'V-PS-8',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 'NaN'::numeric, 40, '[]'::jsonb, 0, 0)$q$,
+  'Overtime hours is not a valid amount (got NaN)');
+
+-- Not qualifying (22,800 > 18,000). OT 50.0625 -> 50.06; gross 1,900 + 50.06 + 100.12 =
+-- 2,050.18; taxable 2,050.18 - 9.50 - 95 = 1,945.68; PAYE 4 + 10 + 1,177.68 x 17.5%
+-- (206.094 -> 206.09) = 220.09; deductions 220.09 + 9.50 + 95 + 10.05 + 20.25 = 354.89.
+-- probe: V-OK-1 2 dp inputs: OT 1.25 x 40.05, allowance 100.12, fines 10.05, IOU 20.25
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-OK-1', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_check(p_case text, p_got jsonb, p_exp jsonb) returns void
+language plpgsql as $f$
+declare
+  k text; v_label text; v_line text := ''; v_bad boolean := false; v_ok boolean;
+begin
+  foreach k in array array['gross_salary', 'total_allowances', 'overtime_pay', 'taxable_income',
+    'tax', 'overtime_tax', 'overtime_concession', 'ssnit', 'tier2', 'ssnit_employer', 'fines',
+    'iou', 'total_deductions', 'net_pay'] loop
+    continue when not (p_exp ? k);
+    v_label := case k when 'gross_salary' then 'gross' when 'total_allowances' then 'allowances'
+      when 'overtime_pay' then 'OT pay' when 'taxable_income' then 'taxable' when 'tax' then 'PAYE'
+      when 'overtime_tax' then 'OT tax' when 'overtime_concession' then 'concession'
+      when 'ssnit' then 'SSNIT' when 'tier2' then 'Tier 2' when 'ssnit_employer' then 'employer SSNIT'
+      when 'iou' then 'IOU' when 'total_deductions' then 'deductions' when 'net_pay' then 'net' else k end;
+    v_ok := case when jsonb_typeof(p_exp -> k) = 'boolean' then (p_got ->> k) = (p_exp ->> k)
+                 else (p_got ->> k)::numeric = (p_exp ->> k)::numeric end;
+    v_ok := coalesce(v_ok, false);
+    v_bad := v_bad or not v_ok;
+    v_line := v_line || format('%s exp=%s got=%s%s; ', v_label, p_exp ->> k,
+      coalesce(p_got ->> k, 'null'), case when v_ok then '' else ' <<WRONG' end);
+  end loop;
+  select string_agg(key, ', ') into k from jsonb_object_keys(p_exp) key
+    where key <> all (array['gross_salary', 'total_allowances', 'overtime_pay', 'taxable_income',
+      'tax', 'overtime_tax', 'overtime_concession', 'ssnit', 'tier2', 'ssnit_employer', 'fines',
+      'iou', 'total_deductions', 'net_pay']);
+  if k is not null then
+    raise exception '%: unknown expected key(s): %', p_case, k;
+  end if;
+  if v_bad then
+    raise exception '%: %', p_case, rtrim(v_line, '; ');
+  end if;
+end $f$;
+-- as role:
+select pg_temp.golden_check(
+  'V-OK-1',
+  to_jsonb(public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 1.25, 40.05, '[{"allowance_type_id": "90d00000-0000-0000-0000-0000000000b1", "amount": 100.12}]'::jsonb, 10.05, 20.25)),
+  '{"gross_salary": "2050.18", "total_allowances": "100.12", "overtime_pay": "50.06", "taxable_income": "1945.68", "tax": "220.09", "overtime_tax": "0.00", "overtime_concession": false, "ssnit": "9.50", "tier2": "95.00", "ssnit_employer": "247.00", "fines": "10.05", "iou": "20.25", "total_deductions": "354.89", "net_pay": "1695.29"}');
+
+-- V-OK-2: basic salary 1500.25 and 1500 are accepted and stored as 1500.25 / 1500.00.
+-- probe: V-OK-2 basic salary 2 dp accepted, stored at scale 2
+-- expect: Manager,Accountant
+-- as role:
+do $$
+declare a text; b text;
+begin
+  perform public.propose_employee('GOLDEN V-OK-2 A', '00000000-0000-0000-0000-000000000001', p_basic_salary => 1500.25);
+  perform public.propose_employee('GOLDEN V-OK-2 B', '00000000-0000-0000-0000-000000000001', p_basic_salary => 1500);
+  select c.basic_salary::text into a from public.employee_pay_config c
+    join public.employees e on e.id = c.employee_id where e.name = 'GOLDEN V-OK-2 A';
+  select c.basic_salary::text into b from public.employee_pay_config c
+    join public.employees e on e.id = c.employee_id where e.name = 'GOLDEN V-OK-2 B';
+  if a is distinct from '1500.25' or b is distinct from '1500.00' then
+    raise exception 'V-OK-2: stored exp=1500.25 got=%; exp=1500.00 got=%', a, b;
+  end if;
+end $$;
+
+-- V-OK-3: standing allowances 100.12 and 100 are accepted and stored as 100.12 / 100.00.
+-- probe: V-OK-3 standing allowance 2 dp accepted, stored at scale 2
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-OK-3', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+-- as role:
+do $$
+declare a text; b text;
+begin
+  insert into public.employee_allowances (employee_id, allowance_type_id, default_amount, effective_from)
+  values ('90d00000-0000-0000-0000-000000000001', '90d00000-0000-0000-0000-0000000000b1', 100.12, date '2026-01-01'), ('90d00000-0000-0000-0000-000000000001', '90d00000-0000-0000-0000-0000000000b2', 100, date '2026-01-01');
+  select default_amount::text into a from public.employee_allowances where employee_id = '90d00000-0000-0000-0000-000000000001' and allowance_type_id = '90d00000-0000-0000-0000-0000000000b1';
+  select default_amount::text into b from public.employee_allowances where employee_id = '90d00000-0000-0000-0000-000000000001' and allowance_type_id = '90d00000-0000-0000-0000-0000000000b2';
+  if a is distinct from '100.12' or b is distinct from '100.00' then
+    raise exception 'V-OK-3: stored exp=100.12 got=%; exp=100.00 got=%', a, b;
+  end if;
+end $$;
+
+
+-- ==========================================================================
+-- N. Negative inputs refused (Eyram's owner decision 2026-10-07: negative amounts and hours refused)
+-- Negative amounts and hours are refused on all seven payroll inputs; zero is
+-- still allowed, basic salary included (the schema has allowed a zero basic
+-- salary since 20260908070000). The basic-salary RPCs refuse a negative
+-- salary with their own existing messages before the trigger is reached.
+
+-- probe: N-SAL-1 basic salary -100 via propose_employee
+-- expect: Manager,Accountant
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-SAL-1',
+  $q$select public.propose_employee('GOLDEN N-SAL-1', '00000000-0000-0000-0000-000000000001', p_basic_salary => -100)$q$,
+  'Basic salary cannot be negative');
+
+-- probe: N-SAL-2 basic salary -100 via propose_pay_config_change
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN N-SAL-2', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-SAL-2',
+  $q$select public.propose_pay_config_change('90d00000-0000-0000-0000-000000000001', date '2026-11-01', -100, null, null, true, true, true)$q$,
+  'Basic salary must be zero or more');
+
+-- probe: N-SAL-3 basic salary -100 via approve_employee
+-- expect: Manager
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-SAL-3', 'Pending Approval');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye, approval_status)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true, 'Pending Approval');
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-SAL-3',
+  $q$select public.approve_employee('90d00000-0000-0000-0000-000000000001', -100)$q$,
+  'Basic salary cannot be negative');
+
+-- probe: N-SAL-4 basic salary -100 via approve_pay_config
+-- expect: Manager
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN N-SAL-4', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true);
+insert into public.employee_pay_config (id, employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye, approval_status)
+values ('90d00000-0000-0000-0000-0000000000c1', '90d00000-0000-0000-0000-000000000001', 2100, date '2026-11-01', true, true, true, 'Pending Approval');
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-SAL-4',
+  $q$select public.approve_pay_config('90d00000-0000-0000-0000-0000000000c1', -100)$q$,
+  'Basic salary cannot be negative');
+
+-- N-ALW-1: as V-ALW-1, the trigger runs before row-level security, so every
+-- signed-in role gets the message; nothing is written. anon has no grant.
+-- probe: N-ALW-1 standing allowance -50, direct insert
+-- expect: Attendant,Manager,Accountant,Auditor,Admissions Officer
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN N-ALW-1', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-ALW-1',
+  $q$insert into public.employee_allowances (employee_id, allowance_type_id, default_amount, effective_from) values ('90d00000-0000-0000-0000-000000000001', '90d00000-0000-0000-0000-0000000000b1', -50, date '2026-01-01')$q$,
+  'Allowance amount cannot be negative (got -50)');
+
+-- N-ALW-2: as V-ALW-2, other roles' update matches no row under RLS.
+-- probe: N-ALW-2 standing allowance updated to -50
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN N-ALW-2', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 2000, date '2026-01-01', true, true, true);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+insert into public.employee_allowances (id, employee_id, allowance_type_id, default_amount, effective_from)
+values ('90d00000-0000-0000-0000-0000000000d1', '90d00000-0000-0000-0000-000000000001', '90d00000-0000-0000-0000-0000000000b1', 100, date '2026-01-01');
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-ALW-2',
+  $q$update public.employee_allowances set default_amount = -50 where id = '90d00000-0000-0000-0000-0000000000d1'$q$,
+  'Allowance amount cannot be negative (got -50)');
+
+-- probe: N-PS-1 overtime hours -2
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-PS-1',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', -2, 40, '[]'::jsonb, 0, 0)$q$,
+  'Overtime hours cannot be negative (got -2)');
+
+-- probe: N-PS-2 overtime rate -40
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-PS-2',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 2, -40, '[]'::jsonb, 0, 0)$q$,
+  'Overtime rate cannot be negative (got -40)');
+
+-- probe: N-PS-3 payslip allowance -100
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-PS-3',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[{"allowance_type_id": "90d00000-0000-0000-0000-0000000000b1", "amount": -100}]'::jsonb, 0, 0)$q$,
+  'Allowance amount cannot be negative (got -100)');
+
+-- probe: N-PS-4 fines -10
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-PS-4',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[]'::jsonb, -10, 0)$q$,
+  'Fines cannot be negative (got -10)');
+
+-- probe: N-PS-5 IOU -20
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-PS-5',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[]'::jsonb, 0, -20)$q$,
+  'IOU cannot be negative (got -20)');
+
+-- probe: N-PS-6 fines -0.01 (smallest negative)
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN V-PS', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 1900, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_refused(p_case text, p_sql text, p_msg text) returns void
+language plpgsql as $f$
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if sqlerrm = p_msg then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception '%: accepted, expected refusal: %', p_case, p_msg;
+end $f$;
+-- as role:
+select pg_temp.golden_refused(
+  'N-PS-6',
+  $q$select public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[]'::jsonb, -0.01, 0)$q$,
+  'Fines cannot be negative (got -0.01)');
+
+-- N-OK-1: basic salary 0 is accepted and stored as 0.00.
+-- probe: N-OK-1 basic salary zero accepted
+-- expect: Manager,Accountant
+-- as role:
+do $$
+declare a text;
+begin
+  perform public.propose_employee('GOLDEN N-OK-1', '00000000-0000-0000-0000-000000000001', p_basic_salary => 0);
+  select c.basic_salary::text into a from public.employee_pay_config c
+    join public.employees e on e.id = c.employee_id where e.name = 'GOLDEN N-OK-1';
+  if a is distinct from '0.00' then
+    raise exception 'N-OK-1: stored exp=0.00 got=%', a;
+  end if;
+end $$;
+
+-- SSNIT, Tier 2 and employer SSNIT are % of a zero basic: 0. Taxable 500 is inside
+-- the 0% band (up to 588): PAYE 0. Net 500.
+-- probe: N-OK-2 basic 0, taxable allowance 500 (allowance-only pay)
+-- expect: Manager,Accountant
+insert into public.employees (id, branch_id, name, employment_status) values
+  ('90d00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'GOLDEN N-OK-2', 'Active');
+insert into public.employee_pay_config (employee_id, basic_salary, effective_from,
+  pays_ssnit, pays_tier2, pays_paye)
+values ('90d00000-0000-0000-0000-000000000001', 0, date '2026-01-01', true, true, true);
+insert into public.payroll_runs (id, branch_id, month, year)
+values ('90d00000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 10, 2026);
+insert into public.allowance_types (id, branch_id, name, taxable, position) values
+  ('90d00000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000001', 'Golden taxable allowance', true, 900),
+  ('90d00000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-000000000001', 'Golden non-taxable allowance', false, 901);
+create function pg_temp.golden_check(p_case text, p_got jsonb, p_exp jsonb) returns void
+language plpgsql as $f$
+declare
+  k text; v_label text; v_line text := ''; v_bad boolean := false; v_ok boolean;
+begin
+  foreach k in array array['gross_salary', 'total_allowances', 'overtime_pay', 'taxable_income',
+    'tax', 'overtime_tax', 'overtime_concession', 'ssnit', 'tier2', 'ssnit_employer', 'fines',
+    'iou', 'total_deductions', 'net_pay'] loop
+    continue when not (p_exp ? k);
+    v_label := case k when 'gross_salary' then 'gross' when 'total_allowances' then 'allowances'
+      when 'overtime_pay' then 'OT pay' when 'taxable_income' then 'taxable' when 'tax' then 'PAYE'
+      when 'overtime_tax' then 'OT tax' when 'overtime_concession' then 'concession'
+      when 'ssnit' then 'SSNIT' when 'tier2' then 'Tier 2' when 'ssnit_employer' then 'employer SSNIT'
+      when 'iou' then 'IOU' when 'total_deductions' then 'deductions' when 'net_pay' then 'net' else k end;
+    v_ok := case when jsonb_typeof(p_exp -> k) = 'boolean' then (p_got ->> k) = (p_exp ->> k)
+                 else (p_got ->> k)::numeric = (p_exp ->> k)::numeric end;
+    v_ok := coalesce(v_ok, false);
+    v_bad := v_bad or not v_ok;
+    v_line := v_line || format('%s exp=%s got=%s%s; ', v_label, p_exp ->> k,
+      coalesce(p_got ->> k, 'null'), case when v_ok then '' else ' <<WRONG' end);
+  end loop;
+  select string_agg(key, ', ') into k from jsonb_object_keys(p_exp) key
+    where key <> all (array['gross_salary', 'total_allowances', 'overtime_pay', 'taxable_income',
+      'tax', 'overtime_tax', 'overtime_concession', 'ssnit', 'tier2', 'ssnit_employer', 'fines',
+      'iou', 'total_deductions', 'net_pay']);
+  if k is not null then
+    raise exception '%: unknown expected key(s): %', p_case, k;
+  end if;
+  if v_bad then
+    raise exception '%: %', p_case, rtrim(v_line, '; ');
+  end if;
+end $f$;
+-- as role:
+select pg_temp.golden_check(
+  'N-OK-2',
+  to_jsonb(public.create_payslip('90d00000-0000-0000-0000-0000000000a1', '90d00000-0000-0000-0000-000000000001', 0, 0, '[{"allowance_type_id": "90d00000-0000-0000-0000-0000000000b1", "amount": 500}]'::jsonb, 0, 0)),
+  '{"gross_salary": "500.00", "total_allowances": "500.00", "overtime_pay": "0.00", "taxable_income": "500.00", "tax": "0.00", "overtime_tax": "0.00", "overtime_concession": false, "ssnit": "0.00", "tier2": "0.00", "ssnit_employer": "0.00", "fines": "0.00", "iou": "0.00", "total_deductions": "0.00", "net_pay": "500.00"}');
+
+
+-- ==========================================================================
 -- PENDING. Not asserted until the accountant confirms (D-0b)
 -- Inputs and expected values are written down; uncomment a case only after
 -- a confirmation gate. Base basic 3,100: SSNIT 15.50, Tier 2 155.00,

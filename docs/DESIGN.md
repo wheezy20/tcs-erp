@@ -169,6 +169,26 @@ depend on them holding true for every new table/function added.
   computes it (`20261007100000`), and gross, taxable income, PAYE, the
   concession test and net all read that one figure, so a payslip foots
   from its printed lines.
+- **Payroll money and hours inputs: more than 2 decimal places or a
+  negative value refused (2026-10-07).** Seven columns —
+  `employee_pay_config.basic_salary`, `employee_allowances.default_amount`,
+  `payslips.overtime_hours`, `payslips.overtime_rate`, `payslips.fines`,
+  `payslips.iou`, `payslip_allowances.amount` — are plain `numeric` (typmod
+  deliberately unconstrained, because `numeric(p,2)` rounds before a BEFORE
+  trigger or check sees the value). The BEFORE trigger `_refuse_over_2dp()`
+  refuses NaN, infinity, out-of-range values, negative values (with message
+  "<Label> cannot be negative (got X)"), and more than 2 dp (each with a
+  message the form shows), then stores `round(value, 2)`. Check constraints
+  are the backstop: per-column `value = round(value, 2)` and the bound the
+  old typmod gave (below 10^10, hours below 10^6), plus `value >= 0`
+  (`basic_salary`, `default_amount` and `payslip_allowances.amount` already
+  had it; `overtime_hours`, `overtime_rate`, `fines` and `iou` got it in
+  `20261007110000`). Zero is allowed on all seven, basic salary included. Computed columns (`payslips.gross_salary`, `taxable_income`,
+  etc.) stay `numeric(12,2)`. A new money or hours input column must follow
+  the same pattern. BEFORE triggers run before RLS `with check`, so on a
+  direct insert of a negative or 3 dp amount a role without write access gets
+  the validation message rather than the RLS error; nothing is written either
+  way.
 - **Concessionary overtime tax** (GRA overtime rule, migrations
   `20261006100000` and `20261006110000`): an effective-dated scalar row
   picked by payroll month from `overtime_tax_rates`, the same pattern as

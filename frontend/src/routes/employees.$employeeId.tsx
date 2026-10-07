@@ -28,6 +28,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AdjustPayFields,
+  overrideBasicSalary,
   PaymentDestinationFields,
   payOverrideFrom,
   type PayOverride,
@@ -1656,7 +1657,7 @@ function PayConfigSection({
                           pending.id,
                           adjusting && override
                             ? {
-                                basicSalary: Number(override.basicSalary) || 0,
+                                basicSalary: overrideBasicSalary(override.basicSalary),
                                 paymentMethod: override.paymentMethod,
                                 bank: override.bank,
                                 accountNo: override.accountNo,
@@ -2106,7 +2107,7 @@ function StatusCard({
                       emp.id,
                       adjusting && override
                         ? {
-                            basicSalary: Number(override.basicSalary) || 0,
+                            basicSalary: overrideBasicSalary(override.basicSalary),
                             paymentMethod: override.paymentMethod,
                             bank: override.bank,
                             accountNo: override.accountNo,

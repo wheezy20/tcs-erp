@@ -27,6 +27,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import {
   AdjustPayFields,
+  overrideBasicSalary,
   PaymentDestinationFields,
   payOverrideFrom,
   type PayOverride,
@@ -386,7 +387,7 @@ function ApprovalsPanel({
                                     row.emp.id,
                                     override
                                       ? {
-                                          basicSalary: Number(override.basicSalary) || 0,
+                                          basicSalary: overrideBasicSalary(override.basicSalary),
                                           paymentMethod: override.paymentMethod,
                                           bank: override.bank,
                                           accountNo: override.accountNo,
@@ -411,7 +412,7 @@ function ApprovalsPanel({
                                     row.cfg.id,
                                     override
                                       ? {
-                                          basicSalary: Number(override.basicSalary) || 0,
+                                          basicSalary: overrideBasicSalary(override.basicSalary),
                                           paymentMethod: override.paymentMethod,
                                           bank: override.bank,
                                           accountNo: override.accountNo,
