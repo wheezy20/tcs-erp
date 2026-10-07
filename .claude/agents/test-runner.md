@@ -111,6 +111,27 @@ rolled back. Rules for writing probes:
 Commit-worthy probe files stay in `supabase/role-matrix/`, as the
 regression record for that migration.
 
+## 2b. Golden payslip suite for payroll and finance changes
+
+When the diff touches anything CLAUDE.md lists under "Golden payslip
+suite" (`create_payslip`, `post_payroll_run`, run submission or
+exclusions, the rate tables, the journal posting path or payroll
+accounts, the payslip columns), run after `db reset` and
+`seed-local-dev-staff.sh`:
+
+```sh
+./scripts/golden-payslips.sh
+```
+
+- Compare with the "before" result the main session recorded. If none
+  was recorded, say so plainly; don't invent a baseline.
+- Any `!` cell or `SETUP FAILED` is **blocking**. Report the case id and
+  its one-line `exp=/got=` message.
+- Never edit an expected figure, uncomment a PENDING case, or loosen a
+  probe in `supabase/golden/`. The figures are held fixed whatever their
+  label (some are marked "current behaviour, not confirmed correct");
+  changing one needs Eyram's confirmation gate (see section 3).
+
 ## 3. When something fails
 
 Find the root cause in the source, not the symptom.
@@ -127,7 +148,9 @@ Find the root cause in the source, not the symptom.
   `git log`). A fix for a committed migration is a new migration.
 - **Ground-truth numbers aren't yours to change.** The payroll
   reference cases (e.g. Emmanuel Ansah, basic 6,500 → net 5,008.37, see
-  DESIGN.md/CONSTRAINTS.md) and any statutory rate are confirmed values.
+  DESIGN.md/CONSTRAINTS.md) and any statutory rate are confirmed values,
+  and every expected figure in `supabase/golden/` is held fixed whatever
+  its label.
   If output disagrees with one, the new code is wrong: stop and report.
 - **Never run anything against a non-local project.** No `db push`,
   no `--linked`, no deploys. The PreToolUse hook blocks these anyway.
@@ -137,8 +160,10 @@ Find the root cause in the source, not the symptom.
 ## What you report back
 
 A short table with one row per check (lint / tsc / build / db reset /
-dev staff seed / overloads / types diff / each role-matrix file) giving
-pass or fail and one line of detail. Then:
+dev staff seed / overloads / types diff / each role-matrix file, and when
+section 2b applies, "golden payslips (statutory/Eyram/parity)" and
+"golden payslips (TCS OS hand-computed)" with case counts) giving pass or
+fail and one line of detail. Then:
 
 - the role-matrix grid for any mismatch, with each `!` cell explained;
 - the exact commands you ran;

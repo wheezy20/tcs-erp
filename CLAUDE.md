@@ -77,6 +77,27 @@ Needs the dev staff accounts (`./scripts/seed-local-dev-staff.sh`) and
 the local stack running. The probe format is documented at the top of
 the script. The `test-runner` subagent owns this whole pass.
 
+**Golden payslip suite.** `./scripts/golden-payslips.sh` holds
+`create_payslip()`, `post_payroll_run()` and the run-exclusion flow to
+hand-derived figures (`supabase/golden/`), against the real statutory
+rows, through the same rolled-back harness. Any change that touches
+`create_payslip`, `post_payroll_run`, `submit_payroll_run_for_review`,
+`_payroll_run_unaccounted` or the exclusion RPCs, or anything they call;
+`employee_pay_config`; `statutory_rates`, `paye_bands` or
+`overtime_tax_rates` (rows or schema); the journal posting path
+(`_post_journal_entry_rows`, `account_id_by_code`, the payroll accounts
+2300, 2310, 2320, 2330, 5140, 5145, 1350, 4910); or the `payslips` /
+`payslip_allowances` columns must show the suite passing before and
+after. The main session runs it on a freshly reset database before the
+first edit and records the result; `test-runner` runs it after the build
+and reports both. A red golden case is never fixed by editing its
+expected figure: expected figures change only through a confirmation
+gate, and a rate change adds new cases for the new effective date while
+the old ones keep passing for their own months. (A rate row dated on or
+before 2026-10-01, the latest month the suite uses, turns case G0 red on
+purpose, because it could change those months.) Cases marked PENDING
+stay commented out until the accountant confirms them.
+
 ## Slice loop (how every non-trivial change gets built)
 
 Project subagents live in `.claude/agents/`: `tcs-planner`,
@@ -89,7 +110,8 @@ Build work goes one slice at a time, in this order:
    and every confirmation gate below.
 2. **Build** that one slice, nothing beyond it.
 3. **Test.** `test-runner` runs the full check pass plus the role
-   matrix.
+   matrix, and the golden payslip suite when the change touches payroll
+   or finance (see the golden payslip suite above).
 4. **Review.** `code-reviewer` checks the diff against DESIGN.md and
    CONSTRAINTS.md, and for non-SECURITY-DEFINER anon surface,
    service_role in the bundle, and client-side business logic.

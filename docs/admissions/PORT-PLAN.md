@@ -24,7 +24,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 
 | # | Slice | Status | Depends on |
 |---|---|---|---|
-| 0 | Payroll regression carry-back (SQL probes for `create_payslip`) | not started | — |
+| 0 | Payroll regression carry-back (golden payslip suite, `supabase/golden/`) | built, awaiting review | — |
 | 1 | Campuses: make a second branch safe, seed Main + Annex | committed (slice 1, campuses) | — |
 | 1b-i | Allowlist guards, can_read_store(), staff read, list_staff_names(), compute_day_totals, regression matrix | committed (slice 1b-i, allowlist guards) | 1 |
 | 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | committed (slice 1b-ii, Admissions Officer role) | 1b-i |
@@ -226,31 +226,32 @@ Role and capability matrix (decided except where marked):
 
 ## Slice 0 — Payroll regression carry-back
 
-**Delivers:** `supabase/role-matrix/payroll-regression.sql`, a probe file run by `scripts/role-matrix.sh`.
+**Status:** built, awaiting review (not committed).
 
-- Each probe's postgres setup inserts an invented employee, an `Active` `employee_pay_config` (basic salary and `pays_*` flags) and a `Draft` `payroll_runs` row on the seeded branch.
-- The role section calls `create_payslip(p_payroll_run_id, p_employee_id, p_overtime_hours, p_overtime_rate, p_allowances jsonb, p_fines, p_iou)` and raises on any field that doesn't match (`gross_salary`, `ssnit`, `tier2`, `taxable_income`, `tax`, `ssnit_employer`, `total_deductions`, `net_pay`).
-- Every probe carries `-- expect: Manager,Accountant`. That proves the finance-writer gate and the figures at the same time. A wrong figure shows up as a `denied!` mismatch for Manager, with the assertion message.
-- Current signature: `20260909130000_employees_and_approval_workflow.sql:379`, grants at `:552-553`.
-- Only the fully-specified cases become assertions now. Every other case is written as a **commented-out** probe marked `-- PENDING CONFIRMATION`. See the section "Slice 0 detail".
+**Delivers:** `supabase/golden/payslips.sql` (statutory-derived cases, Eyram's overtime figures, the Emmanuel Ansah parity case, run probes and the commented PENDING cases) and `supabase/golden/payslips-tcsos-hand.sql` (the TCS OS hand-computed tier only, D-0c), run together by `./scripts/golden-payslips.sh`. It replaces the originally planned `supabase/role-matrix/payroll-regression.sql`.
 
-**Not included:** no code or schema change to payroll, no new statutory numbers in the database, and nothing about overtime concessionary rates or bonus tax.
+- Each payslip probe's setup (as postgres) inserts an invented employee, an `employee_pay_config` (basic salary and `pays_*` flags) and a `payroll_runs` row for August, September or October 2026. The body calls `create_payslip()` against the real rate rows and compares every field with the hand-derived figures through a rolled-back `pg_temp.golden_check()` helper, which raises one line naming each field as `exp=` / `got=`.
+- G0 pins the rate rows themselves; the run probes (GA-X1 to GA-X3) cover an exclusion, posting with and without the overtime-tax line, and a refused submission.
+- PENDING cases stay commented out, with their inputs and expected values written down, until the accountant confirms them.
+
+**Not included:** no schema changes to payroll. Statutory numbers (`statutory_rates`, `paye_bands`, `overtime_tax_rates`) already live in the database.
 
 **TCS OS files to read:** `docs/DESIGN.md:140-155`; `docs/JOURNAL.md:638-700, 878-919`; `docs/CONSTRAINTS.md:50-75`; `backend/modules/hr/tests.py:74-212`; `backend/modules/hr/payroll.py:70-80`; `backend/modules/hr/management/commands/run_parity_test_payroll.py:55-67`; `seed_parity_test_employees.py:40-50`.
 
 **DESIGN.md conventions:** computed-never-stored (don't store expected values in tables); effective-dated config (the probe's run month must fall inside the pay config's and `statutory_rates`' effective range; live rates are effective 2025-01-01); flexible allowances (`allowance_types.taxable`); overtime kept out of allowances; per-employee exemption flags; mutation window (Draft only).
 
-**Role matrix:** every `create_payslip` probe gives Manager ✓, Accountant ✓, Attendant ✗, Auditor ✗, anon ✗. Capability variants don't apply.
+**Role matrix:** every `create_payslip` probe and GA-X3 expect Manager and Accountant (the four other roles are denied by `require_finance_writer()`); the posting probes GA-X1 and GA-X2 expect Manager only; G0 expects all six roles. Capability variants don't apply.
 
 **Anon surface:** none.
 
-**Decisions for Eyram:**
+**Decisions (made 2026-10-07):**
 
-- **D-0a.** Confirm Abena Konadu Owusu's and Yaw Darko Asamoah's full figures. The source only records basic salary plus "matched to the cent". Recommendation: Eyram reads those two payslips from the hosted ERP's posted September 2026 test run (a read-only SELECT, Eyram's step), and slice 0 asserts those exact rows.
-- **D-0b.** Confirm the expected values for each coverage-gap case with TCS's accountant before it's uncommented. This is the statutory gate.
-- **D-0c.** Whether to import TCS OS's own hand-computed flag-independence cases as a separate "TCS OS hand-computed, not ERP-confirmed" tier. Recommendation: yes, clearly labelled.
+- **D-0a (written off).** Abena Konadu Owusu and Yaw Darko Asamoah were dummy records. They are removed from the plan, with no pending cases.
+- **D-0b.** Moved from pending to asserted, accountant confirmed (reported, written copy to be saved), reported by Eyram 2026-10-07: fines and IOU repayments come off after tax and don't reduce taxable income, with no cap on total deductions; a PAYE amount of exactly half a pesewa rounds up; the contribution split (employee SSNIT 0.5%, employee Tier 2 5%, employer SSNIT 13%, employer Tier 2 0); no SSNIT contribution ceiling known to the accountant (high-earner cases); normal PAYE rates for non-qualifying overtime. Still PENDING (commented out): non-taxable allowances ("subject to GRA policy"; all allowances stay taxable until he names an exemption), non-qualifying overtime entering PAYE unrounded, a National Service payslip showing taxable income with no PAYE, and the posting accounts for fines (4910) and IOU (1350).
+- **D-0c (decided yes).** The TCS OS hand-computed cases are in their own file, `payslips-tcsos-hand.sql`, labelled "TCS OS hand-computed, not ERP-confirmed".
+- **D-0d (decided).** The 2025-01-01 band set is asserted but labelled "current behaviour, not confirmed correct"; the accountant said only that the new bands apply from now. The 2026-09-01 set is what applies to the first real payroll.
 
-**Size:** one probe file and no schema. It exercises one existing RPC. Well within one pass.
+**Size:** two probe files and one wrapper script, no schema or frontend change.
 
 ## Slice 1 — Campuses: make a second branch safe, seed Main and Annex
 
@@ -1160,10 +1161,10 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 
 | ID | Decision | Recommendation |
 |---|---|---|
-| D-0a | Full figures for Abena Konadu Owusu and Yaw Darko Asamoah | Eyram reads them from the hosted ERP's posted September 2026 test run (read-only). Assert those. |
-| D-0b | Expected values for the payroll coverage-gap cases | Hand-computed, then confirmed by TCS's accountant before being uncommented (statutory gate). |
-| D-0c | Import TCS OS's hand-computed flag and band cases | Yes, as a separately labelled tier. |
-| D-0d | Statutory numbers to reconfirm | GRA "Year 2024" PAYE bands (the unchecked CONSTRAINTS item) and the SSNIT/Tier 2 split (0.5/13/5) against an official SSNIT source. Slice 0 asserts current behaviour, not correctness. |
+| D-0a | Full figures for Abena Konadu Owusu and Yaw Darko Asamoah | **Written off 2026-10-07:** they were dummy records. No cases. |
+| D-0b | Expected values for the payroll coverage-gap cases | **Partly decided 2026-10-07** (accountant confirmed (reported, written copy to be saved)): see slice 0. Five cases stay PENDING. |
+| D-0c | Import TCS OS's hand-computed flag and band cases | **Decided 2026-10-07, as recommended:** a separate file, `payslips-tcsos-hand.sql`. |
+| D-0d | Statutory numbers to reconfirm | GRA "Year 2024" PAYE bands (the unchecked CONSTRAINTS item) and the SSNIT/Tier 2 split (0.5/13/5) against an official SSNIT source. **2026-10-07:** the split is accountant confirmed (reported, written copy to be saved); the 2025 set is asserted as current behaviour, not confirmed correct. |
 | D-1a | Campus seeding | **Decided 2026-09-29, as recommended.** Rename the existing branch to "Main"; add "Annex" in both seed files. |
 | D-1b | Which modules stay school-wide | **Decided 2026-09-29, as recommended.** All existing ones, on Main. |
 | D-1c | Campus filter on existing screens | **Decided 2026-09-29, as recommended.** None in Phase 2. |
@@ -1223,15 +1224,15 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 
 ## Slice 0 detail: reference payslip figures and coverage gaps
 
-**Engine facts the probes depend on** (live `create_payslip`, from `pg_get_functiondef` and `20260909130000_employees_and_approval_workflow.sql:379`):
+**Engine facts the probes depend on** (live `create_payslip`, from `20260909130000_employees_and_approval_workflow.sql:379`):
 
 - SSNIT employee, SSNIT employer and Tier 2 are computed on **basic salary only**, each rounded to 2 decimal places and each gated on its `pays_*` flag.
 - Taxable income = basic + overtime pay + taxable allowances − SSNIT − Tier 2, floored at 0.
 - PAYE walks the latest `paye_bands` set **with per-band rounding**.
 - Gross = basic + overtime + all allowances.
 - Deductions = PAYE + Tier 2 + SSNIT + fines + IOU. Net = gross − deductions.
-- Live rates (local database): `statutory_rates` 0.5 / 13 / 5 / 0, effective 2025-01-01.
-- `paye_bands` (monthly), effective 2025-01-01:
+- Live rates (local database): `statutory_rates` 0.5 / 13 / 5 / 0 (accountant confirmed, reported 2026-10-07), effective 2025-01-01.
+- `paye_bands` (monthly), two sets: effective 2025-01-01 (labelled "current behaviour, not confirmed correct") and effective 2026-09-01 (applies to first real payroll):
 
 | Band | From | To | Rate |
 |---|---|---|---|
@@ -1251,20 +1252,6 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 
 Per-band PAYE for this case: 5.50 + 13.00 + 554.17 + 561.46 = 1,134.13. Sum-then-round would give 1,134.12, the bug recorded in `hr/tests.py:197-212`.
 
-**"Matched to the cent" only. The source records the basic salary, not the figures:**
-
-| Case | Basic | Source | Status |
-|---|---|---|---|
-| Abena Konadu Owusu | 1,900.00 | `tcs-os/docs/JOURNAL.md:880-885` | Figures not recorded; `pays_*` flags not recorded |
-| Yaw Darko Asamoah | 1,700.00 | same | same |
-
-For reference only, **not to be asserted without D-0a**: if both pay all three deductions, the engine as it stands gives:
-
-- Abena: SSNIT 9.50, Tier 2 95.00, taxable 1,795.50, PAYE 204.96, net 1,590.54, employer 247.00.
-- Yaw: SSNIT 8.50, Tier 2 85.00, taxable 1,606.50, PAYE 171.89, net 1,434.61, employer 221.00.
-
-These were derived by the planner, not sourced.
-
 **TCS OS hand-computed cases (independent arithmetic, never ERP-confirmed)** (`hr/tests.py:116-195`):
 
 | Case | PAYE | Net |
@@ -1276,27 +1263,21 @@ These were derived by the planner, not sourced.
 
 The 400 case has SSNIT 2.00 and Tier 2 20.00. These carry the D-0c label.
 
-**Known coverage gaps.** Each becomes a commented probe with its inputs fixed and its expected values blank until D-0b.
+**What the suite asserts** (`supabase/golden/payslips.sql`; months: August 2026 = 2025 set, September 2026 = 2026 set, October 2026 = 2026 set plus the overtime row):
 
-| Gap | Probe inputs (invented employee) | What it checks | Open statutory question |
-|---|---|---|---|
-| Taxable allowance | basic 3,000 plus a 500 allowance whose type has `taxable = true` | gross includes it, taxable includes it, SSNIT and Tier 2 unchanged | none beyond the band table |
-| Non-taxable allowance | basic 3,000 plus a 500 allowance with `taxable = false` | gross includes it, taxable excludes it | Which TCS allowances are genuinely non-taxable under GRA. All seeded types are `taxable = true`. |
-| Mixed allowances | both of the above together | `total_allowances` versus the taxable subset | — |
-| Overtime | basic 700 (a junior employee, 800/month or less), 10 h × 15 | `overtime_pay = hours × rate`, taxed graduated today | GRA's concessionary flat rate for qualifying junior employees (CONSTRAINTS "Statutory accuracy"): the expected value depends on the answer |
-| Fines | basic 3,000, fines 100 | deducted after tax, no PAYE effect | — |
-| IOU | basic 3,000, IOU 250 | deducted after tax | — |
-| 30% band | basic 25,000 | band 6 walk | GRA table recheck (D-0d) |
-| 35% band | basic 60,000 | band 7 walk; the 50,000 threshold follows GRA's literal label (CONSTRAINTS) | GRA table recheck |
-| Band edges | taxable exactly 490.00, 730.00, 3,896.67 | per-band boundaries | — |
-| All-exempt | 1,500 with every flag off (Kojo Boadu's seeded shape) | net = gross | whether National Service staff are fully exempt |
-| Bonus | not modelled | flag only; no probe until the flat 5% treatment is decided | CONSTRAINTS "bonus income" |
+| Group | Cases | Status |
+|---|---|---|
+| G0 | rate rows pinned (statutory rates, both band sets, the overtime row) | asserted |
+| S26 | 2026 band edges 588 to 60,000 (PAYE-only), an edge reached through an allowance, band set picked by month, basic 2,000, taxable allowance, National Service (taxable income not asserted), PAYE-exempt only (taxable income not asserted) | asserted |
+| S26-HI | basic 25,000 and 60,000 | asserted; no ceiling known to the accountant |
+| S26-D | fines 100, IOU 250, both (basic 3,100); half-pesewa PAYE tie (449.225 to 449.23) | asserted; accountant confirmed (reported, written copy to be saved) |
+| S25 | 2025 band edges 490 to 60,000, an allowance edge, set picked by month, basic 2,000 | asserted; current behaviour, not confirmed correct |
+| E | Eyram's overtime figures (20.00 / 78.05 / 1,435.95; 50.00 / 1,805.95; 263.81 / 1,931.69; 3.5 h at 40.37 gives 7.07) | asserted |
+| P | Emmanuel Ansah, August 2026 (net 5,008.37, the parity figure) and September 2026 (5,002.37, derived) | asserted |
+| GA-X | October run with one excluded employee, posted (overtime-tax line present); September run posted (no overtime-tax line); unaccounted employee blocks submission | asserted |
+| H (`payslips-tcsos-hand.sql`) | the four TCS OS cases above, August 2026 (H3 doesn't assert taxable income) | asserted; TCS OS hand-computed, not ERP-confirmed |
 
-**Harness.** One file, `supabase/role-matrix/payroll-regression.sql`, run by `./scripts/role-matrix.sh` after `./scripts/seed-local-dev-staff.sh`. Every probe runs in a rolled-back transaction.
-
-- Setup, as postgres: insert an employee with `employment_status='Active'` on the Main branch, an `employee_pay_config` with `approval_status='Active'` and `effective_from` on or before the run month, and a `payroll_runs` row with `status='Draft'`. Probes that need allowances also insert `allowance_types`.
-- Body: `select * into v from create_payslip(...)`, then `if v.net_pay <> 5008.37 then raise exception 'net_pay %', v.net_pay; end if;` for each field.
-- Expect line: `-- expect: Manager,Accountant`.
+**PENDING, commented out with expected values:** Q-ALW-N (non-taxable allowance 500), Q-ALW-MIX (taxable 500 plus non-taxable 300), Q-NSS-ALW (National Service plus allowance 300, taxable income 1,800 shown with no PAYE), Q-OT-UNR (non-qualifying overtime 2.5 h × 40.05; the engine gives PAYE 211.33 from the unrounded figure, 211.34 from the figure shown), Q-POST-3 (posting fines to 4910 and IOU to 1350).
 
 ## Cutover runbook (slice 15)
 

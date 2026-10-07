@@ -22,11 +22,14 @@ Things that shape how this gets built, not just what gets built.
       The hosted project gets both on `npx supabase db push`. Bonus rule:
       its own later slice. See "Statutory accuracy" below.
 - [ ] Confirm the SSNIT / Tier 2 split (0.5% / 13% / 5%) against an
-      official SSNIT source — currently only confirmed verbally against
-      the school's current practice (see "Statutory accuracy" below).
+      official SSNIT source. The split (employee SSNIT 0.5%, employee
+      Tier 2 5%, employer SSNIT 13%, employer Tier 2 0) is now accountant
+      confirmed (reported, written copy to be saved): reported by Eyram
+      2026-10-07, asserted in `supabase/golden/`.
       Note the employer's 13% is now computed, snapshotted
       (`payslips.ssnit_employer`) and posted (Dr 5145 / Cr 2310) as of
-      `20260909120000` — only the *rate* still needs the official check.
+      `20260909120000`. The written copy must be saved before ticking this
+      item.
 - [ ] `supabase/seed.sql` is still local-dev-only (Wilelik retail demo +
       TCS demo people). Production uses `supabase/seed.production.sql`
       instead — reference/config only, zero demo people. Before go-live,
@@ -221,6 +224,27 @@ Things that shape how this gets built, not just what gets built.
   SSNIT, no Tier 2 and no PAYE. In practice that means `pays_ssnit`,
   `pays_tier2` and `pays_paye` are all false on their
   `employee_pay_config`.
+- **Accountant answers reported by Eyram on 2026-10-07** (accountant confirmed (reported, written copy to be saved)),
+  asserted in the golden payslip suite (`supabase/golden/`):
+  - The contribution split: employee SSNIT 0.5%, employee Tier 2 5%,
+    employer SSNIT 13%, employer Tier 2 0.
+  - Fines and IOU repayments come off after tax and do not reduce taxable
+    income; there is no cap on total deductions.
+  - A PAYE amount of exactly half a pesewa rounds up (449.225 gives 449.23).
+  - No SSNIT contribution ceiling known to the accountant.
+  - Overtime for non-qualifying staff is taxed at the normal PAYE rates.
+- **Not confirmed, held as PENDING cases in `supabase/golden/`** (commented
+  out until the accountant confirms):
+  - Non-taxable allowances: he said only "subject to GRA policy". All
+    allowances stay taxable until he names an exemption.
+  - Non-qualifying overtime entering PAYE unrounded (only the rates were
+    confirmed, not that detail).
+  - A National Service payslip showing taxable income with no PAYE charged.
+  - The posting accounts for fines (4910) and IOU (1350).
+- **The 2025-01-01 PAYE band set is "current behaviour, not confirmed"**: the
+  accountant said only that the new bands apply from now. The suite asserts
+  it with that label. The 2026-09-01 set is what applies to the first real
+  payroll.
 
 ## Staff roles (as of 20260909090000; fifth role decided 2026-09-29)
 
@@ -372,9 +396,9 @@ docs/JOURNAL.md.
   6,500 → net 5,008.37; Abena Konadu Owusu and Yaw Darko Asamoah
   matched to the cent) are carried back as **regression-test cases**
   for `create_payslip()`. Its untested paths (allowances, fines, IOU,
-  higher PAYE bands) are carried back as **known coverage gaps**, not
-  assumed correct. Overtime is now covered by the oracle probes in
-  `supabase/role-matrix/20261006100000_overtime_tax_engine.sql`.
+  higher PAYE bands) and overtime are now covered by the golden payslip
+  suite in `supabase/golden/`; the unconfirmed ones (non-taxable
+  allowances, among others) are PENDING cases there, not assertions.
 - **Real admissions data: ~3 records, migrated by hand.** They go into
   this project's own hosted Supabase project, along with any attached
   documents in TCS OS's Storage buckets. This is a one-off, reviewed

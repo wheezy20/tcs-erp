@@ -3680,3 +3680,66 @@ reading the local database (previous entry). It now deploys through
 retail demo data seen on the live site was local seed data and was never
 in the hosted database. This supersedes the previous entry's "Not done:
 no deploy".
+
+## 2026-10-07 — Slice 0: golden payslip suite
+
+Built slice 0 (payroll regression carry-back) as a permanent golden
+payslip suite, the go-live clearance for HR and Payroll. It holds
+`create_payslip()`, `post_payroll_run()` and the run-exclusion flow to
+hand-derived figures against the real rate rows, through the existing
+rolled-back harness. No migration, no engine or frontend change.
+
+- `supabase/golden/payslips.sql`: 39 active probes. G0 pins the rate rows.
+  Then: 2026 band edges and cases; high earners; fines, IOU and the
+  half-pesewa tie; 2025 band edges; Eyram's four overtime figures;
+  Emmanuel Ansah (5,008.37 in August 2026, 5,002.37 in September); and three
+  run probes (an exclusion with posting and the overtime-tax line, posting
+  without it, a refused submission). Five PENDING cases are commented out
+  with their expected values.
+- `supabase/golden/payslips-tcsos-hand.sql`: 4 probes, the TCS OS
+  hand-computed tier (D-0c), labelled not ERP-confirmed.
+- `scripts/golden-payslips.sh` runs both; CLAUDE.md and
+  `.claude/agents/test-runner.md` make the suite a before-and-after gate for
+  payroll and finance changes, and forbid editing an expected figure to pass.
+
+Eyram's decisions: suite in `supabase/golden/`, two files, noisy six-role
+output kept; D-0a written off (Abena and Yaw were dummy records); D-0c yes;
+D-0d: the 2025 band set asserted, labelled "current behaviour, not confirmed
+correct".
+
+The accountant's answers (reported by Eyram 2026-10-07, accountant confirmed (reported, written copy to be saved)) moved these
+to asserted: the contribution split (0.5 / 5 / 13 / 0); fines and IOU after
+tax with no cap; half a pesewa rounds up in PAYE; no SSNIT ceiling known
+to the accountant; normal PAYE rates for non-qualifying overtime. Still
+PENDING: non-taxable allowances (all taxable until he names an exemption),
+non-qualifying overtime entering PAYE unrounded, a National Service payslip
+showing taxable income with no PAYE, and the 4910 / 1350 posting accounts.
+The 2026-09-01 set applies to the first real payroll.
+
+After the code review, taxable income is no longer asserted for the
+National Service, PAYE-exempt and H3 cases: what a payslip shows as
+taxable income with no PAYE charged is one of the pending items.
+
+Verification:
+- "Before", on a fresh database at 6fdb4c0: all 10 existing role-matrix
+  files pass. The suite didn't exist yet; this slice changes no engine
+  code.
+- After: `./scripts/golden-payslips.sh` passes (39 + 4 cases). The 10
+  existing files give byte-identical output to the before run. Lint (0
+  errors), tsc, build and the overload check pass.
+- Every expected figure was typed from the approved plan and recomputed
+  with an independent Decimal model; the test-runner recomputed them again
+  from the live rate rows (0 disagreements), and checked the pending values.
+- 13 mutants were applied to the local engine and data, including: PAYE
+  rounded on the total; half-even rounding; fines reducing taxable income;
+  employer SSNIT on gross; the band set picked by today's date; the
+  overtime-tax line always or never posted; a changed band rate; and a
+  submission that skips the unaccounted check. Every one turned at least one
+  case red.
+- A wrong expected figure prints one line naming each field with exp= and
+  got=, and <<WRONG on the wrong one. A misspelt expected key is refused.
+- Code review: one blocking finding, fixed: the taxable income of a
+  National Service payslip had been asserted. The smaller points were also
+  taken.
+- docs-updater worked from the diff and Eyram's instructions. Its PORT-PLAN
+  table had wrong case inputs and statuses, which I rewrote.

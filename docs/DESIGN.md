@@ -719,6 +719,18 @@ depend on them holding true for every new table/function added.
   then split a month across campuses. Any seed that adds a branch must
   give it a `created_at` later than Main's. Both seed files check this.
 
+- **Golden payslip suite for payroll and finance verification (slice 0).**
+  `supabase/golden/payslips.sql` and `supabase/golden/payslips-tcsos-hand.sql`
+  pin `create_payslip()` and `post_payroll_run()` to hand-derived figures
+  against the real statutory rows, run by `./scripts/golden-payslips.sh`.
+  Expected figures are fixed whatever their status label (some marked
+  "current behaviour, not confirmed correct"); they never change to pass a
+  probe. PENDING cases stay commented out until confirmed. Each change to
+  payroll RPCs, statutory rows, rate tables or the posting path must show
+  the suite passing before and after (CLAUDE.md). A red case is a finding to
+  investigate, never a reason to edit its expected figure; a changed figure
+  goes through a confirmation gate.
+
 - **Regression-proofing a guard change (2026-09-29, slice 1b-i).** A
   rewrite that must not change behaviour for existing roles gets a
   generated regression probe file: one probe per policy, table and RPC
