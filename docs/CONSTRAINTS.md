@@ -436,6 +436,63 @@ the source spreadsheet's own tab (`05 LEAVE`, `06 KPI & PERFORMANCE`,
 `07 TRAINING`, `08 DISCIPLINARY`, `09 EXIT & OFFBOARDING`) is the
 reference for field names and dropdown enums to start from.
 
+## Employee bulk import (decided 2026-10-08)
+
+- **Preview first, all-or-nothing import.** `preview_employee_import()`
+  checks every row and saves nothing. `import_employees()` checks the
+  whole file again under an advisory lock and creates every row, or
+  refuses with nothing saved. Both use the same private checker so they
+  can't disagree (`_employee_import_check()`).
+- **Employees only; staff logins and roles stay manual.** Each imported
+  row becomes a Pending Approval employee (via `propose_employee()`)
+  plus a Pending Approval pay config only if a salary is given. HR fields
+  are set via `update_employee_profile()`. Both functions are the
+  unchanged manual paths — every existing rule, trigger and audit row
+  applies. A Manager approves the employee on the existing screens.
+- **Only Name is required; the template marks it "Name (required)".** Every
+  other column may be left blank and filled in by hand after the upload.
+  A blank date or list cell (position, department, employment type, bank)
+  is accepted as blank; a wrong value is still an error.
+- **The three statutory flags (pays_ssnit, pays_tier2, pays_paye):** On
+  a row with a salary, a blank Pays SSNIT / Pays Tier 2 / Pays PAYE cell
+  is treated as Yes — the default manual entry uses — with a warning on
+  that row ("SSNIT flag blank, will be treated as Yes", and the same for
+  Tier 2 and PAYE). The warning doesn't block the import. A value other
+  than Yes/No is still an error. A National Service row says No, No, No.
+- **Pay details without salary (open decision).** Pay details (payment
+  method, bank, account, effective from, flags) still need a salary:
+  `propose_employee()` stores them only in a pay config, which it creates
+  only when a salary is given, so a row with pay details and no salary is
+  refused rather than losing them. This one is open: Eyram hasn't decided
+  whether to keep refusing or to accept the row and drop the pay details
+  with a warning.
+- **Duplicates refused, never overwritten:** national ID, SSNIT number,
+  TIN, school email or name matching an existing non-Rejected employee
+  or an earlier row in the same import. Name match is always a hard error
+  ("add them by hand"). Phone number match is a warning only. Messages
+  never show the matching value or other person's name.
+- **The template's unedited example row is refused** by its name
+  (`"EXAMPLE EMPLOYEE - DELETE THIS ROW"` upper-cased and collapsed).
+- **No error message or app log contains a value from the file:**
+  Messages name the column only. Any failure while saving a row is
+  re-raised with the row number only, never the underlying message. The audit trail matches manual entry:
+  per-employee `employee_created` / `pay_config_proposed` rows, plus one
+  `employees_imported` summary row with counts only (created, with_pay_config).
+  Never personal details or error reasons in the summary.
+- **Standing allowances:** Not imported in this version. Set by hand after
+  approval via the existing UI.
+- **No new uniqueness constraints in this slice.** (See the "Remaining
+  gaps" note in PLANNING.md Phase 1 status.)
+- **File limits:** 200 rows and 512 KB per upload.
+- **Parser changes are opt-in:** The spreadsheet parser gained
+  `parseOptions.isoDates` (XLSX only: write date cells as YYYY-MM-DD
+  instead of the file's display format, same in every time zone) and
+  real row numbers after blank lines (`ParsedFile.rowNumbers`). Both
+  changes apply only to the employee importer;
+  `downloadXlsxTemplate()` types every cell as text so leading zeros
+  keep. The other importers (products, customers, invoices, bank
+  statements) behave as before.
+
 ## TCS OS retirement & admissions port (as of 2026-09-29)
 
 Direction reversed on 2026-09-29: **TCS OS (Django, `~/projects/tcs-os`)

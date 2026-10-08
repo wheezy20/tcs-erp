@@ -315,6 +315,37 @@ export type ProposeEmployeeInput = {
   effectiveFrom?: string;
 };
 
+// ------------------------------------------------------------------ bulk import
+
+/** One spreadsheet row for the employee import: its row number in the
+ * sheet and its cells as text, keyed by column key (blank as null). */
+export type EmployeeImportRow = { row: number; cells: Record<string, string | null> };
+export type EmployeeImportCheck = { row: number; errors: string[]; notes: string[] };
+
+/** The database checks the whole file (20261009100000) and returns, per
+ * row, its problems and warnings in plain words. Saves nothing. */
+export async function previewEmployeeImport(
+  rows: EmployeeImportRow[],
+): Promise<EmployeeImportCheck[]> {
+  const { data, error } = await supabase.rpc("preview_employee_import", { p_rows: rows });
+  if (error) throw error;
+  return (data as EmployeeImportCheck[]) ?? [];
+}
+
+/** Checks the file again and creates every row as a Pending Approval
+ * proposal (as "Propose employee" does), or saves nothing. */
+export async function importEmployees(
+  rows: EmployeeImportRow[],
+): Promise<{ created: number; withPayConfig: number }> {
+  const { data, error } = await supabase.rpc("import_employees", { p_rows: rows });
+  if (error) throw error;
+  const result = data as { created: number; with_pay_config: number };
+  // The import has committed; a failed reload is recorded in state.error
+  // and mustn't be reported as a failed import.
+  await reload().catch(() => {});
+  return { created: result.created, withPayConfig: result.with_pay_config };
+}
+
 export async function proposeEmployee(input: ProposeEmployeeInput): Promise<void> {
   const branchId = await getBranchId();
   const { error } = await supabase.rpc("propose_employee", {

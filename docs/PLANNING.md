@@ -33,6 +33,13 @@ Django could offer without a lot of custom frontend work.
 The HR items deferred in CONSTRAINTS.md stay deferred.
 Staff advances (IOU loans repaid through payroll) were built 2026-10-07 as
 Phase 1 payroll work while Phase 2 Admissions is the active phase.
+Employee bulk import (2026-10-08, migration `20261009100000`) is a new
+capability for HR data entry: preview and all-or-nothing import from
+spreadsheets. **Remaining gap:** The manual "Propose employee" path has no
+duplicate check. A manual proposal saved at the same moment as a bulk
+import may slip past the import's duplicate check and create a
+double entry. No uniqueness constraints were added (Eyram, 2026-10-08);
+how to close the manual-path gap is not yet decided.
 
 - **Accounting** — chart of accounts, journal entries, ledger, trial
   balance, P&L, balance sheet, cash flow, bank reconciliation. Inherited

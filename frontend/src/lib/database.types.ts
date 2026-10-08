@@ -3990,6 +3990,16 @@ export type Database = {
         }
         Returns: string
       }
+      _employee_import_check: { Args: { p_rows: Json }; Returns: Json }
+      _employee_import_date: {
+        Args: { p_text: string }
+        Returns: Record<string, unknown>
+      }
+      _employee_import_money: {
+        Args: { p_text: string }
+        Returns: Record<string, unknown>
+      }
+      _employee_import_yes_no: { Args: { p_text: string }; Returns: boolean }
       _payroll_run_unaccounted: {
         Args: { p_run_id: string }
         Returns: {
@@ -5066,6 +5076,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      import_employees: { Args: { p_rows: Json }; Returns: Json }
       include_employee_in_run: {
         Args: { p_employee_id: string; p_run_id: string }
         Returns: undefined
@@ -5523,6 +5534,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      preview_employee_import: { Args: { p_rows: Json }; Returns: Json }
       propose_employee: {
         Args: {
           p_account_no?: string

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -20,8 +20,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { downloadCsv, parseSpreadsheet, type ParsedFile } from "@/lib/import/parse";
-import { cn } from "@/lib/utils";
+import {
+  downloadCsv,
+  downloadXlsxTemplate,
+  parseSpreadsheet,
+  type ParseOptions,
+  type ParsedFile,
+} from "@/lib/import/parse";
+import { cn, getErrorMessage } from "@/lib/utils";
 
 export type RowCheck<T> = {
   value: T | null;
@@ -37,8 +43,26 @@ export type ImportConfig<T> = {
   templateFile: string;
   columns: string[];
   exampleRow: string[];
-  validate: (row: Record<string, string>, accepted: T[]) => RowCheck<T>;
-  onImport: (values: T[]) => void | Promise<void>;
+  /** Browser-side check of one row. Required unless `remote` is set. */
+  validate?: (row: Record<string, string>, accepted: T[]) => RowCheck<T>;
+  /** Required unless `remote` is set: receives the valid rows only. */
+  onImport?: (values: T[]) => void | Promise<void>;
+  /** Opt-in "the database decides" mode (employee import). The whole file
+   * is checked by `check` (one call, all rows), each row's errors and
+   * notes come back from the database, the import is all-or-nothing (the
+   * button stays off until every row is OK), `importRows` sends the same
+   * rows again for the database to re-check and save, and row numbers are
+   * the spreadsheet's own. The browser decides nothing about validity. */
+  remote?: {
+    /** Payload key for each entry of `columns`, in the same order. */
+    keys: string[];
+    check: (rows: RemoteRow[]) => Promise<RemoteRowCheck[]>;
+    importRows: (rows: RemoteRow[]) => Promise<string>;
+    parseOptions?: ParseOptions;
+    /** Download the template as .xlsx with every cell typed as text, so
+     * phone numbers and IDs keep their leading zeros. */
+    xlsxTemplate?: boolean;
+  };
   /** Optional extra preview column showing what a ready row actually
    * resolves to — e.g. "Create" vs. "Update existing X" — so a match
    * (expected or not) is visible in the preview, before import, not
@@ -53,7 +77,12 @@ export type ImportConfig<T> = {
   summaryPills?: (ready: T[]) => { label: string; tone?: "success" | "info" | "muted" }[];
 };
 
-type Checked<T> = { raw: Record<string, string>; check: RowCheck<T> };
+/** One row sent to the database: its spreadsheet row number and its cells
+ * keyed by `remote.keys` (blank cells as null). */
+export type RemoteRow = { row: number; cells: Record<string, string | null> };
+export type RemoteRowCheck = { row: number; errors: string[]; notes: string[] };
+
+type Checked<T> = { raw: Record<string, string>; check: RowCheck<T>; rowNumber: number };
 
 export function ImportDialog<T>({
   config,
@@ -68,23 +97,79 @@ export function ImportDialog<T>({
   const [parsed, setParsed] = useState<ParsedFile | null>(null);
   const [parseError, setParseError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const remote = config.remote;
+  const [remoteChecks, setRemoteChecks] = useState<RemoteRowCheck[] | null>(null);
+  const [remoteError, setRemoteError] = useState("");
 
   const reset = () => {
     setParsed(null);
     setFileName("");
     setParseError("");
+    setRemoteChecks(null);
+    setRemoteError("");
+    setBusy(false);
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  const remoteRows = useMemo<RemoteRow[]>(() => {
+    if (!remote || !parsed) return [];
+    return parsed.rows.map((raw, i) => ({
+      row: parsed.rowNumbers[i],
+      cells: Object.fromEntries(
+        config.columns.map((c, j) => [remote.keys[j], raw[c] ? raw[c] : null]),
+      ),
+    }));
+  }, [remote, parsed, config.columns]);
+
+  // Remote mode: the database checks the whole file once per upload. The
+  // config is rebuilt on every render, so it's read through a ref and the
+  // check runs only when a new file has been parsed.
+  const latestRemote = useRef({ remote, remoteRows });
+  latestRemote.current = { remote, remoteRows };
+  useEffect(() => {
+    const { remote: current, remoteRows: rows } = latestRemote.current;
+    if (!current || !parsed) return;
+    let cancelled = false;
+    setRemoteChecks(null);
+    setRemoteError("");
+    if (rows.length === 0) {
+      setRemoteChecks([]);
+      return;
+    }
+    setBusy(true);
+    current
+      .check(rows)
+      .then((result) => !cancelled && setRemoteChecks(result))
+      .catch(
+        (err) => !cancelled && setRemoteError(getErrorMessage(err, "Could not check the file.")),
+      )
+      .finally(() => !cancelled && setBusy(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [parsed]);
+
   const checked = useMemo<Checked<T>[]>(() => {
     if (!parsed) return [];
+    if (remote) {
+      if (!remoteChecks) return [];
+      return parsed.rows.map((raw, i) => ({
+        raw,
+        rowNumber: parsed.rowNumbers[i],
+        check: {
+          value: null,
+          errors: remoteChecks[i]?.errors ?? ["Not checked"],
+          notes: remoteChecks[i]?.notes ?? [],
+        },
+      }));
+    }
     const accepted: T[] = [];
-    return parsed.rows.map((raw) => {
-      const check = config.validate(raw, accepted);
+    return parsed.rows.map((raw, index) => {
+      const check = config.validate!(raw, accepted);
       if (check.value && check.errors.length === 0) accepted.push(check.value);
-      return { raw, check };
+      return { raw, check, rowNumber: index + 2 };
     });
-  }, [parsed, config]);
+  }, [parsed, config, remote, remoteChecks]);
 
   const validRows = checked.filter((r) => r.check.errors.length === 0);
   const errorRows = checked.filter((r) => r.check.errors.length > 0);
@@ -94,7 +179,7 @@ export function ImportDialog<T>({
     setBusy(true);
     setParseError("");
     try {
-      const result = await parseSpreadsheet(file, config.columns);
+      const result = await parseSpreadsheet(file, config.columns, remote?.parseOptions);
       setFileName(file.name);
       setParsed(result);
     } catch {
@@ -106,9 +191,22 @@ export function ImportDialog<T>({
   };
 
   const confirmImport = async () => {
+    if (remote) {
+      setBusy(true);
+      try {
+        toast.success(await remote.importRows(remoteRows));
+        reset();
+        setOpen(false);
+      } catch (err) {
+        toast.error(getErrorMessage(err, "Import failed. Nothing was saved."));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     setBusy(true);
     try {
-      await config.onImport(readyValues);
+      await config.onImport!(readyValues);
       const noun =
         readyValues.length === 1
           ? config.entity.replace(/ies$/, "y").replace(/s$/, "")
@@ -163,7 +261,12 @@ export function ImportDialog<T>({
                 variant="outline"
                 className="rounded-xl"
                 onClick={() =>
-                  downloadCsv(config.templateFile, [config.columns, config.exampleRow])
+                  remote?.xlsxTemplate
+                    ? void downloadXlsxTemplate(config.templateFile, [
+                        config.columns,
+                        config.exampleRow,
+                      ])
+                    : downloadCsv(config.templateFile, [config.columns, config.exampleRow])
                 }
               >
                 <Download className="size-4" /> Download template
@@ -200,6 +303,7 @@ export function ImportDialog<T>({
               </Button>
             </div>
             {parseError && <Callout tone="error">{parseError}</Callout>}
+            {remoteError && <Callout tone="error">{remoteError}</Callout>}
           </section>
 
           {parsed && (
@@ -215,7 +319,7 @@ export function ImportDialog<T>({
                   <AlertTriangle className="size-3.5" /> {errorRows.length} row
                   {errorRows.length === 1 ? "" : "s"} with errors
                 </Pill>
-                {parsed.blankRows > 0 && (
+                {parsed.blankRows > 0 && !remote && (
                   <Pill tone="muted">
                     <Info className="size-3.5" /> {parsed.blankRows} blank row
                     {parsed.blankRows === 1 ? "" : "s"} skipped
@@ -241,7 +345,9 @@ export function ImportDialog<T>({
                 </Callout>
               )}
 
-              {checked.length === 0 ? (
+              {remote && !remoteChecks && !remoteError ? (
+                <Callout tone="warning">Checking every row…</Callout>
+              ) : remote && remoteError ? null : checked.length === 0 ? (
                 <Callout tone="warning">This file has no data rows.</Callout>
               ) : (
                 <div className="overflow-x-auto rounded-2xl border">
@@ -268,7 +374,7 @@ export function ImportDialog<T>({
                         return (
                           <tr key={index} className={cn(failed && "bg-destructive/5")}>
                             <td className="px-3 py-2 align-top text-xs text-muted-foreground">
-                              {index + 2}
+                              {row.rowNumber}
                             </td>
                             <td className="w-64 min-w-56 px-3 py-2 align-top">
                               {failed ? (
@@ -322,11 +428,21 @@ export function ImportDialog<T>({
           <Button
             className="rounded-xl"
             onClick={confirmImport}
-            disabled={validRows.length === 0 || busy}
+            disabled={
+              remote
+                ? busy || !remoteChecks || checked.length === 0 || errorRows.length > 0
+                : validRows.length === 0 || busy
+            }
           >
             {busy
-              ? "Importing…"
-              : `Import ${validRows.length} valid row${validRows.length === 1 ? "" : "s"}`}
+              ? remote && !remoteChecks
+                ? "Checking…"
+                : "Importing…"
+              : remote
+                ? errorRows.length > 0
+                  ? `Fix ${errorRows.length} row${errorRows.length === 1 ? "" : "s"} and upload again`
+                  : `Import ${validRows.length} ${config.entity}`
+                : `Import ${validRows.length} valid row${validRows.length === 1 ? "" : "s"}`}
           </Button>
         </DialogFooter>
       </DialogContent>

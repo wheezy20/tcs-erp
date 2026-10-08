@@ -33,6 +33,7 @@ import {
   type PayOverride,
 } from "@/components/employees/payment-fields";
 import { RefListSelect } from "@/components/employees/ref-list-select";
+import { ImportEmployeesDialog } from "@/components/employees/import-employees-dialog";
 import { RejectButton } from "@/components/employees/reject-reason-dialog";
 import { canWriteFinancials, useAuth } from "@/data/auth-store";
 import { currency } from "@/data/dashboard";
@@ -110,6 +111,7 @@ function EmployeesListPage() {
               <Button variant="outline" asChild>
                 <Link to="/employees/document-templates">Document templates</Link>
               </Button>
+              <ImportEmployeesDialog />
               <ProposeEmployeeDialog />
             </>
           ) : undefined

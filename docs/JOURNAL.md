@@ -4003,3 +4003,129 @@ Verification:
   suite was re-run after these.
 - docs-updater placed the CONSTRAINTS block inside the retirement
   checklist and misdescribed tables and statuses; I rewrote its edits.
+
+## 2026-10-08 — Employee bulk import
+
+Employees can now be added in bulk from a spreadsheet: download the
+template, fill it in, upload, see every row as OK or with its problem,
+then confirm. Plan and new surface approved by Eyram, with his answers:
+phone matches warn without blocking; a name match refuses the row ("add
+them by hand"); blank SSNIT/Tier 2/PAYE flags are an error; the audit
+trail stays exactly as manual entry writes it, with no salary or personal
+details in error messages or app logs; no uniqueness constraints this
+slice (PLANNING notes the manual-path gap); the unedited example row is
+refused; the parser fixes must leave the other importers unchanged.
+
+- `20261009100000_employee_bulk_import.sql`: `preview_employee_import`
+  (saves nothing) and `import_employees` (advisory lock, checks again,
+  all-or-nothing), both Manager and Accountant only with anon revoked,
+  sharing the private `_employee_import_check` and three private parsing
+  helpers (money, date, Yes/No) that no user can call. Each row goes
+  through the unchanged `propose_employee` (Pending Approval employee, and
+  a Pending Approval pay config when a salary is given) and then
+  `update_employee_profile`. New audit action `employees_imported`: one
+  summary row per import with counts only; the per-employee rows are the
+  manual ones. Money: optional GHS or cedi sign, commas only as thousands
+  separators, ASCII digits only, at most 2 decimals, no negatives, zero
+  allowed. Dates YYYY-MM-DD. Position, department and bank must be in the
+  existing lists. Limits 200 rows and 512 KB. Standing allowances and
+  qualifications are not imported.
+- Frontend: an "Import employees" button beside "Propose employee". The
+  shared `ImportDialog` gained an opt-in `remote` mode (the database checks
+  the whole file, confirm stays off until every row is OK, rows keep their
+  spreadsheet numbers, the template is an .xlsx with every cell typed as
+  text). `parse.ts` gained an additive `rowNumbers` and an opt-in
+  `isoDates` option that decodes Excel date cells with SheetJS's calendar
+  code, the same in every time zone. Only the employee importer uses them.
+
+Verification:
+- Before, fresh reset at `d9e52f1`: the 11 role-matrix files and the
+  golden suite exit 0.
+- After: the 11 files and the golden output are byte-identical;
+  `propose_employee` and `update_employee_profile` are unchanged in the
+  catalog. The new role-matrix file passes (18 probes): preview and import
+  Manager and Accountant only; helpers nobody; anon executes none;
+  messages name columns, never values (including non-ASCII digits);
+  an error row saves nothing; a National Service row gets a Pending pay
+  config with No/No/No and nothing becomes Active; one summary audit row;
+  example row, existing name, same name twice in one file and 201 rows
+  refused; a failure while saving shows the row number only.
+- Other importers: a harness parses 24 CSV and XLSX files across the
+  products, customers, invoices and bank-statement importers (blank lines,
+  quoted fields, typed number and date cells, extra and missing columns)
+  with their default options; the output is byte-identical before and
+  after. The dialog's existing path keeps `index + 2` row numbers, browser
+  validation, valid-rows-only import and the CSV template.
+- End to end against the local API as the dev Accountant: the generated
+  template is refused at preview and at import; a filled file with a blank
+  line keeps rows 2 and 4; an Excel date cell arrives as 1990-05-07 (the
+  default mode still gives 5/7/90). Dates from 1905 to 2026 decode
+  correctly in Accra, New York, London, Kolkata and Auckland.
+- test-runner: lint (0 errors, 13 warnings as before), tsc, build,
+  overload check pass; types regen only the known helper parentheses.
+  Deliberate breaks, each caught: skipping the re-check, an Active pay
+  config, anon execute, dropping the existing-name check, blank flags
+  defaulting to Yes, a 1000-row cap, removing the example-row check. Two
+  breaks it found uncaught (the save-failure wrapper and an in-file
+  duplicate name) now have probes B9 and B8; removing the wrapper turns B9
+  red with the leaked text.
+- code-reviewer: one blocking finding, fixed: `\d` in the money parser
+  matched non-ASCII digits, which the numeric cast then refused with the
+  value in its message (probe A4). Also taken: commas only as thousands
+  separators ("1,50" was read as 150), the dialog no longer stays busy if
+  closed during a check, a failed refresh after a committed import isn't
+  reported as a failed import, and the date decoding above (the first
+  version, via local dates, was a day out east of UTC). Re-review: nothing
+  blocking.
+- docs-updater added an advisory-lock timeout example, a race as a cause
+  of rollback, and "duplicates caught by normal approval workflow"; none
+  is true and I removed them.
+
+## 2026-10-08 — Employee import: only Name required, blank flags warn
+
+Eyram changed two rules of the (still uncommitted) employee import, so the
+rest of a record can be filled in by hand after the upload. This
+supersedes "blank SSNIT/Tier 2/PAYE flags are an error" in the entry
+above; the migration `20261009100000` was edited in place, since it has
+not been committed or pushed.
+
+- Checked first, as asked: `propose_employee` requires only a name (plus
+  a branch, which the import supplies, and a payment method of Bank or
+  Mobile Money, defaulting to Bank); `update_employee_profile` requires
+  nothing. Neither was changed, and no placeholder value is written for a
+  blank column. So only Name is required; the template now heads it
+  "Name (required)".
+- On a row with a salary, a blank flag is treated as Yes (manual entry's
+  default) with a warning on that row, e.g. "SSNIT flag blank, will be
+  treated as Yes"; warnings don't block the confirm. A value other than
+  Yes/No is still an error. Blank dates and list cells are accepted as
+  blank; wrong values are still errors.
+- Open decision for Eyram: a row with pay details but no salary is still
+  refused, because `propose_employee` stores pay details only in a pay
+  config, which it creates only when a salary is given.
+
+Verification:
+- Fresh reset: the 11 other role-matrix files are byte-identical to the
+  previous run and the golden suite to the slice's before run;
+  `propose_employee` and `update_employee_profile` are unchanged. The
+  import role-matrix file passes with 22 probes: B1 is now "a row with
+  only a name"; B4's problem row uses the flag "maybe" instead of a blank;
+  new B10 (a salaried row with blank flags: two warnings, no errors,
+  imported as Yes/No/Yes and Pending), B11 (blank dates and lists
+  accepted; a wrong date, employment type and position each refused with
+  its own message), B12 (a blank name refused) and B13 (pay details
+  without a salary refused).
+- Lint (0 errors, 13 warnings), tsc and build pass; the end-to-end run
+  with the new header and the 24-case parser regression for the other
+  importers are unchanged.
+- test-runner's deliberate breaks: blank flag as No, blank flag as an
+  error again, Yes without the warning, a blank date refused, a blank
+  position refused, Name made optional and a wrong position accepted each
+  turned a probe red. Pay details without a salary silently accepted
+  survived; B13 was added and turns red under that break. (The earlier
+  entry's break "blank flags defaulting to Yes" is now the intended
+  behaviour.)
+- code-reviewer: no blocking findings; B11 was tightened from an error
+  count to the exact message per field on its advice.
+- docs-updater edited CONSTRAINTS only; its text matched the facts given,
+  except that it dropped the National Service sentence, which I restored.

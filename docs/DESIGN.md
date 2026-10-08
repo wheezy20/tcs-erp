@@ -347,6 +347,28 @@ depend on them holding true for every new table/function added.
   remember to flip in sync with the date; the departure-flavored values
   overlap with the explicitly-deferred Leave/Exit & Offboarding domains
   (see `docs/CONSTRAINTS.md`) and aren't solved by this table.
+- **Bulk employee import (`20261009100000`): one private checker shared by
+  read-only preview and an import function.** `_employee_import_check()`
+  parses and validates every row of the spreadsheet payload (jsonb array
+  of `{row, cells}` objects), returning per-row `{errors, notes, values}`.
+  `preview_employee_import()` calls the checker and returns the errors and
+  notes only; `import_employees()` calls it again under an advisory lock
+  (`pg_advisory_xact_lock`), re-checks that every row passed validation,
+  then creates each row by calling `propose_employee()` followed by
+  `update_employee_profile()` — the same two functions the manual UI uses.
+  So every existing employee rule, trigger and audit row applies to
+  imported rows unchanged. All-or-nothing: if any row fails while being
+  saved, the whole import rolls back and the message names only the row
+  number (the underlying text is never passed on). Error messages never show values from the file: the checker
+  regex-validates with `[0-9]` not `\d` (the latter matches non-ASCII
+  digits, which the database then rejects with the value in its error
+  message), and messages name columns only. `ImportDialog` supports this
+  via a `remote` mode: the database is the sole validator, the import is
+  all-or-nothing (button disabled until every row is OK), sheet row numbers
+  are preserved through blanks (`ParsedFile.rowNumbers`), and the template
+  downloads as .xlsx with every cell typed as text (so phone numbers and
+  IDs keep leading zeros). The browser-side ImportDialog mode (customer /
+  product / sales imports) remains unchanged.
 - **Document storage applies the receipts-bucket lesson from the first
   commit, not as a retrofit.** `onboarding-documents` (`20260920`) is
   `public = false` from its `insert into storage.buckets` — there is no
