@@ -186,6 +186,10 @@ function EmployeeProfilePage() {
             key={`hr-${emp.id}`}
             emp={emp}
             canWrite={canWrite && emp.status !== "Rejected"}
+            paysStatutory={(() => {
+              const cfg = current ?? pending;
+              return cfg ? cfg.paysSsnit || cfg.paysTier2 || cfg.paysPaye : false;
+            })()}
           />
 
           <DocumentsSection
@@ -357,6 +361,7 @@ const EMPLOYMENT_TYPES: EmploymentType[] = [
   "Contract",
   "Volunteer",
   "Intern",
+  "National Service",
 ];
 
 /** A separate card/save from ProfileForm's phone/position/department —
@@ -367,7 +372,17 @@ const EMPLOYMENT_TYPES: EmploymentType[] = [
  * same as ProfileForm — every field is a plain current-state fact. Bank
  * details and salary are deliberately not here — those stay in
  * PayConfigSection below, approval-gated. */
-function HrDetailsSection({ emp, canWrite }: { emp: Employee; canWrite: boolean }) {
+function HrDetailsSection({
+  emp,
+  canWrite,
+  paysStatutory,
+}: {
+  emp: Employee;
+  canWrite: boolean;
+  /** The employee's current (or pending) pay config pays SSNIT, Tier 2 or
+   * PAYE: shown as a reminder when National Service is chosen. */
+  paysStatutory: boolean;
+}) {
   const { items: qualificationItems } = useQualifications();
   const [dateOfBirth, setDateOfBirth] = useState(emp.dateOfBirth ?? "");
   const [gender, setGender] = useState(emp.gender ?? "");
@@ -546,6 +561,12 @@ function HrDetailsSection({ emp, canWrite }: { emp: Employee; canWrite: boolean 
               ))}
             </SelectContent>
           </Select>
+          {employmentType === "National Service" && paysStatutory && (
+            <p className="text-xs text-muted-foreground">
+              National Service staff are normally exempt: check the SSNIT, Tier 2 and PAYE settings
+              under Pay configuration. The employment type doesn&apos;t change them.
+            </p>
+          )}
         </div>
         <div />
         <div className="space-y-2">

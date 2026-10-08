@@ -206,6 +206,9 @@ depend on them holding true for every new table/function added.
   don't participate in some or all of the standard deductions. These are a
   **direct** edit (`set_pay_config_exemptions()` RPC, Manager/Accountant,
   no approval) — only basic salary and bank details are approval-gated.
+  The National Service employment type (20261010100000) does not drive
+  these flags: payroll decides exemptions from the flags alone and never
+  reads `employment_type`.
 - **Financial records: select-only tables, writes only through their own
   `SECURITY DEFINER` function.** `payroll_runs` / `payslips` /
   `payslip_allowances` / `employees` / `employee_pay_config` (like

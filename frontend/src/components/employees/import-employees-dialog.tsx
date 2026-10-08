@@ -71,7 +71,7 @@ export function ImportEmployeesDialog() {
   const config: ImportConfig<never> = {
     entity: "employees",
     description:
-      "Add many employees from a spreadsheet. Only Name is required; leave any other column blank and fill it in by hand later. Every row is checked first and nothing is saved until you confirm; if any row has a problem, fix the file and upload it again. Each employee is created as a proposal for a Manager to approve, with their pay as a proposed pay config. Dates are YYYY-MM-DD. Pay details need a basic salary. Pays SSNIT, Tier 2 and PAYE are Yes or No; left blank on a row with a salary they count as Yes, with a warning (National Service: No, No, No). Staff logins and standing allowances are added by hand afterwards.",
+      "Add many employees from a spreadsheet. Only Name is required; leave any other column blank and fill it in by hand later. Every row is checked first and nothing is saved until you confirm; if any row has a problem, fix the file and upload it again. Each employee is created as a proposal for a Manager to approve, with their pay as a proposed pay config. Dates are YYYY-MM-DD. Employment type is Full-Time, Part-Time, Contract, Volunteer, Intern or National Service. Pay details need a basic salary. Pays SSNIT, Tier 2 and PAYE are Yes or No; left blank on a row with a salary they count as Yes, with a warning. National Service staff should be entered as No, No, No: the employment type never sets these. Staff logins and standing allowances are added by hand afterwards.",
     templateFile: "tcs-employees-template.xlsx",
     columns: COLUMNS.map(([header]) => header),
     exampleRow: COLUMNS.map(([, key]) => EXAMPLE[key] ?? ""),

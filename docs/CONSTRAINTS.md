@@ -223,7 +223,13 @@ Things that shape how this gets built, not just what gets built.
 - **National Service staff are fully exempt (decided 2026-09-29):** no
   SSNIT, no Tier 2 and no PAYE. In practice that means `pays_ssnit`,
   `pays_tier2` and `pays_paye` are all false on their
-  `employee_pay_config`.
+  `employee_pay_config`. Since `20261010100000` (Eyram, 2026-10-08),
+  "National Service" is also an `employment_type` value. It is an HR label
+  only: no payroll function reads it, and the flags are never inferred
+  from it; they stay explicit as on the manual pay config and in the
+  import. The import and the employee profile show a reminder, never a
+  block, when a National Service employee would still pay any of the
+  three. Existing employees keep their current type.
 - **Accountant answers reported by Eyram on 2026-10-07** (accountant confirmed (reported, written copy to be saved)),
   asserted in the golden payslip suite (`supabase/golden/`):
   - The contribution split: employee SSNIT 0.5%, employee Tier 2 5%,
@@ -459,6 +465,8 @@ reference for field names and dropdown enums to start from.
   that row ("SSNIT flag blank, will be treated as Yes", and the same for
   Tier 2 and PAYE). The warning doesn't block the import. A value other
   than Yes/No is still an error. A National Service row says No, No, No.
+  The National Service reminder ("check the SSNIT, Tier 2 and PAYE flags")
+  is a warning only and the import never sets the flags from the type.
 - **Pay details without salary (open decision).** Pay details (payment
   method, bank, account, effective from, flags) still need a salary:
   `propose_employee()` stores them only in a pay config, which it creates

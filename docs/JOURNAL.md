@@ -4129,3 +4129,63 @@ Verification:
   count to the exact message per field on its advice.
 - docs-updater edited CONSTRAINTS only; its text matched the facts given,
   except that it dropped the National Service sentence, which I restored.
+
+## 2026-10-08 — "National Service" employment type
+
+Eyram asked for National Service as its own employment type, an HR label
+only. Before building I reported where the list lives (the employees
+check constraint, `update_employee_profile`'s hard-coded list, the import
+checker, and the frontend type and dropdown) and where it's used (the
+profile's HR details, the import, and the `{{employment_type}}` token in
+generated contracts; no report, filter or payslip uses it, and no payroll
+function reads it). He approved three database changes and a separate
+slice after the import was committed (`2f860ba`).
+
+- `20261010100000_employment_type_national_service.sql`: the
+  `employees_employment_type_check` constraint gains "National Service";
+  `update_employee_profile` changes only its allowed list and message;
+  `_employee_import_check` accepts the type and adds a non-blocking
+  reminder ("National Service staff are normally exempt: check the SSNIT,
+  Tier 2 and PAYE flags") when a National Service row with a salary would
+  still pay any of them. The flags are never set from the type. No data
+  is rewritten.
+- Frontend: the type and the profile dropdown; a reminder on the profile
+  when National Service is chosen and the current or pending pay config
+  pays any flag; the import help text lists the allowed types and no
+  longer reads as if the type sets the flags.
+- The import role-matrix's B11 expected the old employment-type message;
+  its expected text was updated to the new wording, the message this
+  change intentionally alters. Nothing else in that file changed.
+
+Verification:
+- Before, fresh reset at `2f860ba`: the 12 role-matrix files and the
+  golden suite exit 0; the four local employees have no employment type.
+- Catalog diff after: `update_employee_profile` differs only in the
+  allowed list and its message; `_employee_import_check` only in the
+  list, the message and the reminder block; both functions' grants are
+  identical. The constraint lists the six types. The employees' types are
+  unchanged.
+- All 12 existing role-matrix files pass with byte-identical output
+  (the import file once B11's text was updated); the golden suite is
+  byte-identical. New `supabase/role-matrix/20261010100000_employment_type_national_service.sql`
+  passes with 7 probes: the constraint accepts the type; the profile sets
+  it and leaves the pay flags alone; an unknown type is still refused; an
+  import row with National Service and No, No, No saves as given with no
+  warning; a National Service row with a Yes or blank flag gets the
+  reminder, imports, and keeps its flags as given; no reminder without a
+  salary; a National Service employee who still pays all three gets
+  exactly the Full-Time figures (basic 3,100, September 2026: PAYE 392.26,
+  net 2,537.24).
+- Lint (0 errors, 13 warnings), tsc, build and the overload check pass;
+  the types regen has no change beyond the known helper parentheses.
+- test-runner's deliberate breaks, each caught by the new file: the
+  constraint, the profile list or the checker list without the type;
+  the checker setting the flags to No automatically; the reminder made
+  blocking; the reminder removed; the profile function flipping the pay
+  flags; `create_payslip` treating National Service as exempt.
+- code-reviewer: no blocking findings; on its advice the import help
+  text was reworded so it can't be read as the type setting the flags.
+- docs-updater wrote that the flags "remain the only thing payroll
+  reads", which overstates it; corrected to "payroll decides exemptions
+  from the flags alone and never reads employment_type". It also left out
+  the migration and the profile reminder, which I added.

@@ -24,7 +24,10 @@ import type { Database } from "@/lib/database.types";
 export type EmploymentStatus = "Pending Approval" | "Active" | "Suspended" | "Rejected";
 export type PayApprovalStatus = "Pending Approval" | "Active" | "Rejected";
 export type PaymentMethod = "Bank" | "Mobile Money";
-export type EmploymentType = "Full-Time" | "Part-Time" | "Contract" | "Volunteer" | "Intern";
+// "National Service" (20261010100000) is an HR label only: payroll never
+// reads it, and the SSNIT / Tier 2 / PAYE flags are set separately.
+export type EmploymentType =
+  "Full-Time" | "Part-Time" | "Contract" | "Volunteer" | "Intern" | "National Service";
 
 export type Employee = {
   id: string;

@@ -297,7 +297,7 @@ begin
     raise exception 'B11: blank cells refused: %', v;
   end if;
   if v -> 1 -> 'errors' <> '["Start date must be a real date written YYYY-MM-DD",
-      "Employment type must be Full-Time, Part-Time, Contract, Volunteer or Intern",
+      "Employment type must be Full-Time, Part-Time, Contract, Volunteer, Intern or National Service",
       "Position is not in the list of positions"]'::jsonb then
     raise exception 'B11: exp the three field errors got %', v -> 1;
   end if;
