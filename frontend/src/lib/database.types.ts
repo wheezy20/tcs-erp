@@ -152,6 +152,155 @@ export type Database = {
           },
         ]
       }
+      application_emergency_contacts: {
+        Row: {
+          application_id: string
+          id: string
+          name: string
+          phone: string
+          relationship: string
+        }
+        Insert: {
+          application_id: string
+          id?: string
+          name: string
+          phone: string
+          relationship: string
+        }
+        Update: {
+          application_id?: string
+          id?: string
+          name?: string
+          phone?: string
+          relationship?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_emergency_contacts_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_notes: {
+        Row: {
+          application_id: string
+          author_id: string | null
+          content: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          application_id: string
+          author_id?: string | null
+          content: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          application_id?: string
+          author_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_notes_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      applications: {
+        Row: {
+          academic_year: string
+          application_reference: string | null
+          branch_id: string | null
+          created_at: string
+          declaration_agreed: boolean
+          declaration_agreed_at: string | null
+          declaration_ip_address: unknown
+          declaration_signature_name: string
+          id: string
+          inquiry_reference: string | null
+          media_consent_agreed: boolean
+          month_of_enrollment: string
+          scholarship_interest_details: string
+          stage: string
+          student_id: string
+          updated_at: string
+          wants_scholarship_info: boolean
+          year_group_applied_for: string
+        }
+        Insert: {
+          academic_year: string
+          application_reference?: string | null
+          branch_id?: string | null
+          created_at?: string
+          declaration_agreed?: boolean
+          declaration_agreed_at?: string | null
+          declaration_ip_address?: unknown
+          declaration_signature_name?: string
+          id?: string
+          inquiry_reference?: string | null
+          media_consent_agreed?: boolean
+          month_of_enrollment?: string
+          scholarship_interest_details?: string
+          stage?: string
+          student_id: string
+          updated_at?: string
+          wants_scholarship_info?: boolean
+          year_group_applied_for: string
+        }
+        Update: {
+          academic_year?: string
+          application_reference?: string | null
+          branch_id?: string | null
+          created_at?: string
+          declaration_agreed?: boolean
+          declaration_agreed_at?: string | null
+          declaration_ip_address?: unknown
+          declaration_signature_name?: string
+          id?: string
+          inquiry_reference?: string | null
+          media_consent_agreed?: boolean
+          month_of_enrollment?: string
+          scholarship_interest_details?: string
+          stage?: string
+          student_id?: string
+          updated_at?: string
+          wants_scholarship_info?: boolean
+          year_group_applied_for?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -1667,6 +1816,83 @@ export type Database = {
             columns: ["voided_by"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      families: {
+        Row: {
+          comments: string
+          created_at: string
+          id: string
+          referral_source: string
+          referral_source_other: string
+        }
+        Insert: {
+          comments?: string
+          created_at?: string
+          id?: string
+          referral_source?: string
+          referral_source_other?: string
+        }
+        Update: {
+          comments?: string
+          created_at?: string
+          id?: string
+          referral_source?: string
+          referral_source_other?: string
+        }
+        Relationships: []
+      }
+      guardians: {
+        Row: {
+          address: string
+          bulk_email_unsubscribe_token_hash: string | null
+          bulk_email_unsubscribed_at: string | null
+          email: string
+          family_id: string
+          first_name: string
+          id: string
+          phone: string
+          relationship: string
+          religion: string
+          surname: string
+          town_city: string
+        }
+        Insert: {
+          address?: string
+          bulk_email_unsubscribe_token_hash?: string | null
+          bulk_email_unsubscribed_at?: string | null
+          email: string
+          family_id: string
+          first_name?: string
+          id?: string
+          phone: string
+          relationship: string
+          religion?: string
+          surname?: string
+          town_city?: string
+        }
+        Update: {
+          address?: string
+          bulk_email_unsubscribe_token_hash?: string | null
+          bulk_email_unsubscribed_at?: string | null
+          email?: string
+          family_id?: string
+          first_name?: string
+          id?: string
+          phone?: string
+          relationship?: string
+          religion?: string
+          surname?: string
+          town_city?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guardians_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
             referencedColumns: ["id"]
           },
         ]
@@ -3845,6 +4071,65 @@ export type Database = {
           },
         ]
       }
+      students: {
+        Row: {
+          address: string
+          country: string
+          current_grade: string
+          current_school: string
+          date_of_birth: string | null
+          family_id: string
+          full_name: string
+          gender: string
+          id: string
+          nationality: string
+          postal_code: string
+          previous_school_location: string
+          student_id: string | null
+          town_city: string
+        }
+        Insert: {
+          address?: string
+          country?: string
+          current_grade?: string
+          current_school?: string
+          date_of_birth?: string | null
+          family_id: string
+          full_name: string
+          gender?: string
+          id?: string
+          nationality?: string
+          postal_code?: string
+          previous_school_location?: string
+          student_id?: string | null
+          town_city?: string
+        }
+        Update: {
+          address?: string
+          country?: string
+          current_grade?: string
+          current_school?: string
+          date_of_birth?: string | null
+          family_id?: string
+          full_name?: string
+          gender?: string
+          id?: string
+          nationality?: string
+          postal_code?: string
+          previous_school_location?: string
+          student_id?: string | null
+          town_city?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supplier_payments: {
         Row: {
           amount: number
@@ -4071,8 +4356,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      admissions_application_visible: {
+        Args: { p_application_id: string }
+        Returns: boolean
+      }
+      admissions_family_visible: {
+        Args: { p_family_id: string }
+        Returns: boolean
+      }
       admissions_grade_band: { Args: { p_grade: string }; Returns: string }
       admissions_grade_visible: { Args: { p_grade: string }; Returns: boolean }
+      admissions_student_visible: {
+        Args: { p_student_id: string }
+        Returns: boolean
+      }
       approve_employee: {
         Args: {
           p_account_no?: string
@@ -6556,12 +6853,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -6585,11 +6882,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -6610,11 +6907,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -6635,11 +6932,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -6652,11 +6949,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

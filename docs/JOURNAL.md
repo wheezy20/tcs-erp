@@ -4213,3 +4213,36 @@ Docs only, no code or schema.
   Supabase projects are separate and on free plans. The Google Cloud
   trial ends about 2026-10-13 and needs upgrading; Eyram is doing that on
   2026-10-10, and it isn't recorded as done.
+
+---
+
+## 2026-10-10 — Admissions slice 3a: applicant core tables with staff RLS
+
+Slice 3 approved and built as 3a (decisions, offers and rules deferred to 3b).
+
+**Eyram's approval (2026-10-10):** the slice 3 plan with gates A1–A5 (visibility and read access), B1–B4 (schema shape), and D-3c (option 3: capacity readable by Manager and Auditor only). New decisions recorded (D-3d through D-3g, decided 2026-10-10):
+
+- **A1:** Manager and Auditor read every row of the slice 3a/3b tables (health excluded until slice 4).
+- **A2 (= D-3d):** an Admissions Officer reads families, guardians, students, applications, emergency contacts and notes only for in-scope children; siblings in other bands are hidden (a deliberate change from TCS OS's unscoped StudentInline on the family page, `tcs-os admin.py:90-93`).
+- **A3 (= D-3g):** an officer reads decisions and offers only if in scope AND holding can_decide (matches TCS OS's coordinator bundle, which had no view_decision/view_offer — `tcs-os migration 0019`). Built in slice 3b.
+- **A4:** admissions_campus_grade_rules readable by Manager, Auditor and Admissions Officer. Built in slice 3b.
+- **A5:** staff may read the token hash columns through ordinary select.
+- **B1 (= D-3e):** capacity and campus rules keyed by grade_id FK to admissions_grades, not free-text year_group. Built in slice 3b.
+- **B2 (= D-3f):** strict student_id and reference regexes kept; fallback is to drop the student_id check if the slice 15 inventory finds non-conforming legacy ids.
+- **B3:** no legacy_id column; the slice 15 import keeps the old-id to uuid mapping in a local file.
+- **B4:** slice 3 split into 3a (families, guardians, students, applications, application_emergency_contacts, application_notes) and 3b (application_decisions, application_offers, admissions_capacity, admissions_campus_grade_rules). Only 3a is built.
+- **D-3c:** capacity readable by Manager and Auditor only (not officers).
+
+**Built 3a:** migration `supabase/migrations/20261011100000_admissions_core_applicants.sql` (6 tables, 3 SECURITY DEFINER visibility helpers `admissions_application_visible/admissions_student_visible/admissions_family_visible(uuid)`, 2 triggers `normalise_guardian_email` and `set_application_note_identity`, 6 select policies, select-only for authenticated, nothing for anon, CRUD for service_role, no write RPCs, no audit_log action changes, no frontend change beyond regenerated `database.types.ts`). Probe files `supabase/role-matrix/20261011100000_admissions_core_applicants_visibility.sql` (51 probes) and `…_structure.sql` (39 probes).
+
+**Deviations from the planner's draft:** student_id and INQ/APP regexes accept 4 or more trailing digits (TCS OS pads to 4 but doesn't cap, `tcs-os models.py:65-74, 113`); the note trigger forces `created_at` as well as `author_id` when `auth.uid()` is set.
+
+**Corrections to PORT-PLAN's slice 3 text found while planning:** it's 10 tables not "about 11"; Annex campus grade rules can't be seeded by a migration because Annex is inserted by `supabase/seed.sql` and `supabase/seed.production.sql`, which run after migrations, so 3b puts those rows in both seed files keyed by branch_id; columns the plan omitted are included (`declaration_signature_name`, `declaration_agreed`, `wants_scholarship_info`, `scholarship_interest_details`, `applications.updated_at`, emergency contact name/relationship/phone); the IP column keeps TCS OS's name `declaration_ip_address`, type `inet`; there's no DB-side "school branch" helper and slice 3 doesn't need one.
+
+**Carry-forwards found while planning, for later slices:** slice 5's reference-assigning trigger and slice 6's gates must not run on (or must skip) imported legacy rows; slice 5/6 should restrict deletes deliberately because families/students/applications cascade to notes and contacts; slice 9's submission snapshot must not live on applications or any table officers read without the health gate (it can hold health answers); slice 14 needs a token design for guardians created in the ERP, since a stored hash can't rebuild a permanent unsubscribe link; slice 15 import dry run should report legacy rows that the non-blank grade/academic-year checks, the student_id/reference formats or the length caps would refuse; slice 7a will need invented demo rows in seed.sql because nothing can create admissions rows until slice 8.
+
+**Verification (test-runner, then main session):** fresh db reset + dev staff seed; lint 0 errors (13 warnings), tsc, build, duplicate-overload check pass; types regen additive apart from the known helper-parentheses noise; all 13 existing role-matrix files byte-identical to a baseline taken at HEAD before the first edit; both new files pass; catalog diff additions only (5 functions, 6 policies), anon-executable function count unchanged at 169; golden payslip suite unchanged versus baseline (not required: nothing touches payroll/finance paths). Deliberate breaks, each caught: applications policy `using (true)`; an insert grant plus policy on applications; family helper with only `has_role`, and with `has_role` removed (caught only by D6); student helper without the grade check; student_id regex back to exactly 4 digits; note trigger without the `auth.uid()` guard; execute on the family helper granted to anon. Dropping `security definer` from a helper was initially caught by nothing; probe A3 (prosecdef and pinned search_path on the three helpers) was added and catches it.
+
+**code-reviewer:** no blocking findings. Acted on: added probe D8 (one student with applications in two bands); softened the migration header comment that claimed no check rejects a legacy value; clarified that the student and family helpers return true for Manager and Auditor for any id. Not acted on (noted only): policies don't say `to authenticated` (anon has no table grant, matches slice 2); per-row helper calls are fine at current volume; negative probes can't distinguish "hidden" from another error, mitigated by positive controls.
+
+**Docs:** PORT-PLAN split slice 3 into 3a and 3b in the status table; recorded the split, decisions and carry-forwards in the slice 3a section; added carry-forward notes to slices 5, 6, 7a, 9, 14, 15; updated slice 15's runbook step 1 inventory to count non-conforming student_id and year_group_applied_for values and malformed references. DESIGN.md added the admissions-data-tables convention (select-only, SECURITY DEFINER helpers, live-scope visibility, identity triggers act only on signed-in writes). Fixed the stale note under slice 1b-ii that said slice 1c was "uncommitted, awaiting Eyram's review" — it's committed.

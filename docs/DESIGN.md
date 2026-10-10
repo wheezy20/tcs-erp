@@ -728,6 +728,23 @@ depend on them holding true for every new table/function added.
   Full-state-replacement RPCs keyed by existing row (e.g. `p_staff_id`
   names a current staff member, not a client-chosen new id) are not
   "create" functions, so create-can't-overwrite does not apply.
+- **Admissions data tables: select-only with RLS through SECURITY DEFINER
+  visibility helpers (admissions slice 3a, `20261011100000`).** Tables
+  like `families`, `guardians`, `students`, `applications`,
+  `application_emergency_contacts`, `application_notes` (and in slice 3b,
+  `application_decisions`, `application_offers`) are select-only for
+  `authenticated`, with no insert/update/delete policy or grant — all writes
+  go through SECURITY DEFINER RPCs (slice 5 onward adds them). Scope
+  resolves live from `applications.year_group_applied_for` through the
+  `admissions_grade_visible()` predicate. Child tables inherit visibility
+  from their application: a student is visible when one of its applications
+  is visible; a family or guardian when one of its students has a visible
+  application. Manager and Auditor see every row. Identity triggers
+  (`author_id`, `created_at` on notes) act only when
+  `auth.uid()` is non-null, so a hand import keeps original authorship and
+  timestamps. Tokens are stored only as SHA-256 hex hashes with a format
+  check on the hash column. No legacy-id columns; the slice 15 import keeps
+  the old-id-to-uuid mapping in a local file.
 - **The anon surface is SECURITY DEFINER functions only (codified
   2026-09-29).** Onboarding (`20260921100000`) set the pattern, and the
   admissions port's public forms will lean on it heavily. `anon` never

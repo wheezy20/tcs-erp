@@ -30,8 +30,9 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | committed (slice 1b-ii, Admissions Officer role) | 1b-i |
 | 1c | Session timeout readable by every staff role | committed (slice 1c, session timeout read) | 1b-ii |
 | 2 | Admissions grade reference data + capabilities layer | committed (admissions slice 2, grade reference data and capabilities) | 1c |
-| 3 | Core admissions schema + staff RLS (no health, no documents) | not started | 2 |
-| 4 | Health info (health gate) + documents metadata + private bucket | not started | 3 |
+| 3a | Core admissions schema (families, guardians, students, applications, contacts, notes) | built, awaiting Eyram's review (uncommitted) | 2 |
+| 3b | Decisions, offers, capacity, campus grade rules | not started | 3a |
+| 4 | Health info (health gate) + documents metadata + private bucket | not started | 3b |
 | 5 | Reference numbering + stage transitions + notes/document review RPCs | not started | 4 |
 | 6 | Decisions, offers, enrolment gate, capacity warning (staff side) | not started | 5 |
 | 7a | Staff pipeline UI: list, detail, notes, documents, health panel | not started | 6 |
@@ -374,7 +375,7 @@ Adds the fifth role on top of 1b-i's allowlists. It ships before any admissions 
 
 **Open unknowns:**
 
-- **(a) Officer inactivity auto-logout never arms.** Addressed by slice 1c (uncommitted, awaiting Eyram's review): `get_session_timeout_minutes()` returns the timeout value to every staff role including the officer, bypassing the restriction on `business_settings`.
+- **(a) Officer inactivity auto-logout never arms.** Addressed by slice 1c (committed): `get_session_timeout_minutes()` returns the timeout value to every staff role including the officer, bypassing the restriction on `business_settings`.
 - **(b) Missing role defaults to Attendant.** `handle_new_staff_signup` still defaults a missing `role` metadata field to Attendant (seed paths and local-dev scripts rely on it). An explicit unlisted role is now rejected. Tighten it (reject a missing role) once the seed paths (supabase/seed.sql, scripts/seed-local-dev-staff.sh) pass a role explicitly.
 - Route guards for the other four roles are still not built (existing open item).
 
@@ -451,53 +452,71 @@ Gates confirmed by Eyram (2026-10-05): the new reads (capability rows: own row f
 
 **Size (as built):** one migration (2 tables, 10 functions, 5 triggers, one `audit_log_action_check` value), a Staff-tab column with a Manager dialog, and 87 probes in two files.
 
-## Slice 3 — Core admissions schema and staff RLS (no health, no documents)
+## Slice 3a — Core admissions schema: families, guardians, students, applications, contacts, notes
 
-**Delivers:** one migration with these tables:
+Slice 3 split into two (approved 2026-10-10): 3a builds the applicant core tables with staff RLS; 3b builds decisions, offers and campus rules.
+
+**Delivers:** one migration `20261011100000_admissions_core_applicants.sql` with six tables:
 
 - `families`: `referral_source` (check-constrained to TCS OS's 8 values, `models.py:122-131`), `referral_source_other`, `comments`.
-- `guardians`: `family_id`, `first_name`, `surname`, `email` (lowercased by trigger, following DESIGN's uppercase/lowercase normalisation), `phone`, `relationship`, `religion`, `address`, `town_city`, `bulk_email_unsubscribe_token_hash` (unique, nullable until slice 14), `bulk_email_unsubscribed_at`.
+- `guardians`: `family_id`, `first_name`, `surname`, `email` (lowercased and trimmed by trigger, following DESIGN's email normalisation), `phone`, `relationship`, `religion`, `address`, `town_city`, `bulk_email_unsubscribe_token_hash` (unique, nullable until slice 14), `bulk_email_unsubscribed_at`.
 - `students`: `family_id`, `full_name`, `date_of_birth`, `gender`, `nationality`, address block, `current_school`, `previous_school_location`, `current_grade`, and `student_id` (unique, null until enrolment, assigned in slice 6).
-- `applications`: `student_id`, `stage`, `academic_year`, `year_group_applied_for`, `month_of_enrollment`, `inquiry_reference` and `application_reference` (unique), `branch_id` (nullable: inquiries carry no campus), scholarship fields, declaration fields (`declaration_agreed_at` and `declaration_ip` server-set), `media_consent_agreed`, timestamps.
-- `application_emergency_contacts` and `application_notes` (`author_id` server-forced).
-- `application_decisions` (one per application: `decision_type`, `decided_by`, `decided_at`, `notes`).
-- `application_offers` (one per application: `token_hash` unique, `sent_at`, `expires_at`, `response`, `responded_at`).
-- `admissions_capacity` (`academic_year`, `year_group`, `branch_id` nullable, `capacity`), with a unique index that treats NULL campus as equal. That fixes the gap TCS OS accepted at `models.py:514-541`.
-- `admissions_campus_grade_rules`: `branch_id`, `grade`. When a campus has rows, it only accepts those grades. Seeded for Annex with Pre Nursery and Nursery 1 (the rule from `serializers.py:18`), keyed by `branch_id`, not by name, which removes TCS OS's rename fragility noted at `02-stack-and-schema.md:476-480`.
+- `applications`: `student_id`, `stage` (the eight TCS OS values, no UPDATE grant), `academic_year`, `year_group_applied_for`, `month_of_enrollment`, `inquiry_reference` and `application_reference` (both nullable, unique when set), `branch_id` (nullable: inquiries carry no campus), `wants_scholarship_info`, `scholarship_interest_details`, `declaration_signature_name`, `declaration_agreed`, `declaration_agreed_at`, `declaration_ip_address`, `media_consent_agreed`, `created_at`, `updated_at`.
+- `application_emergency_contacts`: `application_id`, `name`, `relationship`, `phone`.
+- `application_notes`: `application_id`, `author_id` (server-forced when auth.uid() is set, so hand imports keep original authors), `content`, `created_at` (server-set only when auth.uid() is set).
 
-Select RLS on every table goes through `admissions_grade_visible(year_group_applied_for)`, joined up from family, guardian and student. There are no write grants and no write RPCs yet; setup seeds rows as postgres.
+Select-only RLS on every table for `authenticated`; no write grants or policies yet (slice 5 adds write RPCs). Staff reads go through three SECURITY DEFINER visibility helpers that resolve scope live from `applications.year_group_applied_for` (D-3d):
+- **`admissions_application_visible(uuid)`**: true when the application exists and its grade is visible to the caller (Manager and Auditor: every application; an Admissions Officer: in scope only; Attendant and Accountant: never). Emergency contacts and notes use it.
+- **`admissions_student_visible(uuid)`**: true when one of the student's applications is visible; Manager and Auditor get true for any id, so they also see a student with no application.
+- **`admissions_family_visible(uuid)`**: true when one of the family's students has a visible application; Manager and Auditor get true for any id. Guardians use it too, so siblings in other bands stay hidden (D-3d).
 
-**Not included:** health info, documents, storage, numbering, stage RPCs, public anything.
+**Deviations from the planner's draft:** (1) student_id accepts 4+ trailing digits (TCS OS pads to 4 but doesn't cap, `models.py:113`); (2) `inquiry_reference` and `application_reference` regexes accept 4+ digits, not exactly 4 (`models.py:65-74`); (3) the note trigger forces both `author_id` and `created_at` when `auth.uid()` is set; with no signed-in user (the slice 15 import) the supplied values stand.
 
-**TCS OS files to read:** `models.py:118-541, 581-594, 656-666`; `serializers.py:14-31`; `docs/admissions/02-stack-and-schema.md:11-46, 467-530`.
+**Corrections found during planning:** the plan said "about 11 tables" — slice 3 is actually 10 (6 here in 3a, 4 in 3b: decisions, offers, capacity, campus rules). Annex campus grade rules can't be seeded in the migration because Annex is inserted by `supabase/seed.sql` and `supabase/seed.production.sql`, which run after migrations, so 3b puts those rows in both `seed.sql` and `seed.production.sql` keyed by `branch_id`. The plan omitted several columns: `declaration_signature_name`, `declaration_agreed`, `wants_scholarship_info`, `scholarship_interest_details`, `applications.updated_at`, emergency contact name/relationship/phone. The IP column keeps TCS OS's name `declaration_ip_address`, type `inet`.
 
-**Conventions:** explicit grants; select-only tables with RPC-only writes; identity columns server-forced; nullable-override-with-global-default (capacity campus null means not campus-specific; campus grade rules default to "all grades"); `drop function` before changing an argument list, for later slices.
+**Not included:** decisions, offers, capacity, campus rules (slice 3b); health info, documents, storage (slice 4); numbering, stage RPCs (slice 5); public anything.
 
-**Role matrix:** one read probe per table, with an application seeded at Grade 3 and one at Grade 11.
+**TCS OS files to read:** `models.py:118-300, 581-594, 656-666`; `serializers.py:14-31`; `docs/admissions/02-stack-and-schema.md:11-46, 467-530`.
 
-| Probe | anon | AO | Mgr | Acc | Aud |
-|---|---|---|---|---|---|
-| Read Grade 3 application, no capability rows | ✗ | ✗ | ✓ | ✗ | ✓ |
-| Read Grade 3, AO with `{primary}` | | ✓ | | | |
-| Read Grade 3, AO with `{jhs}` | | ✗ | | | |
-| Read Grade 3, AO with `all_grades` | | ✓ | | | |
-| Read Grade 11 (unbanded) | ✗ | ✗ (even with all 3 bands); ✓ with `all_grades` | ✓ | ✗ | ✓ |
-| Live move: update the grade Grade 6 → Grade 7 as postgres | | a `{primary}` AO loses it, a `{jhs}` AO gains it | | | |
-| Direct insert, update or delete on any admissions table | ✗ | ✗ | ✗ | ✗ | ✗ |
+**Conventions:** explicit grants; select-only tables with RPC-only writes (slice 5 adds them); identity columns server-forced only when auth.uid() is set; `drop function` before changing an argument list (for 3b and later).
 
-The live-move probe mirrors `test_grade_change_moves_application_between_coordinators_live`.
-Attendant and Accountant are ✗ on every probe in this table, because they have no admissions access (fifth-role decision, 2026-09-29). They stay in the file as regression rows. The AO column is the Admissions Officer.
+**Role matrix:** `supabase/role-matrix/20261011100000_admissions_core_applicants_visibility.sql` (51 probes) + `…_structure.sql` (39 probes). Sample rows: Manager and Auditor read every application; Admissions Officer with `{primary}` reads Grade 3, not Grade 7; unbanded Grade 11 visible to Manager, Auditor and all_grades officers only; siblings in different bands hidden from an in-band officer; a live grade change (Grade 6 → 7) moves an application between visible and hidden for a band-scoped officer; direct insert/update/delete on any table refused for all roles; anon has no table grant.
 
+**Anon surface:** none. No anon grants; `revoke all … from anon` on every table and visibility helper.
 
-**Anon surface:** none. No anon grants; `revoke all … from anon` on every new table.
+**Decisions (approved 2026-10-10):**
 
-**Decisions for Eyram:**
+- **D-3a (decided 2026-09-29, as recommended).** Is `students` the long-term Student record? Yes — it becomes the Student Management record later (PLANNING.md).
+- **D-3b (decided 2026-09-29, as recommended).** Is `academic_year` free text? Yes, picked from a list in the form.
+- **D-3c.** Capacity readable by: **Manager and Auditor only** (not Admissions Officers). Writes are slice 7b.
+- **D-3d.** Sibling visibility: officers read families, guardians, students and applications **only for in-scope children**. Siblings in other bands are hidden — a deliberate change from TCS OS's unscoped StudentInline on the family page (`tcs-os admin.py:90-93`).
+- **D-3e.** Capacity keyed by: **grade_id FK to admissions_grades, not free-text year_group**. (This is a 3b carry-forward.)
+- **D-3f.** Legacy references: **strict formats kept** (`YYPPNNNN` / `INQ/APP-YYYY-NNNN` with 4+ digits). Fallback, if the slice 15 inventory finds non-conforming legacy ids, is to drop the student_id check.
+- **D-3g.** Officer read-decision: officers read decisions and offers **only if in scope AND holding can_decide** (matches TCS OS's coordinator bundle, `tcs-os migration 0019`). Built in slice 3b.
 
-- **D-3a (decided 2026-09-29, as recommended).** Is `students` the long-term Student record? Recommendation: yes, a single `students` table. A child becomes a `students` row at inquiry or application (TCS OS shape, `serializers.py:111-124`) and gets `student_id` at enrolment, so the future Student Management phase extends this table instead of adding a second student model (PLANNING.md "Student Management").
-- **D-3b (decided 2026-09-29, as recommended).** Is `academic_year` free text or constrained? Recommendation: text, picked from a list in the form. TCS OS has legacy free-text values (`02-stack-and-schema.md:631`).
-- **D-3c.** Who sees capacity rows. Recommendation: every staff member who sees admissions; writes are Manager only (slice 7b).
+**Size:** one migration (6 tables, 3 SECURITY DEFINER visibility helpers, 2 triggers, 6 select policies), no write RPCs, 90 probes across two files.
 
-**Size:** one migration with about 11 tables and select policies only, no RPCs. Mechanical but long. If the fix rounds run over, split into 3a (families, guardians, students, applications) and 3b (decisions, offers, capacity, rules).
+### Carry-forwards for later slices
+
+- **Slices 5 and 6 (import):** slice 5's reference-assigning trigger and slice 6's gates must not run on (or must skip) rows imported by slice 15; otherwise legacy rows without references would get new numbers on import.
+- **Slices 5 and 6 (deletes):** restrict deletes deliberately, because families, students and applications cascade to notes and contacts.
+- **Slice 9 (submission snapshot):** it can hold health answers, so it must not live on `applications` or any table officers read without the health gate.
+- **Slice 14 (guardian tokens):** guardians created in the ERP before slice 14 have no unsubscribe hash, and a stored hash can't rebuild a permanent unsubscribe link, so slice 14 needs a token design that covers them.
+- **Slice 15 (import):** the dry run should report legacy rows that the non-blank grade and academic-year checks, the student_id and reference formats, or the length caps would refuse (inventory counts added to runbook step 1).
+- **Slice 7a (demo rows):** nothing can create admissions rows until slice 8, so 7a's UI tests need invented demo rows in `seed.sql` because the live creation RPCs don't exist yet.
+
+## Slice 3b — Decisions, offers, capacity, campus grade rules
+
+**Status:** not started (depends on 3a).
+
+**Delivers:** one migration with four tables, with select-only RLS and no write RPCs, like 3a:
+
+- `application_decisions` (one per application: `decision_type`, `decided_by`, `decided_at`, `notes`). Readable by Manager and Auditor, and by an Admissions Officer only when the application is in scope **and** they hold `can_decide` (D-3g).
+- `application_offers` (one per application: `token_hash` unique, `sent_at`, `expires_at`, `response`, `responded_at`). Same read rule as decisions (D-3g).
+- `admissions_capacity` (`academic_year`, `grade_id` FK to `admissions_grades` (D-3e), `branch_id` nullable, `capacity`), with a unique index that treats NULL campus as equal. That fixes the gap TCS OS accepted at `models.py:514-541`. Readable by Manager and Auditor only (D-3c).
+- `admissions_campus_grade_rules`: `branch_id`, `grade_id` (D-3e). When a campus has rows, it only accepts those grades. Readable by Manager, Auditor and Admissions Officer (A4). Annex's rows (Pre Nursery and Nursery 1, the rule from `serializers.py:18`) go in `supabase/seed.sql` and `supabase/seed.production.sql`, keyed by `branch_id`, not by name, which removes TCS OS's rename fragility noted at `02-stack-and-schema.md:476-480`.
+
+Numbering, stage RPCs and the offer email are deferred to slices 5, 6 and 12.
 
 ## Slice 4 — Health info, documents metadata, private bucket
 
@@ -570,6 +589,8 @@ Attendant and Accountant are ✗ on every probe in this table, because they have
 
 **Not included:** decisions, offers, enrolment and `student_id` (slice 6), UI (slice 7a).
 
+**Carry-forward from slice 3a:** the reference-assigning trigger must not run on (or must skip) rows imported by slice 15 (see slice 3a, carry-forwards).
+
 **TCS OS files to read:** `models.py:55-116, 229-390`; `tcs_os/reference_counter.py`; `admin.py:208-254, 309-382`; `tests.py:1022-1095`; `docs/admissions/02-stack-and-schema.md:154-205, 854-871`.
 
 **Conventions:** create-can't-overwrite; `drop function` before changing an argument list; computed-never-stored doesn't apply because references are identifiers, not derived values; audit_log is trigger-written for state transitions; the mutation window (no transition out of `enrolled`).
@@ -623,6 +644,8 @@ Value probes, run as postgres setup plus assertion: the first inquiry insert get
 
 **Not included:** the parent-facing respond flow (slice 11), the offer email (slice 12).
 
+**Carry-forwards from slice 3a:** the gates must not run on (or must skip) rows imported by slice 15, and deletes should be restricted deliberately because families, students and applications cascade to notes and contacts (see slice 3a, carry-forwards).
+
 **TCS OS files to read:** `models.py:300-352, 392-541`; `admin.py:129-170, 256-307, 384-433`; `docs/admissions/02-stack-and-schema.md:207-328`; settings `OFFER_EXPIRY_DAYS` (`tcs_os/settings.py:458`).
 
 **Conventions:** create-can't-overwrite (decision update is explicit); the onboarding token pattern (CSPRNG, hash-only, reveal-once, expiry checked on every use, single-use under a row lock); mutation window; audit via triggers; computed-never-stored for `effective_response`.
@@ -666,6 +689,8 @@ The expired case asserts the settle marks the offer `expired` and the stage `off
 - `data/admissions-store.ts` makes RPC and select calls only.
 
 **Not included:** decision, offer and enrolment actions (7b), public pages.
+
+**Carry-forward from slice 3a:** nothing can create admissions rows until slice 8, so this UI needs invented demo rows seeded in `seed.sql` for development.
 
 **TCS OS files to read:** `admin.py:85-127, 172-236, 437-470`; `docs/admissions/01-vision.md` "UX principles".
 
@@ -789,6 +814,8 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
 - pg_cron cleanup of unconsumed reservations and orphaned `pending/` objects after 24 h (needs `pg_cron`; D-12b).
 
 **Not included:** drafts and resume (slice 10), confirmation emails (slice 12).
+
+**Carry-forward from slice 3a:** the submission snapshot can hold health answers, so it must not live on `applications` or any table officers read without the health gate (see slice 3a, carry-forwards).
 
 **TCS OS files to read:** `serializers.py:128-398`; `storage.py`; `views.py:82-148`; `templates/public/apply.html` (sections, `handleFileSelected` near :1764, nationality list); `docs/admissions/02-stack-and-schema.md:57-140, 461-651`.
 
@@ -1010,6 +1037,8 @@ Service-role value probes are ported from TCS OS tests: a client-sent `source` i
 
 **Not included:** bounce or open webhooks, topic-level opt-outs (TCS OS Phase 6.1, never built).
 
+**Carry-forward from slice 3a:** guardians created in the ERP before this slice have no unsubscribe hash, and a stored hash can't rebuild a permanent link, so the token design must cover them (see slice 3a, carry-forwards).
+
 **TCS OS files to read:** `bulk_email.py` (whole); `models.py:740-877`; `views.py:297-388`; `admin.py:447-470, 541-872`; `templates/public/unsubscribed.html`; migrations `0010`–`0014`; `tests.py:238-410`; `docs/admissions/02-stack-and-schema.md:652-708`; `deployment.md` steps 5c and 6b.
 
 **Conventions:** the anon surface rule; select-only with RPC writes; recipients computed once and stored as the historical record (a deliberate snapshot, not a derived value); explicit grants.
@@ -1046,6 +1075,8 @@ The unsubscribe probe is token-gated and idempotent: a second call keeps the fir
 - Counter seeding.
 - The runbook below (see "Cutover runbook").
 - **Parity sign-off.**
+
+**Carry-forwards from slice 3a:** the import dry run should report legacy rows that the student_id/reference format checks, the length caps or the non-blank grade/academic-year checks would refuse.
 
 **TCS OS files to read:** `docs/deployment.md` (whole); `management/commands/reset_admissions_data.py` (for the table list); `models.py` (every field to map); `docs/admissions/02-stack-and-schema.md` (whole).
 
@@ -1354,7 +1385,7 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 
 **Sequence:**
 
-1. **[E] Inventory TCS OS production (read-only SELECT counts).** Real versus test Families, Guardians, Students and Applications by stage; pending offers and their `expires_at`; unsubmitted unexpired drafts; Leads (consented and unsubscribed); Guardians and Leads that received campaigns; `ReferenceCounter` rows; `admissions-documents` object count. Also confirm the live migration level (0014 or 0019) and the env values `OFFER_EXPIRY_DAYS`, `DRAFT_EXPIRY_DAYS`, `FRONTEND_BASE_URL` and `ADMISSIONS_STAFF_EMAIL`. Record counts only, never contents.
+1. **[E] Inventory TCS OS production (read-only SELECT counts).** Real versus test Families, Guardians, Students and Applications by stage; pending offers and their `expires_at`; unsubmitted unexpired drafts; Leads (consented and unsubscribed); Guardians and Leads that received campaigns; `ReferenceCounter` rows; `admissions-documents` object count. Also: count of `Student.student_id` values not matching `YYPPNNNN`; distinct `Application.year_group_applied_for` values that don't match an `admissions_grades.name`; `Application.inquiry_reference` and `application_reference` values not matching `INQ/APP-YYYY-NNNN`. Confirm the live migration level (0014 or 0019) and the env values `OFFER_EXPIRY_DAYS`, `DRAFT_EXPIRY_DAYS`, `FRONTEND_BASE_URL` and `ADMISSIONS_STAFF_EMAIL`. Record counts only, never contents.
 2. **[E] Prepare the ERP.** `npx supabase db push`; enable `pg_cron` and `pg_net`; `npx supabase functions deploy admissions-public admissions-mailer`; `npx supabase secrets set TURNSTILE_SECRET_KEY=… RESEND_API_KEY=… MAILER_SHARED_SECRET=… PUBLIC_BASE_URL=…`; add the Vault secret; deploy the frontend with `frontend/scripts/deploy-production.sh` (CONSTRAINTS.md, "Deployment"). That script currently passes only the two Supabase values into the build, so the slice that adds `VITE_TURNSTILE_SITE_KEY` must extend it to read that key from `frontend/.env.deploy` too. Leave `admissions_settings.public_intake_open = false`.
 3. **[E] Stop TCS OS intake** (D-15d). Block the creating POSTs. Leave unsubscribe and GET pages working. From this moment no new real record can appear in TCS OS.
 4. **[E] Export** the in-scope rows from TCS OS to a local, access-restricted file. That's a hand SQL export against TCS OS's database, never a connection from the ERP. Include plaintext tokens only transiently, to hash them.
