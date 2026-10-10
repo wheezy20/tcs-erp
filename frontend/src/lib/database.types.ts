@@ -87,6 +87,75 @@ export type Database = {
           },
         ]
       }
+      admissions_campus_grade_rules: {
+        Row: {
+          branch_id: string
+          grade_id: string
+        }
+        Insert: {
+          branch_id: string
+          grade_id: string
+        }
+        Update: {
+          branch_id?: string
+          grade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admissions_campus_grade_rules_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admissions_campus_grade_rules_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "admissions_grades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admissions_capacity: {
+        Row: {
+          academic_year: string
+          branch_id: string | null
+          capacity: number
+          grade_id: string
+          id: string
+        }
+        Insert: {
+          academic_year: string
+          branch_id?: string | null
+          capacity: number
+          grade_id: string
+          id?: string
+        }
+        Update: {
+          academic_year?: string
+          branch_id?: string | null
+          capacity?: number
+          grade_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admissions_capacity_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admissions_capacity_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: false
+            referencedRelation: "admissions_grades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admissions_grades: {
         Row: {
           band: string | null
@@ -148,6 +217,48 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_decisions: {
+        Row: {
+          application_id: string
+          decided_at: string
+          decided_by: string | null
+          decision_type: string
+          id: string
+          notes: string
+        }
+        Insert: {
+          application_id: string
+          decided_at?: string
+          decided_by?: string | null
+          decision_type: string
+          id?: string
+          notes?: string
+        }
+        Update: {
+          application_id?: string
+          decided_at?: string
+          decided_by?: string | null
+          decision_type?: string
+          id?: string
+          notes?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_decisions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_decisions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -219,6 +330,44 @@ export type Database = {
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_offers: {
+        Row: {
+          application_id: string
+          expires_at: string | null
+          id: string
+          responded_at: string | null
+          response: string
+          sent_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          application_id: string
+          expires_at?: string | null
+          id?: string
+          responded_at?: string | null
+          response?: string
+          sent_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          application_id?: string
+          expires_at?: string | null
+          id?: string
+          responded_at?: string | null
+          response?: string
+          sent_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_offers_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
             referencedColumns: ["id"]
           },
         ]

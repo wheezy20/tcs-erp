@@ -48,12 +48,10 @@ Things that shape how this gets built, not just what gets built.
       — done, `20260916` (see docs/JOURNAL.md).
 - [ ] A true 48×48 favicon (currently downscaled) and a dark-mode
       logomark variant are still outstanding — see docs/JOURNAL.md.
-- [ ] Admissions cutover (Phase 2, see PLANNING.md). TCS OS's ~3 real
-      admissions records, and their attached Storage files, are
-      hand-migrated into this project's hosted Supabase and checked
-      against the TCS OS originals. admissions.tcsch.edu.gh then
-      redirects to this ERP. TCS OS is shut down only after both are
-      done and confirmed.
+- [ ] Admissions cutover (Phase 2, see PLANNING.md). All TCS OS applications
+      and inquiries are test data; nothing is hand-migrated. admissions.tcsch.edu.gh
+      is attached to this ERP. TCS OS is shut down only after cutover is
+      confirmed.
 - [x] **`deposit_number_counters` has RLS off** (`20260901100000`), and
       Supabase's default privileges give `anon` full table privileges on
       it. So anyone holding the public anon key, and every staff role
@@ -83,10 +81,10 @@ Things that shape how this gets built, not just what gets built.
   as deployment gets set up.
 - **This project must never connect to TCS OS's Supabase project
   either.** Three hosted Supabase projects exist across Eyram's work:
-  this one, Wilelik's, and TCS OS's. Admissions
-  data comes across by a reviewed, one-off hand migration (see below),
-  never by pointing this app's URL/keys at TCS OS's database or
-  buckets, and never by sharing a connection string.
+  this one, Wilelik's, and TCS OS's. No admissions data comes across
+  (all TCS OS applications and inquiries are test data, see below),
+  and nothing ever points this app's URL/keys at TCS OS's database or
+  buckets or shares a connection string.
 - `supabase/seed.sql` currently contains **Wilelik's dummy retail data**
   (building-materials products, Ghanaian customer/supplier names) plus TCS
   demo people. It is **local-dev only** — `config.toml`'s `[db.seed]
@@ -526,33 +524,25 @@ docs/JOURNAL.md.
   higher PAYE bands) and overtime are now covered by the golden payslip
   suite in `supabase/golden/`; the unconfirmed ones (non-taxable
   allowances, among others) are PENDING cases there, not assertions.
-- **Real admissions data: ~3 records, migrated by hand.** They go into
-  this project's own hosted Supabase project, along with any attached
-  documents in TCS OS's Storage buckets. This is a one-off, reviewed
-  step run by Eyram: a script or SQL run by hand against
-  production, never something wired into `supabase db push`,
-  `seed.sql`, or `seed.production.sql`. These records include real
-  child health information and guardian contact details, so their
-  contents never go into docs, the journal, commit messages, test
-  fixtures, or chat transcripts.
+- **No hand data migration.** All TCS OS applications and inquiries are
+  test data, so nothing is migrated. ERP reference counters start fresh.
 - **admissions.tcsch.edu.gh must keep working until cutover.** It stays
   served by TCS OS's Cloud Run deployment until the ERP's admissions
   reaches parity. At cutover it becomes a **redirect** to this ERP's
-  public admissions routes rather than being turned off. Links already
-  sent to parents must keep resolving: offer accept/decline tokens,
-  application save-and-resume drafts, and bulk-email unsubscribe links
-  (RFC 8058 one-click POST included). Either those tokens migrate with
-  their records, or TCS OS keeps honouring them until they expire; the
-  port plan decides which. Separately, TCS OS's own journal records
+  public admissions routes rather than being turned off. Since all TCS
+  OS applications and inquiries are test data (2026-10-11), offer and
+  draft links don't need to keep resolving. Bulk-email unsubscribe links
+  (RFC 8058 one-click POST included) matter only if some of the 6 leads
+  and 17 guardians who received campaigns are real, which is still
+  open. Separately, TCS OS's own journal records
   that `app.tcsch.edu.gh` gets repointed from Cloud Run to this ERP.
   Both are DNS/infra steps Eyram runs.
 - TCS OS stays live and unmodified until cutover. **No dual-intake
   window (confirmed 2026-09-29):** TCS OS and this ERP never both
   accept real admissions submissions at the same time. The ERP's public
   admissions forms don't take real submissions until TCS OS's intake is
-  switched off, and the hand migration of TCS OS's records happens
-  after that point, so no real record ever exists in both places or
-  needs reconciling. The port plan's cutover slice orders the steps.
+  switched off, and staff stop using the TCS OS admin at the same
+  point. Nothing is migrated, so no record ever needs reconciling. The port plan's cutover slice orders the steps.
 
 ## Ghana-specific context worth keeping in mind
 

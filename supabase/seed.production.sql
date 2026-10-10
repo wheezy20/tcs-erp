@@ -6,8 +6,12 @@
 --
 --     psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -f supabase/seed.production.sql
 --
--- It is idempotent (every insert is `on conflict do nothing` or guarded),
--- so re-running it is harmless.
+-- Every insert is `on conflict do nothing` or guarded, so it is safe on a
+-- fresh project. On a live project, don't re-run the whole file: the first
+-- block can re-create expense categories or allowance types the school has
+-- since deleted or renamed, and if Annex was renamed it would add a second
+-- branch called Annex (the rules would then attach to that one). The Annex
+-- grade rules are the last block and can be run on their own.
 --
 -- It contains ONLY reference / configuration data. No demo people, no ERP
 -- logins, no employees, no pay configs, no payslips, no payroll runs, no
@@ -37,6 +41,9 @@
 --   * allowance_types             — a starting set of payroll allowance
 --                                   types, per branch. The school edits
 --                                   this list from Payroll → Setup.
+--   * admissions_campus_grade_rules: Annex accepts only Pre Nursery and
+--                                   Nursery 1 (admissions slice 3b). Main
+--                                   has no rows, so it accepts every grade.
 --
 -- What is ALREADY applied by the migrations (present after `db push`,
 -- do NOT duplicate here — the migrations are the source of truth):
@@ -133,4 +140,28 @@ begin
     (v_branch_id, 'Responsibility', true, 2),
     (v_branch_id, 'Hardship / Rural Posting', true, 3)
   on conflict (branch_id, name) do nothing;
+end $$;
+
+-- Annex grade rules (admissions slice 3b). Their own block, so a failure
+-- here leaves the branch and category seeding above in place, and so this
+-- block can be run alone on a live project. Annex accepts only Pre Nursery
+-- and Nursery 1 (TCS OS serializers.py:18), keyed by id so renaming the
+-- branch or a grade later can't disable it.
+do $$
+declare
+  v_annex_id uuid;
+begin
+  select id into v_annex_id from public.branches where name = 'Annex';
+  if v_annex_id is null then
+    raise exception 'No branch named Annex; if it was renamed, insert the rules by hand against its id';
+  end if;
+  insert into public.admissions_campus_grade_rules (branch_id, grade_id)
+  select v_annex_id, g.id from public.admissions_grades g
+  where lower(g.name) in ('pre nursery', 'nursery 1')
+  on conflict do nothing;
+  if (select count(*) from public.admissions_campus_grade_rules r
+        join public.admissions_grades g on g.id = r.grade_id
+       where r.branch_id = v_annex_id and lower(g.name) in ('pre nursery', 'nursery 1')) <> 2 then
+    raise exception 'Annex grade rules incomplete: is the slice 3b migration pushed, and are Pre Nursery and Nursery 1 in admissions_grades?';
+  end if;
 end $$;

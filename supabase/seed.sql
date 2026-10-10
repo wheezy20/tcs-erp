@@ -12,6 +12,14 @@ values
   ('00000000-0000-0000-0000-000000000001', 'Main', 20, '2026-01-01 00:00:00+00'),
   ('00000000-0000-0000-0000-000000000002', 'Annex', 20, '2026-01-01 00:00:01+00');
 
+-- Annex accepts only Pre Nursery and Nursery 1 (TCS OS serializers.py:18).
+-- Keyed by branch and grade id, so renaming either can't disable it. Main
+-- has no rows, so it accepts every grade.
+insert into public.admissions_campus_grade_rules (branch_id, grade_id)
+select '00000000-0000-0000-0000-000000000002', g.id
+from public.admissions_grades g
+where lower(g.name) in ('pre nursery', 'nursery 1');
+
 -- Staff (Session 7). Real auth.users + auth.identities rows, in the same
 -- shape a genuine supabase.auth.signUp() produces (verified by doing one
 -- against the local instance and inspecting the result) — not a shortcut

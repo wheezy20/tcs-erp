@@ -21,8 +21,9 @@ Django could offer without a lot of custom frontend work.
   were themselves ported *from* this repo. Their payroll parity work
   (payslips matched to the cent) is useful as regression evidence, not
   as code to bring back. See CONSTRAINTS.md.
-- **Admissions is the real port.** It's live in production on TCS OS
-  with about 3 real records. It becomes Phase 2 below.
+- **Admissions is the real port.** It's live in production on TCS OS;
+  all its applications and inquiries are test data, so nothing is
+  migrated (2026-10-11). It becomes Phase 2 below.
 - TCS OS stays live, untouched, until this ERP reaches parity. Its
   folder is **read-only reference**, and its `docs/` are the source of
   truth for the business logic being ported.
@@ -79,9 +80,10 @@ reference docs are `~/projects/tcs-os/docs/admissions/`
 - The slice-by-slice plan (each slice ships on its own, ending in
   cutover) is `docs/admissions/PORT-PLAN.md`, drafted 2026-09-29. It's
   reviewed before any admissions code is built.
-- **Real data:** TCS OS's ~3 real admissions records, plus any files
-  attached to them in TCS OS's Storage, get **migrated by hand into
-  this project's own hosted Supabase project**. This ERP never
+- **Data:** all TCS OS applications and inquiries are test data, so
+  nothing is migrated and the ERP's reference counters start fresh
+  (2026-10-11). Still open: whether the 6 leads and 17 guardians who
+  received TCS OS campaign emails are test data. This ERP never
   connects to TCS OS's database or buckets. See CONSTRAINTS.md.
 - **The public URL must not break.** admissions.tcsch.edu.gh keeps
   serving from TCS OS until cutover. At cutover it becomes a redirect
