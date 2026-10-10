@@ -1399,9 +1399,7 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 **Open items for the runbook:**
 
 - Are the 6 leads and 17 guardians who received TCS OS campaigns real or test data?
-- Has `seed.production.sql` been run on the hosted project?
-- Does the hosted project have an Annex row, or only Main?
-- Has the school edited expense categories or allowance types since the original seed? (Decides whether to run the Annex rules block alone or the whole `seed.production.sql`.)
+- Hosted Annex (2026-10-11): slices 3a and 3b are applied on hosted. Hosted has one branch, "Treasures Christian School" (created 2026-09-09), and no Annex row, so `seed.production.sql` has not been run there. Don't run that file on hosted: its first block would rename the existing branch to Main and re-seed expense categories and allowance types. Instead run `docs/admissions/hosted-annex-setup.sql` by hand in the SQL editor: it adds Annex (only if missing) and its two grade rules, and touches nothing else. [E]
 
 ---
 
