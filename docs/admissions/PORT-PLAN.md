@@ -24,12 +24,12 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 
 | # | Slice | Status | Depends on |
 |---|---|---|---|
-| 0 | Payroll regression carry-back (golden payslip suite, `supabase/golden/`) | built, awaiting review | — |
+| 0 | Payroll regression carry-back (golden payslip suite, `supabase/golden/`) | committed (slice 0, golden payslip suite) | — |
 | 1 | Campuses: make a second branch safe, seed Main + Annex | committed (slice 1, campuses) | — |
 | 1b-i | Allowlist guards, can_read_store(), staff read, list_staff_names(), compute_day_totals, regression matrix | committed (slice 1b-i, allowlist guards) | 1 |
 | 1b-ii | Admissions Officer role (check constraint, signup fix, invite-staff, frontend + route guard, dev account, sixth matrix column) | committed (slice 1b-ii, Admissions Officer role) | 1b-i |
 | 1c | Session timeout readable by every staff role | committed (slice 1c, session timeout read) | 1b-ii |
-| 2 | Admissions grade reference data + capabilities layer | built, awaiting Eyram's review (uncommitted) | 1c |
+| 2 | Admissions grade reference data + capabilities layer | committed (admissions slice 2, grade reference data and capabilities) | 1c |
 | 3 | Core admissions schema + staff RLS (no health, no documents) | not started | 2 |
 | 4 | Health info (health gate) + documents metadata + private bucket | not started | 3 |
 | 5 | Reference numbering + stage transitions + notes/document review RPCs | not started | 4 |
@@ -226,7 +226,7 @@ Role and capability matrix (decided except where marked):
 
 ## Slice 0 — Payroll regression carry-back
 
-**Status:** built, awaiting review (not committed).
+**Status:** committed (slice 0, golden payslip suite).
 
 **Delivers:** `supabase/golden/payslips.sql` (statutory-derived cases, Eyram's overtime figures, the Emmanuel Ansah parity case, run probes and the commented PENDING cases) and `supabase/golden/payslips-tcsos-hand.sql` (the TCS OS hand-computed tier only, D-0c), run together by `./scripts/golden-payslips.sh`. It replaces the originally planned `supabase/role-matrix/payroll-regression.sql`.
 
@@ -1279,6 +1279,57 @@ The 400 case has SSNIT 2.00 and Tier 2 20.00. These carry the D-0c label.
 | H (`payslips-tcsos-hand.sql`) | the four TCS OS cases above, August 2026 (H3 doesn't assert taxable income) | asserted; TCS OS hand-computed, not ERP-confirmed |
 
 **PENDING, commented out with expected values:** Q-ALW-N (non-taxable allowance 500), Q-ALW-MIX (taxable 500 plus non-taxable 300), Q-NSS-ALW (National Service plus allowance 300, taxable income 1,800 shown with no PAYE), Q-POST-3 (posting fines to 4910 and IOU to 1350).
+
+## TCS OS runway (as of 2026-10-10)
+
+How long TCS OS can keep running, to set the pace of this port. From a read-only investigation of `~/projects/tcs-os` on 2026-10-08 (code, config and docs only, no production access), plus what Eyram reported on 2026-10-10. Three kinds of statement, kept apart: **found** (in TCS OS's code or docs), **reported** (Eyram, or the Cloud Run console as Eyram read it), and **inferred** (not written down anywhere).
+
+### Found in the code and docs
+
+- **Hosting.** One Cloud Run service, `admissions`, in GCP project `tcs-os`, region `europe-west1`, `--min-instances=0` (scales to zero). The image is `python:3.12-slim`, running gunicorn. You deploy by hand with `gcloud`; CI only runs check and test.
+- **Domain.** `admissions.tcsch.edu.gh` uses a Cloud Run domain mapping with a Google-managed certificate, reached through a Cloudflare CNAME to `ghs.googlehosted.com` (DNS-only). No certificate expiry is recorded. The Cloudflare rate-limit rule (TCS OS `deployment.md` step 13) was never applied.
+- **Data and secrets.** Supabase is used as plain Postgres plus the `admissions-documents` Storage bucket. Six secrets are in GCP Secret Manager. Cloud Tasks queues: `admissions-bulk-email`, plus `admissions-transactional-email` if the `0015` deploy happened.
+- **Third-party services.** GCP, Supabase, Resend (transactional and bulk, from `tcsch.edu.gh` and `updates.tcsch.edu.gh`), Cloudflare Turnstile and Cloudflare DNS. If GCP or Supabase lapses, TCS OS goes down. If Resend lapses, emails stop but forms still save. There's no payment gateway and no SMS; the application fee is paid by bank transfer.
+- **No hard deadline.** The code and docs contain no hosting renewal, certificate expiry, contract or licence date.
+- **No scheduler.** There's no cron and no Celery. Offer expiry (14 days) and draft expiry (30 days) are applied lazily, the next time a record is read. Every management command is run by hand.
+- **Last recorded deploy.** TCS OS `deployment.md`, last reconciled 2026-09-03, records revision `admissions-00019-qm7`, with migrations `0015`–`0019` not yet applied.
+- **HR and Finance were never deployed.** They hold only test data, and nothing needs porting from them.
+- **Hidden dependency.** The marketing site at `tcsch.edu.gh` (with Vercel previews) POSTs cross-origin to `/api/admissions/quick-interest/` and `/api/admissions/pdf-gate/admissions-overview/`.
+- **Links already sent never expire.** Unsubscribe links are permanent. Offer and draft links last 14 and 30 days.
+- **Data that would be lost unless deliberately exported:** `django_admin_log`, the `TransactionalEmail` and `EmailCampaignRecipient` delivery logs, staff accounts, and Cloud Run logs.
+- **Local config.** TCS OS's `backend/.env` points `DATABASE_URL` and `SUPABASE_URL` at a hosted Supabase project, not a local one.
+
+### Reported (2026-10-10, not verified from code)
+
+- **The Cloud Run console shows** revision `admissions-00024-xxb` serving 100% of traffic, deployed about 12 days before 2026-10-10. The `admissions-migrate` job was updated at the same time. So production is probably newer than the docs say, and **the docs' last recorded revision (`admissions-00019-qm7`) is stale**. Which migrations production is on is still unconfirmed.
+- The TCS OS Supabase project and this ERP's Supabase project are **separate projects, both on free plans**.
+- **The Google Cloud trial was ending on about 2026-10-13 and needed upgrading.** Eyram is doing that on 2026-10-10. It is **not recorded as done**.
+
+### Inferred
+
+- Nothing technical expires, so the runway is set by billing (the GCP trial above) and by the admissions season.
+- The academic year starts in September, and the forms offer 2027/2028 onward. That suggests the 2027/28 enquiry and application season runs roughly January to August 2027, so cutover should land in a quiet period, plausibly before January 2027, or after the season.
+- Real data is more than the ~3 applications: real Lead rows and unsubscribe tokens exist too (see point 6 under "Where the code contradicts the brief").
+- The hr/finance migrations and the parity-test payroll may have been run against whatever database `backend/.env` points at.
+- Django 5.2 LTS and Python 3.12 force no upgrade before about April 2028.
+
+### What has to be ported before switch-off, and what can be dropped
+
+- **Must port:** slices 3–7b (the staff pipeline), 8 and 9 (inquiry and application forms), 11 (offer response, which live offer links depend on), 12 (transactional email), 13 (lead capture, unless the marketing site's widgets are repointed instead), the unsubscribe endpoint and unsubscribe state from slice 14, and slice 15.
+- **Could drop or defer:** TCS OS's HR and Finance; campaign sending itself (only unsubscribe must keep working); drafts (slice 10), if the few affected parents are contacted by hand; `audit_staff_roles` and `reset_admissions_data`.
+- **Order:** as in the Status table. Slice 10 and campaign sending can move to after cutover if time is short. The runbook's step-1 inventory comes before slice 15 is planned.
+
+### Questions only Eyram can answer
+
+1. Which date are GCP (after the trial upgrade) and Resend paid until, and on which plans? Does either free Supabase plan's inactivity pausing affect TCS OS?
+2. When does `tcsch.edu.gh` renew, and who holds the registrar account?
+3. Which TCS OS migrations is `admissions-00024-xxb` on? Did `0015`–`0019` reach production?
+4. Is the hosted Supabase project in TCS OS's `backend/.env` its production database? If so, were the HR and Finance migrations and the parity-test payroll run against it?
+5. Which staff actually use the TCS OS Django admin for admissions, and how often? Who else depends on the staff alert emails?
+6. When does TCS's 2027/28 enquiry and application season really start, and what's the busiest stretch?
+7. Which host will the ERP staff app use? The TCS OS journal says `app.tcsch.edu.gh`; its deployment docs only mention `admissions.tcsch.edu.gh`.
+8. Who maintains the marketing site, and can its two widgets be repointed, or must the ERP serve those exact paths?
+9. Are there unexpired offers or drafts, or recent campaign recipients, right now (the runbook's step-1 counts)?
 
 ## Cutover runbook (slice 15)
 

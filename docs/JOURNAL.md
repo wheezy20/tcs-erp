@@ -4189,3 +4189,27 @@ Verification:
   reads", which overstates it; corrected to "payroll decides exemptions
   from the flags alone and never reads employment_type". It also left out
   the migration and the profile reminder, which I added.
+
+---
+
+## 2026-10-10 — TCS OS runway recorded; port plan status corrected
+
+Docs only, no code or schema.
+
+- PORT-PLAN's Status table, and slice 0's own status line, said slices 0
+  and 2 were awaiting review. Both are committed ("Slice 0: golden
+  payslip suite for payroll regression", 2026-10-07; "Admissions slice 2:
+  grade reference data and staff admissions capabilities", 2026-10-05).
+  Corrected.
+- New PORT-PLAN section "TCS OS runway (as of 2026-10-10)", from a
+  read-only investigation of `~/projects/tcs-os` (2026-10-08) plus what
+  Eyram reported on 2026-10-10. It separates found, reported and inferred
+  statements, and lists the questions only Eyram can answer. Headline:
+  nothing in TCS OS's code or docs expires; the runway is set by billing
+  and the admissions season.
+- Reported, not verified: the Cloud Run console shows revision
+  `admissions-00024-xxb` live (about 12 days before 2026-10-10), so the
+  `admissions-00019-qm7` in TCS OS's `deployment.md` is stale. Both
+  Supabase projects are separate and on free plans. The Google Cloud
+  trial ends about 2026-10-13 and needs upgrading; Eyram is doing that on
+  2026-10-10, and it isn't recorded as done.
