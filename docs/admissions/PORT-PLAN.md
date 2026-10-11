@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** under review, 2026-09-29. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open. Slices 0 to 3b are built (3b awaiting review); the rest is plan. Nothing beyond 3b gets built until Eyram has reviewed this file.
+**Status:** slices 0 to 4 built (4 awaiting Eyram's review, uncommitted); the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -31,8 +31,8 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 1c | Session timeout readable by every staff role | committed (slice 1c, session timeout read) | 1b-ii |
 | 2 | Admissions grade reference data + capabilities layer | committed (admissions slice 2, grade reference data and capabilities) | 1c |
 | 3a | Core admissions schema (families, guardians, students, applications, contacts, notes) | committed (admissions 3a) | 2 |
-| 3b | Decisions, offers, capacity, campus grade rules | built, awaiting Eyram's review (uncommitted) | 3a |
-| 4 | Health info (health gate) + documents metadata + private bucket | not started | 3b |
+| 3b | Decisions, offers, capacity, campus grade rules | committed (admissions 3b) | 3a |
+| 4 | Health info, documents metadata, private bucket | built, awaiting Eyram's review (uncommitted) | 3b |
 | 5 | Reference numbering + stage transitions + notes/document review RPCs | not started | 4 |
 | 6 | Decisions, offers, enrolment gate, capacity warning (staff side) | not started | 5 |
 | 7a | Staff pipeline UI: list, detail, notes, documents, health panel | not started | 6 |
@@ -522,54 +522,41 @@ Select-only RLS on every table for `authenticated`; no write grants or policies 
 
 ## Slice 4 — Health info, documents metadata, private bucket
 
-**Delivers:**
+**Status:** built, awaiting Eyram's review (uncommitted).
 
-- `application_health_info`: one per application, the three boolean-plus-details pairs from `models.py:596-617`. Select only when `admissions_grade_visible(...) and has_admissions_capability('health')`. It never joins into any list or search view, and never into export.
-- `application_documents`: `application_id`, `document_type` (the 8 TCS OS values, `models.py:547-556`), `storage_path`, `status` (`required` | `pending_review` | `approved` | `rejected`), `uploaded_at`.
-- A private bucket, `admissions-documents`: `public = false` from the insert, `file_size_limit` 10 MiB, `allowed_mime_types` `application/pdf`, `image/jpeg`, `image/png`. That's the TCS OS allow-list; HEIC is deliberately excluded (`02-stack-and-schema.md:111-140`).
-- A staff storage select policy that mirrors `application_documents` visibility. Reads go through `createSignedUrls()`.
-- A staff read function for documents that returns metadata only.
+**Delivers:** Migration `20261013100000_admissions_health_documents_storage.sql`:
 
-**Not included:** uploads by anyone (slice 9), document review RPC (slice 5), health UI (slice 7a).
+- **`application_health_info`:** one row per application, only once health questions are answered (D-4m). Three pairs, each a boolean flag plus a details field capped at 2,000 characters (D-4e): `has_learning_or_physical_needs` + `learning_or_physical_needs_details`, `has_medical_conditions` + `medical_conditions_details`, `has_allergies_or_dietary_requirements` + `allergies_dietary_details`. Deleted cascade with the application.
+- **`application_documents`:** metadata only: `application_id`, `document_type` (the 8 TCS OS values: `proof_of_vaccination`, `financial_clearance`, `previous_report`, `application_fee_proof`, `proof_of_funds`, `passport_photo`, `birth_certificate`, `other`), `status` (`required`, `pending_review`, `approved`, `rejected`), `storage_path` (nullable, unique when set, max 500 chars, [A-Za-z0-9._/-] only, no "..", no leading/trailing "/", must end in .pdf/.jpg/.jpeg/.png case-insensitive), `uploaded_at` (set exactly when `storage_path` is set). Any status other than `required` requires a file. Deletes restricted (D-4f): an application with documents cannot be deleted.
+- **Private bucket `admissions-documents`:** `public = false` from the insert (the receipts lesson, `on conflict do update` so a pre-existing public bucket is forced private), 10485760 bytes (10 MiB), allowed MIME types `application/pdf`, `image/jpeg`, `image/png` only (D-4g, no HEIC). No write policy for the bucket. One read policy `admissions_documents_select`: authenticated only, checks `bucket_id = 'admissions-documents'` and a visible `application_documents` row has exactly `storage_path = objects.name` (subquery runs under the caller's RLS, so file visibility follows document visibility).
+- **Health reads:** Manager, Auditor and Admissions Officer only, and only while they hold `can_view_health` (D-4a, D-4k) AND the application is visible to them (band scope). Attendant and Accountant read nothing, even holding the capability (D-4l).
+- **Document reads:** Manager, Auditor and an Admissions Officer in scope (D-4j); no health capability needed. Reads by scope only.
+- **File reads:** readable only through a visible `application_documents` row with that exact path. A file with no row is unreadable by everyone.
+- **Grants:** `authenticated` select only on both tables, `anon` nothing, `service_role` full CRUD.
 
-**TCS OS files to read:** `models.py:546-617`; `storage.py`; `admin.py:103-121, 177-205`; `management/commands/configure_storage_bucket.py`; `docs/admissions/02-stack-and-schema.md:95-140, 486-494, 873-875`.
+**Not included:** write RPCs (slice 5 reviews, slice 9 creates), uploads by anyone, anon write, health read audit (D-4c), UI (slice 7a).
 
-**Conventions:** document storage applies the receipts-bucket lesson (private from the first commit, signed URLs, verified with a `404 Bucket not found` on `/object/public/`); explicit grants; the health gate is independent of role, `can_decide` and bands (CONSTRAINTS.md).
+**Decisions (decided 2026-10-11):**
 
-**Role matrix:**
+- **D-4a.** Health gate shape: can_view_health AND band scope (decided as recommended).
+- **D-4b.** Grant timing: everything starts ungranted, and no migration or seed grants a capability. Eyram grants `can_view_health` to named staff through Settings (audited) once TCS names who needs it.
+- **D-4c.** Health read audit: not in Phase 2, since audit_log is reserved for state transitions. The last good moment to revisit is before slice 7a builds on the table.
+- **D-4d.** Retention: keep health data for enrolled students. Purge closed applications (for example `rejected` or `offer_declined`) after about 12 months, once the period is checked against Ghana's Data Protection Act 2012 (Act 843). The purge is a later slice. It must remove files through the Storage API (SQL can't delete stored files), and remove document rows and files before the application, because documents restrict. Any "draft data" it purges means the ERP's own slice 10 drafts.
+- **D-4e.** Health details limit: 2,000 characters per field (slice 9 form must match).
+- **D-4f.** Application deletes: restricted if documents exist (applications with documents can't be deleted).
+- **D-4g.** Bucket size and MIME: 10 MiB, pdf/jpeg/png only, no HEIC.
+- **D-4h.** Signed file URLs: 300 seconds (a slice 7a constant).
+- **D-4i.** Staff edit RPC for health: none built.
+- **D-4j.** Document read gate: scope only, not the health capability.
+- **D-4k.** Manager and Auditor: need can_view_health for health reads.
+- **D-4l.** Attendant and Accountant: may hold can_view_health (O-6) but read nothing.
+- **D-4m.** Health rows: only when answered (inquiries have none).
 
-| Probe | anon | AO | Mgr | Acc | Aud |
-|---|---|---|---|---|---|
-| Health, Grade 1, no capability | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Health, Manager with `can_view_health` | | | ✓ | | |
-| Health, Auditor with `can_view_health` | | | | | ✓ |
-| Health, AO with `{preschool}` and health, Nursery 1 app | | ✓ | | | |
-| Health, AO with `{preschool}` and health, Grade 3 app | | ✗ | | | |
-| Health, AO with `{primary}` but no health, Grade 3 app | | ✗ | | | |
-| Health, Attendant or Accountant with `can_view_health` | | | | ✗ (sees no admissions rows) | |
-| Documents read | ✗ | in scope | ✓ | ✗ | ✓ |
-| Storage object read | ✗ | in scope | ✓ | ✗ | ✓ |
-| Any storage insert | ✗ | ✗ | ✗ | ✗ | ✗ |
+**Probes:** `supabase/role-matrix/20261013100000_admissions_health_documents_storage_visibility.sql` (59 probes) and `…_structure.sql` (31 probes). Breaks: 23 deliberate breaks; 20 caught; break 5 (dropping has_role allowlist from health policy) is an equivalent mutant (has_admissions_capability already limits roles); break 9a (prefix match on storage_path) was not caught, so probe SV7c was added; break 23 (storage bucket on conflict do nothing instead of do update) can't be caught by SQL probes. B1 runs bucket check as postgres because storage.buckets has RLS.
 
-The health rows after the first are capability variants.
-Attendant and Accountant are ✗ on every probe in this table, because they have no admissions access (fifth-role decision, 2026-09-29). They stay in the file as regression rows. The AO column is the Admissions Officer.
+**Verification:** baseline at HEAD (17 probe files and the golden suite green, anon-executable 169; the golden suite isn't required for this slice). test-runner: lint (0 errors, 13 warnings), tsc, build, overload check pass; types regen additive (76 lines); earlier files byte-identical; both new files green; no function added or changed, exactly 3 policies added (table select for both, storage select), none changed; anon-executable 169; golden unchanged. Storage API check (local only): bucket not public, public URL refused with "Bucket not found"; Manager and Auditor sign and fetch; Attendant, Accountant and officers without capability or wrong band refused; officer with right band can sign; file with no row can't be signed; uploads refused for Manager and anon; 11 MiB, HEIC and application/x-msdownload rejected; PNG and JPEG accepted; no cleanup leftovers. code-reviewer: no blocking findings. Noted: PORT-PLAN still lists a document read function and two storage policies (now removed); storage_path still allows "a//b" and "a/./b" (harmless, because matching is exact and unique); slice 9 must sanitize file names to the allowed characters.
 
-
-**Anon surface:** none. No anon storage policy.
-
-**Decisions for Eyram:**
-
-- **D-4a.** Health-gate shape. Recommendation: a boolean capability intersected with band scope (TCS OS "Option B", `02-stack-and-schema.md:873-875`).
-- **D-4b.** Who holds the health gate at go-live. Recommendation: Eyram's own Manager account plus the three band coordinators, if TCS confirms them. Everything starts ungranted.
-- **D-4c.** Is a health read audited (who viewed which child's health info)? Recommendation: not in Phase 2, since audit_log is reserved for state transitions. Revisit if TCS's data-protection obligations require it.
-- **D-4d.** Retention of health data. Recommendation:
-  - keep it for enrolled students (it moves to Student Management later);
-  - delete health info, draft `data` and documents for applications that end `rejected`, `offer_declined` or withdrawn after a set period (proposal: 12 months), using a Manager-run purge RPC;
-  - Eyram checks Ghana's Data Protection Act 2012 (Act 843) obligations with TCS before fixing the period.
-
-  The purge itself is a later slice.
-
-**Size:** two tables, a bucket, two storage policies, about 12 probes.
+**Size:** one migration (2 tables, 1 bucket, 3 policies; no functions, triggers, write RPCs); 90 probes.
 
 ## Slice 5 — Reference numbering, stage transitions, notes and document review
 
@@ -685,7 +672,11 @@ The expired case asserts the settle marks the offer `expired` and the stage `off
 **Delivers:**
 
 - `routes/admissions.index.tsx`: a list filterable by stage, campus, academic year and grade. Search by student name and references, never by health data.
-- `routes/admissions.$applicationId.tsx`: family, guardians, student, emergency contact, notes (add and edit), documents (signed-URL view and status change), and a health panel that renders **only** when the health read returns a row.
+- `routes/admissions.$applicationId.tsx`: family, guardians, student, emergency contact, notes (add and edit), documents (signed-URL view and status change), and a health panel:
+  - For a user holding `can_view_health` and the application has no health row: show "No health information on file".
+  - For anyone else: show nothing, so nobody learns whether a child has health answers.
+  - Signed file URLs last 300 seconds (D-4h).
+  - Health stays out of list views, search and export.
 - A "Move to Document Review" action.
 - An "Admissions" sidebar section (DESIGN.md sidebar convention).
 - `data/admissions-store.ts` makes RPC and select calls only.
@@ -693,6 +684,8 @@ The expired case asserts the settle marks the offer `expired` and the stage `off
 **Not included:** decision, offer and enrolment actions (7b), public pages.
 
 **Carry-forward from slice 3a:** nothing can create admissions rows until slice 8, so this UI needs invented demo rows seeded in `seed.sql` for development.
+
+**Design note (D-4c):** Health read audit must be decided before this slice builds on the table. Auditing health reads would mean reading through a SECURITY DEFINER RPC instead of the table policy.
 
 **TCS OS files to read:** `admin.py:85-127, 172-236, 437-470`; `docs/admissions/01-vision.md` "UX principles".
 
@@ -817,7 +810,9 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
 
 **Not included:** drafts and resume (slice 10), confirmation emails (slice 12).
 
-**Carry-forward from slice 3a:** the submission snapshot can hold health answers, so it must not live on `applications` or any table officers read without the health gate (see slice 3a, carry-forwards).
+**Carry-forwards:**
+- Slice 3a: the submission snapshot can hold health answers, so it must not live on `applications` or any table officers read without the health gate.
+- Slice 4: the form's health details limit is 2,000 characters (D-4e); minted storage paths must use only [A-Za-z0-9._/-] and end in .pdf/.jpg/.jpeg/.png, so file names must be sanitized.
 
 **TCS OS files to read:** `serializers.py:128-398`; `storage.py`; `views.py:82-148`; `templates/public/apply.html` (sections, `handleFileSelected` near :1764, nationality list); `docs/admissions/02-stack-and-schema.md:57-140, 461-651`.
 
@@ -849,7 +844,7 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 
 **Delivers:**
 
-- `application_drafts`: `token_hash` unique, `email`, `data jsonb` (the same shape as the slice 9 payload, so the TCS OS drafts migrated in slice 15 resume), `current_step`, `expires_at` (D-10a), `submitted_application_id`, `save_count_window`, `resume_emails_sent_today`.
+- `application_drafts`: `token_hash` unique, `email`, `data jsonb` (the same payload shape as slice 9), `current_step`, `expires_at` (D-10a), `submitted_application_id`, `save_count_window`, `resume_emails_sent_today`.
 - **No staff select policy on `data`**, because it can hold health answers. Staff get a metadata-only function (Manager) for "look up a stuck parent's draft".
 - `admissions-public` action `draft_create` (Turnstile once, IP limit) calls service-role `create_application_draft(p_email, p_data, p_step)`, which returns the raw token once.
 - `get_application_draft(p_token)` is **anon**, SECURITY DEFINER. It hashes, then requires unexpired and not submitted. The errors match TCS OS's two messages (`views.py:182-199`).
@@ -1394,12 +1389,30 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
    - Add both hosts to the Turnstile widget and to Supabase Auth `site_url` and `additional_redirect_urls` for the staff host.
    - Smoke-test the four legacy URL shapes, including `curl -X POST …/api/admissions/unsubscribe/<test-token>/` returning 200.
 5. **[E] Keep TCS OS read-only** for N days (D-15f): Cloud Run still up behind its `*.run.app` URL, with intake blocked. It's only for reference; it gets no traffic after the DNS flip.
-6. **[E] Shut down TCS OS:** delete the Cloud Run service, Cloud Tasks queues and Secret Manager secrets; rotate or delete the TCS OS Resend key and Turnstile secret; archive or delete TCS OS's Supabase project data per D-4d. Then update both repos' docs.
+6. **[E] Shut down TCS OS:** delete the Cloud Run service, Cloud Tasks queues and Secret Manager secrets; rotate or delete the TCS OS Resend key and Turnstile secret; delete the TCS OS Supabase project when Eyram decides (the data is test data). Then update both repos' docs.
 
 **Open items for the runbook:**
 
 - Are the 6 leads and 17 guardians who received TCS OS campaigns real or test data?
 - Hosted Annex (2026-10-11): slices 3a and 3b are applied on hosted. Hosted has one branch, "Treasures Christian School" (created 2026-09-09), and no Annex row, so `seed.production.sql` has not been run there. Don't run that file on hosted: its first block would rename the existing branch to Main and re-seed expense categories and allowance types. Instead run `docs/admissions/hosted-annex-setup.sql` by hand in the SQL editor: it adds Annex (only if missing) and its two grade rules, and touches nothing else. [E]
+
+---
+
+## Future slice (not scheduled): Student emergency summary
+
+**Timing:** after enrolment exists (Student Management).
+
+**Delivers:** a student-level record of emergency fields only (allergies, conditions, medication, doctor, emergency contacts), for enrolled students only, filled from the application's health answers at enrolment. Staff who need it in an emergency include the class teacher, admissions officer, administrator, a cook checking food allergies, and a nurse or health officer; more roles may be added over time.
+
+**Access model (decided 2026-10-11):**
+- Readable by all active staff (`is_active_staff()`).
+- Enrolled students only, and the emergency fields only.
+- Edits restricted to a nurse or administrator role.
+- Read logging is proposed, because access is broad.
+
+**New staff roles:** cook, nurse and class teacher don't exist in the system yet, so this slice must add them.
+
+**Note:** this future slice differs from slice 4. Slice 4 covers admissions application health answers, which include children who never enrol. This future slice covers enrolled students.
 
 ---
 

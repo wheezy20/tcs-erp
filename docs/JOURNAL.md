@@ -4279,3 +4279,39 @@ Slices 3a and 3b are applied on hosted. Hosted has one branch, "Treasures Christ
 - `seed.production.sql` is not used for this on hosted: its first block would rename the existing branch to Main and re-seed expense categories and allowance types. Its final Annex block looks Annex up by name, so it has no fixed-id problem, but it raises if Annex doesn't exist yet.
 - Checked what a second branch row affects: no trigger on `branches`; no RLS policy keys on branch; every database picker uses `order by created_at limit 1` and every frontend lookup goes through `getSchoolBranchId()` / `getSchoolBranchRow()` / `useCurrentBranch()` (oldest branch); no screen lists branches in a dropdown; no code matches a branch by name. So staff, employees, payroll, expenses, POS and the branch name shown in the app stay on the existing branch. The hosted oldest branch keeps its name rather than "Main"; nothing depends on that name.
 - PORT-PLAN's runbook open items updated with the hosted state and the snippet.
+
+## 2026-10-11: Admissions slice 4, health answers, documents and the private bucket
+
+Slice 4 built 2026-10-11, uncommitted. Delivers application_health_info and application_documents (metadata only), plus the private admissions-documents bucket with file visibility gated through document rows.
+
+**Migration:** `20261013100000_admissions_health_documents_storage.sql`. Two tables (application_health_info one per application with three flag+details pairs capped at 2,000 chars; application_documents with eight TCS OS document types, status, storage_path and uploaded_at), one bucket (10 MiB, PDF/JPEG/PNG only), three RLS policies (health and documents read by scope and capability, bucket read by visible document row), grants for authenticated select and service_role full CRUD.
+
+**Decisions (all decided 2026-10-11):**
+
+- **D-4a.** Health gate: can_view_health AND band scope. Decided as recommended.
+- **D-4b.** Grant timing: everything starts ungranted, and no migration or seed grants a capability. Eyram grants can_view_health to named staff through Settings (audited) once TCS names who needs it.
+- **D-4c.** Health read audit: not in Phase 2, reserved for state transitions. Last good moment to revisit is before slice 7a builds on the table.
+- **D-4d.** Retention direction kept: keep health data for enrolled students; purge closed applications after about 12 months once checked against Ghana's Data Protection Act 2012 (Act 843); the purge is a later slice, removes files through the Storage API and removes document rows and files before the application, because documents restrict.
+- **D-4e.** Health details limit: 2,000 characters (slice 9 form must match).
+- **D-4f.** Application deletes: restricted if documents exist.
+- **D-4g.** Bucket: 10 MiB, PDF/JPEG/PNG only, no HEIC.
+- **D-4h.** Signed file URLs: 300 seconds (slice 7a constant).
+- **D-4i.** Staff edit RPC for health: none built.
+- **D-4j.** Document read gate: scope only, no health capability needed.
+- **D-4k.** Manager and Auditor: need can_view_health for health reads.
+- **D-4l.** Attendant and Accountant: may hold can_view_health (O-6) but read nothing.
+- **D-4m.** Health rows: only when answered (inquiries have none).
+
+**Probe files:** supabase/role-matrix/20261013100000_admissions_health_documents_storage_visibility.sql (59 probes) and …_structure.sql (31 probes). Deliberate breaks: 23 total; 20 caught; break 5 (dropping has_role allowlist) is an equivalent mutant (has_admissions_capability already limits roles, kept for defence in depth); break 9a (prefix match on storage_path) was not caught, so probe SV7c was added; break 23 (bucket on conflict do nothing) can't be caught by SQL probes (B5 replays its own upsert). B1 runs bucket check as postgres because storage.buckets has RLS.
+
+**Verification:** baseline at HEAD (17 earlier probe files and the golden suite green, 169 anon-executable functions; the golden suite isn't required for this slice). test-runner: lint 0 errors, 13 warnings; tsc, build, overload check pass; types regen additive (76 lines); all 17 earlier files byte-identical; both new files green; catalog diff: no function added or changed, exactly 3 policies added (health and documents table select, storage select), none changed; anon-executable 169; golden unchanged. Local Storage API check (outside repo): bucket not public, public URL refused with "Bucket not found"; Manager and Auditor sign and fetch; Attendant, Accountant, officers without capability or wrong band refused; officer with right band can sign; file with no row can't be signed by anyone; Manager and anon uploads refused; 11 MiB, HEIC and application/x-msdownload rejected; PNG and JPEG accepted; cleanup left no files or rows. code-reviewer: no blocking findings. Noted: PORT-PLAN slice 4 still mentioned a document read function and two storage policies (now removed); storage_path still allows "a//b" and "a/./b" (harmless, because matching is exact and unique); slice 9 must sanitize file names to allowed characters.
+
+**Student emergency summary (requested 2026-10-11):** added to PORT-PLAN as a future, unscheduled slice after enrolment exists: a student-level emergency record filled from the application's health answers at enrolment, updated by a nurse or administrator, with read logging proposed. Access model, decided 2026-10-11: readable by all active staff (`is_active_staff()`), enrolled students only, emergency fields only (allergies, conditions, medication, doctor, emergency contacts), edits restricted to a nurse or administrator role. The roles cook, nurse and class teacher don't exist yet, so that slice must add them. Slice 4 stays as built.
+
+**Documents updated:**
+- PORT-PLAN.md: status line, slice 4 status, slice 4 section rewrite, 7a health panel wording with D-4c and D-4h notes, slice 9 carry-forwards (2,000 char limit, file name sanitization), slice 10 payload shape correction, cutover runbook step 6 (TCS OS shutdown decoupled from D-4d), new future slice "Student emergency summary" after cutover.
+- DESIGN.md: admissions data tables entry extended for slice 4 scope and visibility rules (health with capability gate, documents with scope only), files readable through visible rows, applications with documents restrict deletes; new storage gotchas section (protect_objects_delete trigger, RLS on buckets, SQL bypasses limits, HTTP testing, on conflict do update for pre-existing buckets).
+- CONSTRAINTS.md: no changes (health gate statement already accurate).
+
+**Outstanding for Eyram:** confirm Ghana's Data Protection Act 2012 retention obligations before fixing purge period; no production steps in this slice.
+

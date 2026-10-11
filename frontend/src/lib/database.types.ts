@@ -263,6 +263,41 @@ export type Database = {
           },
         ]
       }
+      application_documents: {
+        Row: {
+          application_id: string
+          document_type: string
+          id: string
+          status: string
+          storage_path: string | null
+          uploaded_at: string | null
+        }
+        Insert: {
+          application_id: string
+          document_type: string
+          id?: string
+          status?: string
+          storage_path?: string | null
+          uploaded_at?: string | null
+        }
+        Update: {
+          application_id?: string
+          document_type?: string
+          id?: string
+          status?: string
+          storage_path?: string | null
+          uploaded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_documents_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       application_emergency_contacts: {
         Row: {
           application_id: string
@@ -290,6 +325,47 @@ export type Database = {
             foreignKeyName: "application_emergency_contacts_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_health_info: {
+        Row: {
+          allergies_dietary_details: string
+          application_id: string
+          has_allergies_or_dietary_requirements: boolean
+          has_learning_or_physical_needs: boolean
+          has_medical_conditions: boolean
+          id: string
+          learning_or_physical_needs_details: string
+          medical_conditions_details: string
+        }
+        Insert: {
+          allergies_dietary_details?: string
+          application_id: string
+          has_allergies_or_dietary_requirements?: boolean
+          has_learning_or_physical_needs?: boolean
+          has_medical_conditions?: boolean
+          id?: string
+          learning_or_physical_needs_details?: string
+          medical_conditions_details?: string
+        }
+        Update: {
+          allergies_dietary_details?: string
+          application_id?: string
+          has_allergies_or_dietary_requirements?: boolean
+          has_learning_or_physical_needs?: boolean
+          has_medical_conditions?: boolean
+          id?: string
+          learning_or_physical_needs_details?: string
+          medical_conditions_details?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_health_info_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
             referencedRelation: "applications"
             referencedColumns: ["id"]
           },
