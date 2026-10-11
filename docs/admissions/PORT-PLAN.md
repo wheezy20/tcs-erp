@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 4 built (4 awaiting Eyram's review, uncommitted); the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
+**Status:** slices 0 to 5 built (5 awaiting Eyram's review, uncommitted); the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -32,8 +32,8 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 2 | Admissions grade reference data + capabilities layer | committed (admissions slice 2, grade reference data and capabilities) | 1c |
 | 3a | Core admissions schema (families, guardians, students, applications, contacts, notes) | committed (admissions 3a) | 2 |
 | 3b | Decisions, offers, capacity, campus grade rules | committed (admissions 3b) | 3a |
-| 4 | Health info, documents metadata, private bucket | built, awaiting Eyram's review (uncommitted) | 3b |
-| 5 | Reference numbering + stage transitions + notes/document review RPCs | not started | 4 |
+| 4 | Health info, documents metadata, private bucket | committed (admissions 4) | 3b |
+| 5 | Reference numbering + stage transitions + notes/document review RPCs | built, awaiting Eyram's review (uncommitted) | 4 |
 | 6 | Decisions, offers, enrolment gate, capacity warning (staff side) | not started | 5 |
 | 7a | Staff pipeline UI: list, detail, notes, documents, health panel | not started | 6 |
 | 7b | Staff pipeline UI: decision/offer/enrol actions, capacity, capability admin | not started | 7a |
@@ -497,7 +497,7 @@ Select-only RLS on every table for `authenticated`; no write grants or policies 
 - **Slice 9 (submission snapshot):** it can hold health answers, so it must not live on `applications` or any table officers read without the health gate.
 - **Slice 14 (guardian tokens):** guardians created in the ERP before slice 14 have no unsubscribe hash, and a stored hash can't rebuild a permanent unsubscribe link, so slice 14 needs a token design that covers them.
 - **Slice 7a (demo rows):** nothing can create admissions rows until slice 8, so 7a's UI tests need invented demo rows in `seed.sql` because the live creation RPCs don't exist yet.
-- **(Optional) Slice 5:** a numbering trigger with a stable name would make any future bulk load easy to run with it disabled, but it's not necessary for now.
+- **Slice 5 (done):** the numbering trigger has a stable name, `applications_assign_references`.
 
 ## Slice 3b — Decisions, offers, capacity, campus grade rules
 
@@ -522,7 +522,7 @@ Select-only RLS on every table for `authenticated`; no write grants or policies 
 
 ## Slice 4 — Health info, documents metadata, private bucket
 
-**Status:** built, awaiting Eyram's review (uncommitted).
+**Status:** committed (admissions 4).
 
 **Delivers:** Migration `20261013100000_admissions_health_documents_storage.sql`:
 
@@ -560,57 +560,61 @@ Select-only RLS on every table for `authenticated`; no write grants or policies 
 
 ## Slice 5 — Reference numbering, stage transitions, notes and document review
 
-**Delivers:**
+**Status:** built, awaiting Eyram's review (uncommitted).
 
-- `admissions_reference_counters` (`key` PK, `next_value`): RLS on, no anon grant, no `authenticated` write grant, touched only by SECURITY DEFINER functions. This learns from the `deposit_number_counters` gap. ERP counters start fresh (nothing imported from TCS OS).
-- `_next_admissions_reference(key)` runs under a row lock, the equivalent of TCS OS's `select_for_update`.
-- Formats, from `models.py:65-75` and `02-stack-and-schema.md:161-174`:
-  - `INQ-YYYY-NNNN`, assigned when an application row is created at `inquiry`.
-  - `APP-YYYY-NNNN`, assigned the first time the stage reaches any value in `STAGES_REQUIRING_APPLICATION_REFERENCE` (`models.py:251-255`).
-  - YYYY is the year at the moment of assignment. Sequences reset per year. Each number is assigned once, guarded by "still null", and never reassigned.
-- A BEFORE INSERT OR UPDATE trigger on `applications` assigns both references. It's the equivalent of `Application.save()`, and it fires on every write path.
-- Stage RPCs:
-  - `move_application_to_document_review(p_application_id)`: Manager, or an Admissions Officer with the application in scope. Allowed only from `inquiry` or `application`, re-checked under `select … for update` (`models.py:354-390`).
-  - `set_application_stage(p_application_id, p_stage)`: Manager only; TCS OS's unrestricted `mark_as_*` (`admin.py:309-343`). It refuses `offer` and `enrolled`, which are only reachable through slice 6's RPCs, and refuses leaving `enrolled`.
-- Notes: `add_application_note` (Manager or in-scope Admissions Officer) and `update_application_note` (author only, same audience). No delete, matching coordinator groups having no `delete_note`.
-- Documents: `set_application_document_status(p_document_id, p_status)` (Manager or in-scope Admissions Officer).
-- An audit trigger: stage transitions become audit_log action `application_stage_changed`.
+**Delivers:** Migration `20261014100000_admissions_numbering_stages_notes_documents.sql`:
 
-**Not included:** decisions, offers, enrolment and `student_id` (slice 6), UI (slice 7a).
+- **`admissions_reference_counters`** (key, next_value): PK on key (text check allowing INQ-YYYY, APP-YYYY, STUDENT-YY-PP). RLS on, no policy, revoke all from public, anon, authenticated and service_role. Nobody reads it; counters start empty (nothing imported from TCS OS).
+- **Helpers (no grant):** `_admissions_reference_year()`, `_admissions_sequence_text()` (4 digits minimum, widens past 9999, lpad-aware), `_next_admissions_sequence(key)` (one atomic upsert holding the counter row lock until commit), `_next_admissions_reference(INQ/APP only; skips a number a hand-entered row already holds)`, `_require_admissions_writer()` (Manager or Admissions Officer; "Auditor is read-only and cannot perform this action"; "This action is not available to your role").
+- **Triggers on applications** (stable names, BEFORE ones fire in name order): `applications_assign_references` (INQ on insert only when row starts at inquiry; APP the first time stage is past inquiry; never reassigned), `applications_guard_update` (nothing leaves enrolled for any caller; a signed-in caller can't change or clear an assigned reference; postgres and service_role can for hand corrections), `applications_set_updated_at` (reuses set_updated_at()), `applications_audit_stage` (AFTER UPDATE OF stage). Trigger `application_documents_audit_status` on application_documents.
+- **`application_notes.edited_at`** (nullable).
+- **RPCs** (granted to authenticated and service_role, not anon): `move_application_to_document_review()` (Manager or in-scope officer; only from inquiry or application; re-checked under row lock), `set_application_stage()` (Manager only; targets application, document_review, waitlisted, rejected; never inquiry, offer, offer_declined or enrolled; never out of offer or enrolled; refuses same stage), `add_application_note()` (Manager or in-scope officer; trimmed; not blank; at most 10,000 chars; author and time set by 3a note trigger), `update_application_note()` (author only, while active and in scope; content and edited_at only; no delete RPC), `set_application_document_status()` (Manager or in-scope officer; between pending_review, approved, rejected; never to required; refused on document with no file; refuses same status). Out of scope and not found give same error in every RPC ("Application not found", "Note not found", "Document not found"). can_decide and can_view_health play no part. Auditor never writes.
+- **Audit rows** only when a signed-in staff member made the change (no actor, no row). Stage row: before {stage}, after {stage, application_reference}. Document row: before {status}, after {status, document_type, application_reference}; no file path, names or health data. Readable through existing audit_log_select (Manager, Accountant, Auditor).
+- **audit_log_action_check** rewritten from 29 to 31 values: adds application_stage_changed and application_document_status_changed.
 
-**TCS OS files to read:** `models.py:55-116, 229-390`; `tcs_os/reference_counter.py`; `admin.py:208-254, 309-382`; `tests.py:1022-1095`; `docs/admissions/02-stack-and-schema.md:154-205, 854-871`.
+**Formats** (D-5a decided, year pinned to Africa/Accra): `INQ-YYYY-NNNN` assigned on inquiry insert; `APP-YYYY-NNNN` the first time stage is past inquiry. YYYY is the year at assignment. Sequences reset per year. Four-digit minimum, widening past 9999 with no cap (lpad gotcha noted in DESIGN.md). Each number assigned once, never reassigned.
 
-**Conventions:** create-can't-overwrite; `drop function` before changing an argument list; computed-never-stored doesn't apply because references are identifiers, not derived values; audit_log is trigger-written for state transitions; the mutation window (no transition out of `enrolled`).
+**Decisions** (decided 2026-10-11): D-5a formats kept, 4-digit minimum, widening past 9999; D-5b Manager may move out of rejected, waitlisted or offer_declined, audited; D-5c set_application_stage limits above; D-5d no leaving enrolled for any caller, by trigger; D-5e gaps only from hand actions, never failures (counter and row commit or roll back together); D-5f student IDs (YYPPNNNN, counter key STUDENT-YY-PP) assigned in slice 6 reusing _next_admissions_sequence and _admissions_sequence_text; D-5g notes.edited_at, author-only edit, no delete (bad note by deactivated author fixed only by postgres; Manager redact can be added later); D-5h changed from plan: document status changes ARE audited (payload above); D-5i stage audit rows carry application reference; service_role/postgres changes write no audit row; D-5j counters with no privilege for any API role including service_role and no read for anyone; D-5k offer needs-accepted-decision and enrolled needs-decision-and-offer gate built in slice 6; D-5l year pinned to Africa/Accra.
 
-**Role matrix:**
+**Probes:** `supabase/role-matrix/20261014100000_admissions_numbering_stages_notes_documents_structure.sql` (16), `_numbering.sql` (18), `_rpcs.sql` (81): 115 in all. Probe A4 in slice 4 structure file changed on purpose: asserts none on application_health_info and exactly application_documents_audit_status on application_documents (slice 9 will update if it adds a document trigger).
 
-| Probe | anon | AO | Mgr | Acc | Aud |
-|---|---|---|---|---|---|
-| `move_…_to_document_review`, Grade 3 | ✗ | ✓ only with `{primary}` or `all_grades` | ✓ | ✗ | ✗ |
-| Same RPC from `rejected` | ✗ | ✗ | ✗ | ✗ | ✗ |
-| `set_application_stage(…,'waitlisted')` | ✗ | ✗ | ✓ | ✗ | ✗ |
-| `set_application_stage(…,'offer')` | ✗ | ✗ | ✗ | ✗ | ✗ |
-| `add_application_note` | ✗ | in-band ✓ | ✓ | ✗ | ✗ |
-| `update_application_note` (someone else's note) | ✗ | ✗ | ✗ | ✗ | ✗ |
-| `set_application_document_status` | ✗ | in-band ✓ | ✓ | ✗ | ✗ |
-| Direct write to the counters table | ✗ | ✗ | ✗ | ✗ | ✗ |
+**Verification:** baseline at HEAD d5580d8 on fresh reset (19 probe files and golden suite green, anon-executable 169). After build: lint (0 errors, 13 warnings), tsc, build, overload check pass; types regen additive (155 lines); 18 earlier probe files byte-identical, slice 4 structure file differing only in A4's name line; three new files green; golden suite byte-identical before and after audit list rewrite; catalog diff 14 new functions (set_updated_at reused), none changed, no policy change, anon-executable 169. Concurrency races on local DB: new counter key (A=1, B=2, B waited about 5 s), existing key, two committed inquiry inserts (consecutive numbers, no unique violation), stage race (second call raised "currently at 'document_review'", exactly one audit row written). Deliberate breaks: 32 variants; 30 caught by probes or races (lock and stage re-lock only by races); two gaps (INQ assigned on update; RPC's 10,000-character check backed by table check) closed by new probes N3c and NO8b, each verified to catch its break.
 
-Attendant and Accountant are ✗ on every probe in this table (no admissions access).
+**code-reviewer:** no blocking findings. Fix round 1: skip-if-in-use check split per prefix so always uses unique index. Not changed: probe A3d keeps fixed anon-executable count of 169 on purpose (standing rule); setup-only probes run identically for every role (accepted). Noted for later: service_role already has table-level insert and update on applications, so slices 8 and 9 stage changes bypass RPC rules and write no audit row (keep in view on those reviews); counter locks held to commit (future transaction numbering both INQ and APP in opposite orders could deadlock, keep intake short and consistent); lpad truncation also affects existing invoice and deposit numbering (out of scope, noted only).
 
-Value probes, run as postgres setup plus assertion: the first inquiry insert gets `INQ-<year>-0001`; advancing it assigns `APP-<year>-0001` and keeps the INQ; a row created straight at `application` gets no INQ.
+**Carry-forwards for later slices:**
+- Slice 6: reuses _next_admissions_sequence('STUDENT-YY-PP') and _admissions_sequence_text for student IDs; the offer/enrolled gate (D-5k) built there.
+- Slices 8 and 9: service_role writes bypass RPC stage rules and write no audit row; intake transactions should stay short and number in consistent order (counter locks held to commit).
+- Slice 9: adding a trigger on application_documents means updating slice 4's probe A4 and slice 5's probe A4.
+
+**Size:** one migration (one table, 14 functions, 5 triggers, one added column); 115 probes in three files.
 
 **Anon surface:** none.
 
-**Decisions for Eyram:**
+**Confirmation gates (approved 2026-10-11):** the new write ability (Manager and in-scope officer through the RPCs, Manager only for `set_application_stage`), and stage and document audit rows readable by Manager, Accountant and Auditor.
 
-- **D-5a.** Confirm the formats are final. TCS OS records them as settled with TCS, "no legacy convention" (`02-stack-and-schema.md:156-159`). Recommendation: keep them verbatim, zero-padded to 4 digits (TCS OS doesn't say what happens past 9999).
-- **D-5b.** May a Manager move an application *out* of a terminal stage, for example `rejected` back to `application`? TCS OS allows it for Administration. Recommendation: allow it for Manager except out of `enrolled`, and audit it.
+**Role matrix** (AO base: Grade 3 with `{primary}`; Attendant and Accountant have no admissions access):
 
-**Size:** one counter table, one trigger, five RPCs, about 14 probes.
+| RPC | anon | Att | Mgr | Acc | Aud | AO |
+|---|---|---|---|---|---|---|
+| `move_application_to_document_review`, from inquiry or application | ✗ | ✗ | ✓ | ✗ | ✗ | in scope only (bands or `all_grades`; unbanded and legacy grades only with `all_grades`) |
+| same, from any other stage, or every staff member inactive | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| `set_application_stage` (allowed targets) | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
+| `add_application_note` | ✗ | ✗ | ✓ | ✗ | ✗ | in scope only |
+| `update_application_note`, own note | ✗ | ✗ | ✓ | ✗ | ✗ | in scope only |
+| `update_application_note`, someone else's or no author | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| `set_application_document_status` | ✗ | ✗ | ✓ | ✗ | ✗ | in scope only |
+| counters table, any direct access | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+
+An officer holding only `can_decide` or only `can_view_health`, with no bands and no `all_grades`, is refused on every RPC.
+
+**Not included:** decisions, offers, enrolment and student IDs (slice 6), UI (slice 7a).
 
 ## Slice 6 — Decisions, offers, the enrolment gate, the capacity warning (staff side)
 
-**Design carry-forward from slice 3b (D-3c):** Capacity figures are readable by Manager and Auditor only (not Admissions Officers). Write a figure-free message or a boolean warning to officers instead, never showing actual numbers.
+**Design carry-forwards:**
+- Slice 3b (D-3c): Capacity figures readable by Manager and Auditor only (not Admissions Officers). Write figure-free message or boolean warning to officers, never actual numbers.
+- Slice 5: Reuses _next_admissions_sequence('STUDENT-YY-PP') and _admissions_sequence_text for student IDs (YYPPNNNN). The offer needs-accepted-decision and enrolled needs-decision-and-offer gate is built here.
 
 **Delivers:**
 
@@ -778,6 +782,8 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
 - **D-8d.** Rate-limit numbers and IP source. Recommendation: TCS OS's numbers; confirm which forwarded-IP header the hosted Edge runtime supplies before trusting it.
 - **D-8e.** CORS allow-list for the function. Recommendation: the ERP origin(s), `admissions.tcsch.edu.gh`, plus the marketing origins for slice 13.
 
+**Carry-forwards from slice 5:** service_role writes bypass RPC stage rules and write no audit row; intake transactions should stay short and number in consistent order (counter locks held to commit).
+
 **Size:** one Edge Function with one action wired up, two small tables, three RPCs, one public route. It's the first anon slice, and its gate review is part of the pass.
 
 ## Slice 9 — Public Application form: direct submit, uploads, matching, rules
@@ -813,6 +819,7 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
 **Carry-forwards:**
 - Slice 3a: the submission snapshot can hold health answers, so it must not live on `applications` or any table officers read without the health gate.
 - Slice 4: the form's health details limit is 2,000 characters (D-4e); minted storage paths must use only [A-Za-z0-9._/-] and end in .pdf/.jpg/.jpeg/.png, so file names must be sanitized.
+- Slice 5: service_role writes bypass RPC stage rules and write no audit row; intake transactions should stay short and number in consistent order (counter locks held to commit). Adding a trigger on application_documents means updating slice 4's probe A4 and slice 5's probe A4.
 
 **TCS OS files to read:** `serializers.py:128-398`; `storage.py`; `views.py:82-148`; `templates/public/apply.html` (sections, `handleFileSelected` near :1764, nationality list); `docs/admissions/02-stack-and-schema.md:57-140, 461-651`.
 

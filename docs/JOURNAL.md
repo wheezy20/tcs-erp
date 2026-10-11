@@ -4315,3 +4315,48 @@ Slice 4 built 2026-10-11, uncommitted. Delivers application_health_info and appl
 
 **Outstanding for Eyram:** confirm Ghana's Data Protection Act 2012 retention obligations before fixing purge period; no production steps in this slice.
 
+---
+
+## 2026-10-11: Admissions slice 5, numbering, stages, notes and document review
+
+Slice 5 built 2026-10-11, uncommitted. Delivers reference numbering (INQ and APP counters, year-based sequences), stage transitions, notes with edit tracking, and document status review.
+
+**Migration:** `20261014100000_admissions_numbering_stages_notes_documents.sql`. One table (admissions_reference_counters, key PK with check allowing INQ-YYYY, APP-YYYY, STUDENT-YY-PP; next_value >= 1). Fourteen functions: nine granted to no one (four numbering helpers: year in Africa/Accra, sequence text with a 4-digit minimum that widens past 9999, an atomic upsert holding the counter lock to commit, and a reference builder that skips hand-entered numbers; the writer guard: active Manager or Admissions Officer, Auditor refused; and four trigger functions), plus the five RPCs. Five RPCs (move_application_to_document_review, set_application_stage, add_application_note, update_application_note, set_application_document_status). Five triggers (applications_assign_references for INQ on insert at inquiry and APP first past inquiry, applications_guard_update stops anything leaving enrolled for any caller and stops a signed-in caller changing or clearing an assigned reference (postgres and service_role can, for hand corrections), applications_set_updated_at reuses set_updated_at(), applications_audit_stage AFTER UPDATE OF stage, application_documents_audit_status on application_documents). One column added (application_notes.edited_at). Two new audit_log_action_check values (application_stage_changed, application_document_status_changed).
+
+**Counters:** RLS on, no policy, revoke all from public, anon, authenticated and service_role. Counters start empty. _next_admissions_sequence holds the lock to commit, so no gaps from rollbacks. _next_admissions_reference skips a number a hand-entered row already holds. Year pinned to Africa/Accra at assignment time.
+
+**Formats (D-5a decided, year pinned to Africa/Accra):** INQ-YYYY-NNNN assigned on inquiry insert; APP-YYYY-NNNN the first time stage is past inquiry. YYYY is the year at assignment. Sequences reset per year. Four-digit minimum, widening past 9999 with no cap (plain Postgres lpad would truncate 10000 to 1000, so a widening formatter is used; the same lpad truncation affects the existing invoice and deposit numbering, out of scope, noted only). Each number assigned once, never reassigned.
+
+**Stage RPCs (D-5c decided):** move_application_to_document_review (Manager or in-scope officer; inquiry or application only; re-checked under row lock). set_application_stage (Manager only; targets application, document_review, waitlisted, rejected; never inquiry, offer, offer_declined or enrolled; never out of offer or enrolled; refuses same stage).
+
+**Notes and documents (D-5g, D-5h decided):** add_application_note (Manager or in-scope officer; trimmed; not blank; at most 10,000 chars; author and time set by 3a trigger). update_application_note (author only, while active and in scope; content and edited_at only; no delete RPC). set_application_document_status (Manager or in-scope officer; between pending_review, approved, rejected; never to required; refused on document with no file; refuses same status). Out of scope and not found give same error in every RPC ("Application not found", "Note not found", "Document not found"). can_decide and can_view_health play no part. Auditor never writes.
+
+**Audit rows (D-5i decided):** only when a signed-in staff member made the change (no actor, no row). Stage row: before {stage}, after {stage, application_reference}. Document row: before {status}, after {status, document_type, application_reference}; no file path, names or health data. Readable through existing audit_log_select (Manager, Accountant, Auditor). Service_role or postgres changes write no audit row.
+
+**Decisions (decided 2026-10-11):**
+
+- **D-5a.** Formats final. TCS OS records them as settled with TCS ("no legacy convention", `02-stack-and-schema.md:156-159`). Decision: keep them verbatim, zero-padded to 4 digits.
+- **D-5b.** May Manager move out of terminal stage (rejected, waitlisted, offer_declined)? Recommendation: allow except from enrolled, and audit it. Decision: allow with audit.
+- **D-5c.** set_application_stage targets only application, document_review, waitlisted and rejected; never inquiry, offer, offer_declined or enrolled; never out of offer or enrolled. Decided.
+- **D-5d.** No leaving enrolled for any caller, by trigger. Decided.
+- **D-5e.** Gaps only from hand actions (delete, edit counter, skip), never failures (counter and row commit or roll back together). Decided.
+- **D-5f.** Student IDs (YYPPNNNN, counter key STUDENT-YY-PP) assigned in slice 6 reusing _next_admissions_sequence and _admissions_sequence_text.
+- **D-5g.** Notes.edited_at, author-only edit, no delete. Bad note by deactivated author fixed only by postgres; Manager redact can be added later. Decided.
+- **D-5h.** Document status changes ARE audited (changed from plan). Payload: status, document_type, application_reference. Decided.
+- **D-5i.** Stage audit rows carry application reference. Service_role/postgres write no audit row. Decided.
+- **D-5j.** Counters with no privilege for any API role including service_role, no read for anyone. Decided.
+- **D-5k.** Offer needs-accepted-decision and enrolled needs-decision-and-offer gate built in slice 6. Decided.
+- **D-5l.** Year pinned to Africa/Accra. Decided.
+
+**Probes:** supabase/role-matrix/20261014100000_admissions_numbering_stages_notes_documents_structure.sql (16), _numbering.sql (18), _rpcs.sql (81): 115 in all. Slice 4 structure file probe A4 changed on purpose: asserts none on application_health_info and exactly application_documents_audit_status on application_documents (slice 9 will update if it adds a document trigger).
+
+**Verification:** baseline at HEAD d5580d8 on fresh reset (19 probe files and golden suite green, anon-executable 169). After build: lint 0 errors, 13 warnings; tsc, build, overload check pass; types regen additive (155 lines); 18 earlier probe files byte-identical, slice 4 structure file differing only in A4's name line; three new files green; golden suite byte-identical before and after audit list rewrite; catalog diff 14 new functions (set_updated_at reused), none changed, no policy change, anon-executable 169. Concurrency races on local DB: new counter key (A=1, B=2, B waited about 5 s), existing key, two committed inquiry inserts (consecutive numbers, no unique violation), stage race (second call raised "currently at 'document_review'", exactly one audit row written). Deliberate breaks: 32 variants; 30 caught by probes or races (lock and stage re-lock only by races); two gaps (INQ assigned on update; RPC's 10,000-character check backed by table check) closed by new probes N3c and NO8b, each verified to catch its break.
+
+**code-reviewer:** no blocking findings. Fix round 1: skip-if-in-use check split per prefix so always uses unique index. Not changed: probe A3d keeps fixed anon-executable count of 169 on purpose (standing rule); setup-only probes run identically for every role (accepted). Noted for later: service_role already has table-level insert and update on applications, so slices 8 and 9 stage changes bypass RPC rules and write no audit row (keep in view on those reviews); counter locks held to commit (future transaction numbering both INQ and APP in opposite orders could deadlock, keep intake short and consistent); lpad truncation also affects existing invoice and deposit numbering (out of scope, noted only).
+
+**Documents updated:**
+- PORT-PLAN.md: status line changed to "slices 0 to 5 built"; status table: slice 4 to committed (admissions 4), slice 5 to built awaiting review (uncommitted); slice 4 status line to committed; complete rewrite of slice 5 section (formats, decisions D-5a through D-5l with what was changed from plan, probes, verification, code-reviewer findings, carry-forwards for slices 6, 8, 9); carry-forward "(Optional) numbering trigger with a stable name" in slice 3a marked done (applications_assign_references); slice 6 design carry-forward updated (reuses _next_admissions_sequence for student IDs, built-in offer/enrolled gate); slices 8 and 9 sections add carry-forwards (service_role bypasses stage rules, no audit row; keep intake short and consistent; slice 9 must update probes if it adds document trigger).
+- DESIGN.md: new numbering convention entry (counters table no API privileges, numbers by BEFORE trigger so every writer is numbered, atomic upsert holding lock to commit, no gaps from rollbacks, skip hand-entered numbers, lpad gotcha, year to Africa/Accra). Extended admissions data tables entry (slice 5 adds first write RPCs with role guard and scope re-check under row lock, indistinguishable not-found errors; audit rows for stage and document status changes trigger-written only for signed-in actor).
+
+**Outstanding for Eyram:** review the slice. The production step after review is `npx supabase db push` (Eyram's to run); no seed or frontend change.
+

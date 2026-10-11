@@ -739,39 +739,57 @@ depend on them holding true for every new table/function added.
   Full-state-replacement RPCs keyed by existing row (e.g. `p_staff_id`
   names a current staff member, not a client-chosen new id) are not
   "create" functions, so create-can't-overwrite does not apply.
+- **Admissions reference numbering (slice 5, `20261014100000`):** counters
+  table with no privileges for any API role including service_role; numbers
+  assigned by a BEFORE INSERT OR UPDATE trigger named `applications_assign_references`
+  so every writer is numbered (INQ on inquiry insert, APP the first time stage
+  is past inquiry); one atomic upsert holding the lock to commit, so no gaps
+  from rollbacks; skip numbers already held by hand-entered rows; plain Postgres
+  lpad truncates past 9999 (10000 becomes 1000), so a formatter that pads to
+  four digits and widens beyond is used; year pinned to Africa/Accra at
+  assignment time. The five RPCs that change application state
+  (move_application_to_document_review, set_application_stage,
+  add_application_note, update_application_note, set_application_document_status)
+  are granted to authenticated and service_role; out of scope and not found give
+  identical "not found" errors in every RPC; can_decide and can_view_health play
+  no part in write authorization; Auditor never writes. Stage audit rows carry the
+  application reference and are readable by Manager, Accountant and Auditor.
+  Document status audit rows carry document type and application reference, readable
+  the same way. Service-role or postgres changes write no audit row.
 - **Admissions data tables: select-only with RLS through SECURITY DEFINER
-  visibility helpers (admissions slices 3a, 3b and 4, `20261011100000`,
-  `20261012100000`, `20261013100000`).** Tables like `families`, `guardians`,
-  `students`, `applications`, `application_emergency_contacts`,
+  visibility helpers (admissions slices 3a, 3b, 4 and 5, `20261011100000`,
+  `20261012100000`, `20261013100000`, `20261014100000`).** Tables like `families`,
+  `guardians`, `students`, `applications`, `application_emergency_contacts`,
   `application_notes`, `application_decisions`, `application_offers`, plus
   reference tables `admissions_capacity` and `admissions_campus_grade_rules`,
   and slice 4's `application_health_info` and `application_documents`, are
   select-only for `authenticated`, with no insert/update/delete policy or
-  grant: all writes go through SECURITY DEFINER RPCs (slice 5 onward adds
-  them). Scope for application data resolves live from
+  grant: all writes go through SECURITY DEFINER RPCs. Slice 5 adds the first
+  write RPCs (role guard first, scope re-checked under a row lock, out of scope
+  and not found indistinguishable). Scope for application data resolves live from
   `applications.year_group_applied_for` through the `admissions_grade_visible()`
   predicate. Child tables inherit visibility from their application: a student
   is visible when one of its applications is visible; a family or guardian
   when one of its students has a visible application; health info and documents
   are visible only when the application is visible AND (for health only) the
   reader holds `can_view_health`. Manager and Auditor see every row (health rows
-  only while they hold the capability). Read rule
-  for decisions and offers: Manager and Auditor see all; an Admissions Officer
-  sees them only when the application is in scope AND they hold `can_decide`.
-  Capacity is readable by Manager and Auditor only; campus rules by Manager,
-  Auditor and Admissions Officer; health info by Manager, Auditor and
-  Admissions Officer only when they hold the capability and, for an officer,
-  the application is in scope; documents by scope
-  only (no capability needed). Campus rules are enforced only in slice 9's
-  submit RPC, never as a trigger. Restrict FKs from capacity and campus rules
-  to grades and branches (protect the reference data). Applications with
-  documents cannot be deleted (restrict FK). Files in the admissions-documents
+  only while they hold the capability). Read rule for decisions and offers:
+  Manager and Auditor see all; an Admissions Officer sees them only when the
+  application is in scope AND they hold `can_decide`. Capacity is readable by
+  Manager and Auditor only; campus rules by Manager, Auditor and Admissions
+  Officer; health info by Manager, Auditor and Admissions Officer only when
+  they hold the capability and, for an officer, the application is in scope;
+  documents by scope only (no capability needed). Campus rules are enforced
+  only in slice 9's submit RPC, never as a trigger. Restrict FKs from capacity
+  and campus rules to grades and branches (protect the reference data). Applications
+  with documents cannot be deleted (restrict FK). Files in the admissions-documents
   bucket are readable only through a visible `application_documents` row with
   that exact `storage_path` (verified in the storage policy); a file with no
   row is unreadable by everyone. Identity triggers (`author_id`, `created_at`
   on notes) act only when `auth.uid()` is non-null, so a service-role or hand
   load keeps the values it supplies. Tokens are stored only as SHA-256 hex
-  hashes with a format check on the hash column.
+  hashes with a format check on the hash column. Audit rows for stage and
+  document status changes are trigger-written only for a signed-in actor.
 - **The anon surface is SECURITY DEFINER functions only (codified
   2026-09-29).** Onboarding (`20260921100000`) set the pattern, and the
   admissions port's public forms will lean on it heavily. `anon` never

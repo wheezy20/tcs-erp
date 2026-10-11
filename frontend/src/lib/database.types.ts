@@ -189,6 +189,21 @@ export type Database = {
         }
         Relationships: []
       }
+      admissions_reference_counters: {
+        Row: {
+          key: string
+          next_value: number
+        }
+        Insert: {
+          key: string
+          next_value?: number
+        }
+        Update: {
+          key?: string
+          next_value?: number
+        }
+        Relationships: []
+      }
       allowance_types: {
         Row: {
           branch_id: string
@@ -377,6 +392,7 @@ export type Database = {
           author_id: string | null
           content: string
           created_at: string
+          edited_at: string | null
           id: string
         }
         Insert: {
@@ -384,6 +400,7 @@ export type Database = {
           author_id?: string | null
           content: string
           created_at?: string
+          edited_at?: string | null
           id?: string
         }
         Update: {
@@ -391,6 +408,7 @@ export type Database = {
           author_id?: string | null
           content?: string
           created_at?: string
+          edited_at?: string | null
           id?: string
         }
         Relationships: [
@@ -4500,6 +4518,8 @@ export type Database = {
         }
         Returns: string
       }
+      _admissions_reference_year: { Args: { p_at?: string }; Returns: number }
+      _admissions_sequence_text: { Args: { p_seq: number }; Returns: string }
       _employee_import_check: { Args: { p_rows: Json }; Returns: Json }
       _employee_import_date: {
         Args: { p_text: string }
@@ -4510,6 +4530,11 @@ export type Database = {
         Returns: Record<string, unknown>
       }
       _employee_import_yes_no: { Args: { p_text: string }; Returns: boolean }
+      _next_admissions_reference: {
+        Args: { p_prefix: string; p_year: number }
+        Returns: string
+      }
+      _next_admissions_sequence: { Args: { p_key: string }; Returns: number }
       _payroll_run_unaccounted: {
         Args: { p_run_id: string }
         Returns: {
@@ -4552,6 +4577,27 @@ export type Database = {
         Args: { p_bank_name: string; p_created_by?: string }
         Returns: string
       }
+      _require_admissions_writer: {
+        Args: never
+        Returns: {
+          active: boolean
+          branch_id: string
+          created_at: string
+          email: string
+          employee_id: string | null
+          id: string
+          name: string
+          protected: boolean
+          role: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _staff_advance_change_problem: {
         Args: {
           p_advance: Database["public"]["Tables"]["staff_advances"]["Row"]
@@ -4561,6 +4607,23 @@ export type Database = {
         Returns: string
       }
       account_id_by_code: { Args: { p_code: string }; Returns: string }
+      add_application_note: {
+        Args: { p_application_id: string; p_content: string }
+        Returns: {
+          application_id: string
+          author_id: string | null
+          content: string
+          created_at: string
+          edited_at: string | null
+          id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "application_notes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       adjust_product_stock: {
         Args: { p_new_stock: number; p_product_id: string; p_reason: string }
         Returns: {
@@ -5649,6 +5712,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      move_application_to_document_review: {
+        Args: { p_application_id: string }
+        Returns: {
+          academic_year: string
+          application_reference: string | null
+          branch_id: string | null
+          created_at: string
+          declaration_agreed: boolean
+          declaration_agreed_at: string | null
+          declaration_ip_address: unknown
+          declaration_signature_name: string
+          id: string
+          inquiry_reference: string | null
+          media_consent_agreed: boolean
+          month_of_enrollment: string
+          scholarship_interest_details: string
+          stage: string
+          student_id: string
+          updated_at: string
+          wants_scholarship_info: boolean
+          year_group_applied_for: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "applications"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       next_product_skus: {
         Args: { p_count: number; p_prefix: string }
         Returns: string[]
@@ -6539,6 +6631,52 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_application_document_status: {
+        Args: { p_document_id: string; p_status: string }
+        Returns: {
+          application_id: string
+          document_type: string
+          id: string
+          status: string
+          storage_path: string | null
+          uploaded_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "application_documents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_application_stage: {
+        Args: { p_application_id: string; p_stage: string }
+        Returns: {
+          academic_year: string
+          application_reference: string | null
+          branch_id: string | null
+          created_at: string
+          declaration_agreed: boolean
+          declaration_agreed_at: string | null
+          declaration_ip_address: unknown
+          declaration_signature_name: string
+          id: string
+          inquiry_reference: string | null
+          media_consent_agreed: boolean
+          month_of_enrollment: string
+          scholarship_interest_details: string
+          stage: string
+          student_id: string
+          updated_at: string
+          wants_scholarship_info: boolean
+          year_group_applied_for: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "applications"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_employee_status: {
         Args: { p_employee_id: string; p_status: string }
         Returns: {
@@ -6788,6 +6926,23 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "bank_statement_lines"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_application_note: {
+        Args: { p_content: string; p_note_id: string }
+        Returns: {
+          application_id: string
+          author_id: string | null
+          content: string
+          created_at: string
+          edited_at: string | null
+          id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "application_notes"
           isOneToOne: true
           isSetofReturn: false
         }

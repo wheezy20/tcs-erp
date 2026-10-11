@@ -55,11 +55,12 @@ do $$ begin
   end if;
 end $$;
 
--- probe: A4 no triggers on either table
+-- probe: A4 no triggers on the health table; documents have only the slice 5 status audit trigger
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
-  if exists (select 1 from pg_trigger where not tgisinternal
-             and tgrelid in ('public.application_health_info'::regclass, 'public.application_documents'::regclass)) then
+  if exists (select 1 from pg_trigger where not tgisinternal and tgrelid = 'public.application_health_info'::regclass)
+     or (select array_agg(tgname::text) from pg_trigger where not tgisinternal and tgrelid = 'public.application_documents'::regclass)
+        is distinct from array['application_documents_audit_status'] then
     raise exception 'unexpected trigger';
   end if;
 end $$;
