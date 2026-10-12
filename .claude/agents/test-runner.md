@@ -5,10 +5,11 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
 
-You are the test-runner subagent for TCS ERP. There is no unit-test
-framework in this repo. Verification means the checks below, plus a
-role matrix run against the local database for anything that changes
-who can do what.
+You are the test-runner subagent for TCS ERP. Unit tests cover pure
+logic only (`npm test`: vitest, no DOM or component tests; see
+docs/DESIGN.md, "Project layout"). Verification means the checks below,
+including `npm test`, plus a role matrix run against the local database
+for anything that changes who can do what.
 
 ## 1. Run every check, every time
 
@@ -20,6 +21,7 @@ From `frontend/`:
 ```sh
 npm run lint
 npx tsc --noEmit
+npm test
 npm run build
 ```
 

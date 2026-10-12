@@ -1744,3 +1744,85 @@ values
   ('e0000000-0000-0000-0000-000000000004', 'a1100000-0000-0000-0000-000000000002', 300.00, '2026-01-01'),
   ('e0000000-0000-0000-0000-000000000001', 'a1100000-0000-0000-0000-000000000001', 250.00, '2026-01-01'),
   ('e0000000-0000-0000-0000-000000000001', 'a1100000-0000-0000-0000-000000000002', 150.00, '2026-01-01');
+
+-- ------------------------------------------------------------ admissions demo (slice 7a)
+
+-- Invented demo applicants for the staff admissions screens, LOCAL ONLY:
+-- this file never runs against a hosted project (seed.production.sql is the
+-- hosted seed and has no applicant rows). Every name, email, phone and
+-- health answer below is obviously fake. References are assigned by the
+-- applications trigger. Stages stop at document_review, waitlisted and
+-- rejected: offer and enrolled need decision and offer rows, which slice 7b
+-- seeds with its screens. The grades cover all three bands plus the
+-- unbanded "Grade 11", "2027" and "Other"; the years include a legacy "2026"
+-- and a typo "2026/2072" that are not on the academic year list.
+-- Files for the documents that have one are uploaded by
+-- scripts/seed-local-admissions-files.sh (local stack only).
+insert into public.families (id, referral_source, comments) values
+  ('d7a00000-0000-4000-8000-000100000001', 'website', 'Demo family, invented.'),
+  ('d7a00000-0000-4000-8000-000100000002', 'friend_colleague', ''),
+  ('d7a00000-0000-4000-8000-000100000003', 'social_media', ''),
+  ('d7a00000-0000-4000-8000-000100000004', 'other', ''),
+  ('d7a00000-0000-4000-8000-000100000005', '', '');
+
+update public.families set referral_source_other = 'Demo referral text'
+where id = 'd7a00000-0000-4000-8000-000100000004';
+
+insert into public.guardians (id, family_id, first_name, surname, email, phone, relationship, address, town_city) values
+  ('d7a00000-0000-4000-8000-000200000001', 'd7a00000-0000-4000-8000-000100000001', 'Demo', 'Parent Alpha', 'parent.alpha@example.test', '+233200000101', 'mother', '1 Demo Street', 'Demo Town'),
+  ('d7a00000-0000-4000-8000-000200000002', 'd7a00000-0000-4000-8000-000100000001', 'Demo', 'Parent Alpha Two', 'parent.alpha2@example.test', '+233200000102', 'father', '1 Demo Street', 'Demo Town'),
+  ('d7a00000-0000-4000-8000-000200000003', 'd7a00000-0000-4000-8000-000100000002', 'Demo', 'Parent Charlie', 'parent.charlie@example.test', '+233200000103', 'guardian', '', ''),
+  ('d7a00000-0000-4000-8000-000200000004', 'd7a00000-0000-4000-8000-000100000003', 'Demo', 'Parent Delta', 'parent.delta@example.test', '+233200000104', 'mother', '', ''),
+  ('d7a00000-0000-4000-8000-000200000005', 'd7a00000-0000-4000-8000-000100000004', 'Demo', 'Parent Echo', 'parent.echo@example.test', '+233200000105', 'other', '', ''),
+  ('d7a00000-0000-4000-8000-000200000006', 'd7a00000-0000-4000-8000-000100000005', 'Demo', 'Parent Golf', 'parent.golf@example.test', '+233200000106', 'father', '', '');
+
+insert into public.students (id, family_id, full_name, date_of_birth, gender, nationality, current_school, current_grade) values
+  ('d7a00000-0000-4000-8000-000300000001', 'd7a00000-0000-4000-8000-000100000001', 'Demo Pupil Alpha', '2018-03-14', 'female', 'Demoland', 'Demo Primary', 'Grade 2'),
+  ('d7a00000-0000-4000-8000-000300000002', 'd7a00000-0000-4000-8000-000100000001', 'Demo Pupil Bravo', '2013-07-02', 'male', 'Demoland', 'Demo Primary', 'Grade 7'),
+  ('d7a00000-0000-4000-8000-000300000003', 'd7a00000-0000-4000-8000-000100000002', 'Demo Pupil Charlie', '2023-01-20', 'male', 'Demoland', '', ''),
+  ('d7a00000-0000-4000-8000-000300000004', 'd7a00000-0000-4000-8000-000100000003', 'Demo Pupil Delta', '2023-09-09', 'female', 'Demoland', '', ''),
+  ('d7a00000-0000-4000-8000-000300000005', 'd7a00000-0000-4000-8000-000100000004', 'Demo Pupil Echo', '2010-05-30', 'female', 'Demoland', 'Demo High', 'Grade 10'),
+  ('d7a00000-0000-4000-8000-000300000006', 'd7a00000-0000-4000-8000-000100000004', 'Demo Pupil Foxtrot', '2012-11-11', 'male', 'Demoland', 'Demo High', ''),
+  ('d7a00000-0000-4000-8000-000300000007', 'd7a00000-0000-4000-8000-000100000005', 'Demo Pupil Golf', '2016-02-02', 'male', 'Demoland', '', ''),
+  ('d7a00000-0000-4000-8000-000300000008', 'd7a00000-0000-4000-8000-000100000005', 'Demo Pupil Hotel', '2020-06-06', 'female', 'Demoland', '', ''),
+  ('d7a00000-0000-4000-8000-000300000009', 'd7a00000-0000-4000-8000-000100000002', 'Demo Pupil India', '2021-04-04', 'female', 'Demoland', 'Demo Nursery', 'Kindergarten 1');
+
+insert into public.applications
+  (id, student_id, stage, academic_year, year_group_applied_for, month_of_enrollment, branch_id,
+   wants_scholarship_info, scholarship_interest_details, declaration_signature_name,
+   declaration_agreed, declaration_agreed_at, media_consent_agreed, created_at) values
+  ('d7a00000-0000-4000-8000-000400000001', 'd7a00000-0000-4000-8000-000300000001', 'application', '2026/2027', 'Grade 3', 'September', '00000000-0000-0000-0000-000000000001', true, 'Demo scholarship interest text.', 'Demo Parent Alpha', true, '2026-09-01 09:00:00+00', true, '2026-09-01 09:00:00+00'),
+  ('d7a00000-0000-4000-8000-000400000002', 'd7a00000-0000-4000-8000-000300000002', 'document_review', '2026/2027', 'Grade 8', 'September', '00000000-0000-0000-0000-000000000001', false, '', 'Demo Parent Alpha', true, '2026-09-02 09:00:00+00', false, '2026-09-02 09:00:00+00'),
+  ('d7a00000-0000-4000-8000-000400000003', 'd7a00000-0000-4000-8000-000300000003', 'inquiry', '2027/2028', 'Nursery 1', 'January', null, false, '', '', false, null, false, '2026-09-03 09:00:00+00'),
+  ('d7a00000-0000-4000-8000-000400000004', 'd7a00000-0000-4000-8000-000300000004', 'waitlisted', '2026/2027', 'Pre Nursery', 'September', '00000000-0000-0000-0000-000000000002', false, '', 'Demo Parent Delta', true, '2026-09-04 09:00:00+00', true, '2026-09-04 09:00:00+00'),
+  ('d7a00000-0000-4000-8000-000400000005', 'd7a00000-0000-4000-8000-000300000005', 'application', '2026/2027', 'Grade 11', 'September', '00000000-0000-0000-0000-000000000001', false, '', 'Demo Parent Echo', true, '2026-09-05 09:00:00+00', false, '2026-09-05 09:00:00+00'),
+  ('d7a00000-0000-4000-8000-000400000006', 'd7a00000-0000-4000-8000-000300000006', 'rejected', '2026', '2027', 'September', '00000000-0000-0000-0000-000000000001', false, '', 'Demo Parent Echo', true, '2026-09-06 09:00:00+00', false, '2026-09-06 09:00:00+00'),
+  ('d7a00000-0000-4000-8000-000400000007', 'd7a00000-0000-4000-8000-000300000007', 'inquiry', '2027/2028', 'Other', '', null, false, '', '', false, null, false, '2026-09-07 09:00:00+00'),
+  ('d7a00000-0000-4000-8000-000400000008', 'd7a00000-0000-4000-8000-000300000008', 'application', '2026/2072', 'Grade 1', 'September', '00000000-0000-0000-0000-000000000001', false, '', 'Demo Parent Golf', true, '2026-09-08 09:00:00+00', false, '2026-09-08 09:00:00+00'),
+  ('d7a00000-0000-4000-8000-000400000009', 'd7a00000-0000-4000-8000-000300000009', 'document_review', '2026/2027', 'Kindergarten 2', 'January', '00000000-0000-0000-0000-000000000001', false, '', 'Demo Parent Charlie', true, '2026-09-09 09:00:00+00', true, '2026-09-09 09:00:00+00');
+
+insert into public.application_emergency_contacts (id, application_id, name, relationship, phone) values
+  ('d7a00000-0000-4000-8000-000500000001', 'd7a00000-0000-4000-8000-000400000001', 'Demo Aunt Alpha', 'aunt', '+233200000201'),
+  ('d7a00000-0000-4000-8000-000500000002', 'd7a00000-0000-4000-8000-000400000002', 'Demo Uncle Bravo', 'uncle', '+233200000202');
+
+-- Health answers on Alpha only, so the panel shows answers for Alpha and
+-- "No health information on file" for the others (to capability holders).
+insert into public.application_health_info
+  (id, application_id, has_learning_or_physical_needs, learning_or_physical_needs_details,
+   has_medical_conditions, medical_conditions_details,
+   has_allergies_or_dietary_requirements, allergies_dietary_details) values
+  ('d7a00000-0000-4000-8000-000700000001', 'd7a00000-0000-4000-8000-000400000001', false, '',
+   true, 'Invented demo text, not a real condition.', true, 'Invented demo allergy text.');
+
+insert into public.application_documents (id, application_id, document_type, storage_path, status, uploaded_at) values
+  ('d7a00000-0000-4000-8000-000800000001', 'd7a00000-0000-4000-8000-000400000001', 'birth_certificate', 'demo/d7a00000-0000-4000-8000-000400000001/birth-certificate.pdf', 'approved', '2026-09-01 09:10:00+00'),
+  ('d7a00000-0000-4000-8000-000800000002', 'd7a00000-0000-4000-8000-000400000001', 'previous_report', 'demo/d7a00000-0000-4000-8000-000400000001/previous-report.pdf', 'pending_review', '2026-09-01 09:11:00+00'),
+  ('d7a00000-0000-4000-8000-000800000003', 'd7a00000-0000-4000-8000-000400000001', 'passport_photo', null, 'required', null),
+  ('d7a00000-0000-4000-8000-000800000004', 'd7a00000-0000-4000-8000-000400000002', 'proof_of_funds', 'demo/d7a00000-0000-4000-8000-000400000002/proof-of-funds.pdf', 'rejected', '2026-09-02 09:10:00+00'),
+  ('d7a00000-0000-4000-8000-000800000005', 'd7a00000-0000-4000-8000-000400000002', 'passport_photo', 'demo/d7a00000-0000-4000-8000-000400000002/passport-photo.png', 'pending_review', '2026-09-02 09:11:00+00'),
+  ('d7a00000-0000-4000-8000-000800000006', 'd7a00000-0000-4000-8000-000400000009', 'proof_of_vaccination', 'demo/d7a00000-0000-4000-8000-000400000009/proof-of-vaccination.pdf', 'pending_review', '2026-09-09 09:10:00+00');
+
+-- Notes by the historical dummy Manager, so the author name resolves.
+insert into public.application_notes (id, application_id, author_id, content, created_at) values
+  ('d7a00000-0000-4000-8000-000600000001', 'd7a00000-0000-4000-8000-000400000001', '30000000-0000-0000-0000-000000000004', 'Demo note: called the family, invented.', '2026-09-01 10:00:00+00'),
+  ('d7a00000-0000-4000-8000-000600000002', 'd7a00000-0000-4000-8000-000400000002', '30000000-0000-0000-0000-000000000004', 'Demo note: waiting on a clearer proof of funds.', '2026-09-02 10:00:00+00');

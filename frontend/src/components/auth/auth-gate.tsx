@@ -7,9 +7,15 @@ import { useSessionTimeoutMinutes } from "@/data/session-timeout-store";
 import { useInactivityLogout } from "@/hooks/use-inactivity-logout";
 
 const OFFICER_ROUTES = new Set(["/", "/settings"]);
+// Whole sections the officer may open, every page below included.
+const OFFICER_SECTIONS = ["/admissions"];
 
 function officerMayOpen(pathname: string) {
-  return OFFICER_ROUTES.has(pathname.replace(/\/+$/, "") || "/");
+  const path = pathname.replace(/\/+$/, "") || "/";
+  return (
+    OFFICER_ROUTES.has(path) ||
+    OFFICER_SECTIONS.some((section) => path === section || path.startsWith(`${section}/`))
+  );
 }
 
 /** Wraps every route except /login. Redirects to /login once it's clear
@@ -30,8 +36,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const renderedPathname = useRouterState({
     select: (s) => s.resolvedLocation?.pathname ?? s.location.pathname,
   });
-  // The Admissions Officer's route allowlist. Every other role is unaffected
-  // here; they have no route guard yet (open item, docs/admissions/PORT-PLAN.md).
+  // The Admissions Officer's route allowlist: Dashboard, Settings and the
+  // Admissions section. Every other role is unaffected here; section guards
+  // (e.g. routes/admissions/route.tsx) handle them.
   const isOfficer = isAdmissionsOfficer(staff?.role);
   const officerBlocked = isOfficer && !officerMayOpen(pathname);
   const officerHidden = isOfficer && (officerBlocked || !officerMayOpen(renderedPathname));

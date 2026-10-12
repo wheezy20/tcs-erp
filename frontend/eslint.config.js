@@ -47,5 +47,28 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  // Admissions carry-forwards as lint errors (docs/DESIGN.md, "Project
+  // layout"): explicit column lists only, and no token hash column, ever.
+  // Best-effort (a computed string evades it); test-runner also greps.
+  {
+    files: ["src/modules/admissions/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.property.name='select'] > Literal[value=/\\*/]",
+          message: "Select explicit columns, never *.",
+        },
+        {
+          selector: "Literal[value=/token_hash/]",
+          message: "Never read a token hash column.",
+        },
+        {
+          selector: "TemplateElement[value.raw=/token_hash/]",
+          message: "Never read a token hash column.",
+        },
+      ],
+    },
+  },
   eslintPluginPrettier,
 );

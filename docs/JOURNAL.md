@@ -4417,3 +4417,54 @@ Slice 6 split into 6a (decisions and capacity) and 6b (offers, enrolment gate, s
 ## 2026-10-12: Admissions D-6q, the offer token hash read grant
 
 Decided: authenticated keeps its table-level select on `application_offers`, `token_hash` included (the 3b grant); no revoke. The hash is the SHA-256 of 32 random bytes and can't be reversed; the offer page compares hashes, so the hash alone gives no access; `application_offer_status` hides it; and a column-level grant would make `select *` on the table fail. Carry-forward for slice 7a: select explicit columns and never select `token_hash` in the UI. Recorded in PORT-PLAN (D-6q, the 6b section and slice 7a) and DESIGN.md. Docs only; no schema or code change.
+
+## 2026-10-12: Admissions slice 7a, staff pipeline UI (list, detail, notes, documents, health panel)
+
+Slice 7a built 2026-10-12, uncommitted, awaiting Eyram's review.
+
+**Migrations:** `20261017100000_admissions_application_list.sql` and `20261017110000_admissions_academic_years.sql`.
+- `admissions_application_list`: a security_invoker view selecting from applications with explicit columns (no health, decision, offer, declaration, token_hash columns), grants select to authenticated and service_role only, to prevent unguarded anon reads. Helper function `admissions_grade_name(text)` SECURITY DEFINER, search_path pinned, revoked from public and anon, returns the grade's display name for the list.
+- `admissions_academic_years`: curated list of academic years, format YYYY/YYYY with consecutive years enforced by check constraint. Seeded 2026/2027 and 2027/2028 (Eyram's choice of format and years). Select granted to Manager, Auditor and Admissions Officer; no authenticated write. Fixes the D-6o typo risk: the pickers use this list. The columns stay free text with no foreign key, so legacy values still round-trip. Slice 7b will add Manager RPCs to add and deactivate years; slices 8 and 9 submit will validate against this list.
+
+**Anon-executable function count:** 169 (unchanged). The helper is revoked from anon and public.
+
+**Frontend:** `routes/admissions/index.tsx` and `routes/admissions/$applicationId.tsx` (directory form, not dotted), module code in `src/modules/admissions/` with `data/`, `hooks/`, `components/`, `permissions.ts` and `labels.ts` (list and detail components reuse existing patterns).
+- List: search by student name, inquiry and application references; filters by stage, campus, academic year (plus "Other, not on the list"), grade (plus "Unbanded or other grade" for Manager, Auditor and all_grades officers only); 50 per page.
+- Detail: applicant, family and guardians, emergency contacts, declaration and consent (declaration IP address left out, Eyram's call), notes (add, edit own), documents (status change, View via 300-second signed link created on click, never stored), health panel (live `has_admissions_capability('health')` check; renders nothing for non-holders; "No health information on file" only for holders), Move to Document Review, Manager-only Change stage. Auditor sees a Read-only badge and no write controls. Attendant and Accountant get the "not available for this role" panel and no sidebar item.
+- AuthGate's officer allowlist now covers `/admissions` and below.
+- Sidebar: Admissions section after HR and Payroll.
+- Out-of-scope, nonexistent and malformed ids show the same not-found page.
+- No new RPC: the five write controls use slice 5 RPCs.
+
+**Tests:** vitest added (option B, pure logic only; Eyram approved). `npm test` added to scripts. Vitest 5.0.4 works on Vite 8, so option A fallback wasn't needed. Two test files, 19 tests. An eslint override makes `select("*")` and `token_hash` literals errors under `modules/admissions`.
+
+**Demo data:** invented rows in `supabase/seed.sql` only (9 applications, stages inquiry, application, document_review, waitlisted, rejected; offer and enrolled left for 7b since they need decision and offer rows). `seed.production.sql` untouched. `scripts/seed-local-admissions-files.sh` uploads invented placeholder files, localhost-guarded.
+
+**Role matrix:** probes `supabase/role-matrix/20261017100000_admissions_application_list.sql` and `20261017110000_admissions_academic_years.sql`. Includes L3b: an officer with `{jhs}` sees exactly its in-scope row through the view and nothing out of scope. L10: anon cannot read the view. L10b: anon cannot execute the helper. L12: anon-executable count pinned at 169.
+
+**Decisions (approved 2026-10-12):**
+- **D-7a.** Staff route prefix `/admissions`. Eyram approved the folder form for routes (`routes/admissions/route.tsx`, `index.tsx`, `$applicationId.tsx`) rather than dotted filenames.
+- Project layout rule adopted (docs/DESIGN.md, "Project layout"): new module code in `frontend/src/modules/<module>/`, thin routes, probes stay flat, `shared/` not created yet. CLAUDE.md "Repo layout" and commands updated (Eyram approved).
+
+**Verification:** baseline before the first edit, on a fresh reset at HEAD 6c1f014: duplicate-overload check clean, types regen identical, lint 0 errors 13 warnings, tsc clean, anon-executable count 169. After build: lint 0 errors 13 warnings (same as baseline), tsc clean, 19 tests pass, build ok, db reset, duplicate-overload check clean, types regen identical, both new probe files and three existing admissions probe files green, 14 deliberate breaks (9 DB, 5 UI mapped onto unit tests) all went red and were restored; dropped breaks (U5 needs rendering but covered by grep and review; label and order mutations; pagination mutations; sidebar alone; equivalent revoke mutants; no new RPC so no transaction or concurrency races). Golden payroll suite skipped (no payroll, audit action list or statutory change).
+
+**code-reviewer:** no blocking findings. Fix round 1 for two non-blocking ones: list fetched twice on mount, and a failed reload blanked panels. Re-reviewed, not blocking. Noted: health capability checked once per page mount (DB still enforces each read); `admissions_grade_name` is SECURITY DEFINER though it could be invoker (harmless).
+
+**D-4c (no health read audit in Phase 2) stands:** slice 7a reads health through the table policy. Revisiting this later (to add audit logging) would mean switching to a SECURITY DEFINER read RPC.
+
+**Carry-forward to 7b:** every query keeps explicit columns and never selects `token_hash`; offer state from `application_offer_status` only (D-6q).
+
+**Port-Plan updates:** slice 7a section rewritten with status line, route paths updated to directory form (`routes/admissions/` with `index.tsx` and `$applicationId.tsx`), module structure documented (`src/modules/admissions/` with subdirectories). Slice 7b section updated with carry-forward details for the grade-correction RPC (also checks Annex campus rules) and the academic year write RPCs as a carry-forward. The audit log screen is recorded as a proposal, not a decision.
+
+**Decisions approved by Eyram for later slices:** (1) the 7b grade-correction RPC also checks that the Annex campus accepts the new grade; (2) academic year write RPCs in 7b. **Recommended, not decided:** a read-only audit log screen (Manager, Accountant, Auditor) as its own slice after 7b (working name 7c).
+
+**7b bullet removed:** PORT-PLAN.md's 7b bullet "Wiring the slice 2 capabilities panel into the staff list" was already removed earlier in this session (it was already built: settings.tsx shows an "Admissions access" column). No further action.
+
+**Pure-move refactor proposed:** a later slice (not yet scheduled) to move HR and Finance modules from `src/data/` into `src/modules/` structure (git mv only, no behavior change). Not added to the plan yet; mentioned here for tracking.
+
+**Slices 6a and 6b applied on hosted:** Eyram's `npx supabase migration list` on 2026-10-12 shows 20261015100000 (6a) and 20261016100000 (6b) on both Local and Remote.
+
+**Lockfile patches:** two transitive bumps came with vitest (@jridgewell/sourcemap-codec, picomatch).
+
+**Outstanding for Eyram:** review slice 7a. After commit, production steps are Eyram's: `npx supabase db push` (the two migrations; before the frontend deploy, since the list needs the view), then `frontend/scripts/deploy-production.sh`. No hosted seed or hand step; demo rows are local only.
+

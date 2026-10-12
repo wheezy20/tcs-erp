@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5 and 6a built and committed; slice 6b built, awaiting Eyram's review (uncommitted); the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
+**Status:** slices 0 to 5, 6a and 6b built and committed; slice 7a built, awaiting Eyram's review (uncommitted); the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -34,9 +34,9 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 3b | Decisions, offers, capacity, campus grade rules | committed (admissions 3b) | 3a |
 | 4 | Health info, documents metadata, private bucket | committed (admissions 4) | 3b |
 | 5 | Reference numbering + stage transitions + notes/document review RPCs | committed (admissions 5, 8b9c1d4) | 4 |
-| 6a | Decisions and capacity (staff side) | committed (5c56735) | 5 |
-| 6b | Offers, enrolment gate, student IDs (staff side) | built, awaiting Eyram's review (uncommitted) | 6a |
-| 7a | Staff pipeline UI: list, detail, notes, documents, health panel | not started | 6b |
+| 6a | Decisions and capacity (staff side) | committed (5c56735) and applied on hosted | 5 |
+| 6b | Offers, enrolment gate, student IDs (staff side) | committed (6c1f014) and applied on hosted | 6a |
+| 7a | Staff pipeline UI: list, detail, notes, documents, health panel | built, awaiting Eyram's review (uncommitted) | 6b |
 | 7b | Staff pipeline UI: decision/offer/enrol actions, capacity, capability admin | not started | 7a |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | not started | 7b |
 | 9 | Public Application form: direct submit, uploads, matching, rules | not started | 8 |
@@ -613,7 +613,7 @@ An officer holding only `can_decide` or only `can_view_health`, with no bands an
 
 ## Slice 6 — Decisions, offers, the enrolment gate, the capacity warning (staff side)
 
-**Status:** split into 6a and 6b (decided 2026-10-12). 6a committed (5c56735). 6b built, awaiting Eyram's review (uncommitted).
+**Status:** split into 6a and 6b (decided 2026-10-12). 6a committed (5c56735) and applied on hosted. 6b committed (6c1f014) and applied on hosted. Evidence: Eyram's `npx supabase migration list` on 2026-10-12 shows 20261015100000 (6a) and 20261016100000 (6b) on both Local and Remote.
 
 **Design carry-forwards:**
 - Slice 3b (D-3c): capacity figures are readable by Manager and Auditor only. An officer gets a figure-free warning, never the numbers.
@@ -701,17 +701,19 @@ An expired offer is probed as a refusal plus `effective_response = 'expired'`: a
 
 ## Slice 7a — Staff pipeline UI: list, detail, notes, documents, health panel
 
+Slice 7a built 2026-10-12, uncommitted, awaiting Eyram's review.
+
 **Delivers:**
 
-- `routes/admissions.index.tsx`: a list filterable by stage, campus, academic year and grade. Search by student name and references, never by health data.
-- `routes/admissions.$applicationId.tsx`: family, guardians, student, emergency contact, notes (add and edit), documents (signed-URL view and status change), and a health panel:
+- `routes/admissions/index.tsx`: a list filterable by stage, campus, academic year and grade. Search by student name and references, never by health data.
+- `routes/admissions/$applicationId.tsx`: family, guardians, student, emergency contact, notes (add and edit), documents (signed-URL view and status change), and a health panel:
   - For a user holding `can_view_health` and the application has no health row: show "No health information on file".
   - For anyone else: show nothing, so nobody learns whether a child has health answers.
   - Signed file URLs last 300 seconds (D-4h).
   - Health stays out of list views, search and export.
 - A "Move to Document Review" action.
 - An "Admissions" sidebar section (DESIGN.md sidebar convention).
-- `data/admissions-store.ts` makes RPC and select calls only.
+- Module code in `src/modules/admissions/` with `data/`, `hooks/`, `components/`, `permissions.ts` and `labels.ts` (docs/DESIGN.md, "Project layout"). `data/` makes RPC and select calls only, with explicit column lists.
 
 **Not included:** decision, offer and enrolment actions (7b), public pages.
 
@@ -741,12 +743,11 @@ An expired offer is probed as a refusal plus `effective_response = 'expired'`: a
 - Generate and reset offer, with a reveal-once copyable link until slice 12.
 - Mark enrolled, showing the refusal message when the grade has no student ID code (D-6h), and listing any documents not yet approved as a warning (not a gate; decided 2026-10-12).
 - Settings → Admissions: the capacity table (Manager and Auditor only) and the campus grade rules (read-only display).
-- Wiring the slice 2 capabilities panel into the staff list.
 
 **Not included:** email.
 
 **Carry-forwards from slice 6:**
-- A small Manager-only RPC to correct an application's applied-for grade (`year_group_applied_for`), since an application with an unbanded or legacy grade can otherwise never be enrolled (D-6h). Audited, scope-checked like the other stage RPCs; it needs its own role matrix probes, so 7b is no longer UI only.
+- A small Manager-only RPC to correct an application's applied-for grade (`year_group_applied_for`), since an application with an unbanded or legacy grade can otherwise never be enrolled (D-6h). Audited, scope-checked like the other stage RPCs; it needs its own role matrix probes, so 7b is no longer UI only. The RPC also checks that the Annex campus (if the application is for Annex) accepts the new grade.
 - The decision and offer actions show only to staff holding can_decide; a Manager without it gets the RPC's refusal.
 
 **TCS OS files to read:** `admin.py:384-433, 480-491`.
@@ -757,7 +758,13 @@ An expired offer is probed as a refusal plus `effective_response = 'expired'`: a
 
 **Anon surface:** none.
 
-**Decisions for Eyram:** none new beyond D-6*.
+**Carry-forwards from slice 7a:**
+- Manager-only add and deactivate RPCs for `admissions_academic_years`, and `create_admissions_capacity` refuses a year not on that list (same signature). Slices 8 and 9 validate the submitted year against the same list.
+- Demo rows at `offer` and `enrolled` in `seed.sql`, with their decision and offer rows.
+
+**Decisions for Eyram:** none new beyond D-6*. The grade-correction RPC's Annex check above was approved with the 7a plan (2026-10-12).
+
+**Proposed, not decided:** a read-only Audit log screen (Manager, Accountant, Auditor; filters by action and date) as its own slice after 7b (working name 7c).
 
 **Size:** UI over existing RPCs, plus the one grade-correction RPC.
 

@@ -87,6 +87,27 @@ export type Database = {
           },
         ]
       }
+      admissions_academic_years: {
+        Row: {
+          created_at: string
+          is_active: boolean
+          label: string
+          position: number
+        }
+        Insert: {
+          created_at?: string
+          is_active?: boolean
+          label: string
+          position: number
+        }
+        Update: {
+          created_at?: string
+          is_active?: boolean
+          label?: string
+          position?: number
+        }
+        Relationships: []
+      }
       admissions_campus_grade_rules: {
         Row: {
           branch_id: string
@@ -284,6 +305,13 @@ export type Database = {
             foreignKeyName: "application_decisions_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: true
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_decisions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
             referencedRelation: "applications"
             referencedColumns: ["id"]
           },
@@ -326,6 +354,13 @@ export type Database = {
             foreignKeyName: "application_documents_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_documents_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
             referencedRelation: "applications"
             referencedColumns: ["id"]
           },
@@ -354,6 +389,13 @@ export type Database = {
           relationship?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "application_emergency_contacts_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "application_emergency_contacts_application_id_fkey"
             columns: ["application_id"]
@@ -399,6 +441,13 @@ export type Database = {
             foreignKeyName: "application_health_info_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: true
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_health_info_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
             referencedRelation: "applications"
             referencedColumns: ["id"]
           },
@@ -430,6 +479,13 @@ export type Database = {
           id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "application_notes_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "application_notes_application_id_fkey"
             columns: ["application_id"]
@@ -475,6 +531,13 @@ export type Database = {
           token_hash?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "application_offers_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "application_offers_application_id_fkey"
             columns: ["application_id"]
@@ -4524,6 +4587,41 @@ export type Database = {
       }
     }
     Views: {
+      admissions_application_list: {
+        Row: {
+          academic_year: string | null
+          application_reference: string | null
+          branch_id: string | null
+          branch_name: string | null
+          created_at: string | null
+          grade_band: string | null
+          grade_name: string | null
+          id: string | null
+          inquiry_reference: string | null
+          month_of_enrollment: string | null
+          stage: string | null
+          student_full_name: string | null
+          student_id: string | null
+          updated_at: string | null
+          year_group_applied_for: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       application_offer_status: {
         Row: {
           application_id: string | null
@@ -4553,6 +4651,13 @@ export type Database = {
           sent_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "application_offers_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "application_offers_application_id_fkey"
             columns: ["application_id"]
@@ -4747,6 +4852,7 @@ export type Database = {
         Returns: boolean
       }
       admissions_grade_band: { Args: { p_grade: string }; Returns: string }
+      admissions_grade_name: { Args: { p_grade: string }; Returns: string }
       admissions_grade_visible: { Args: { p_grade: string }; Returns: boolean }
       admissions_student_visible: {
         Args: { p_student_id: string }

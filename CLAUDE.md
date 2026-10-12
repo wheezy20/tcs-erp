@@ -33,6 +33,11 @@ Two independent parts at the root:
   `supabase/functions/` holds Edge Functions. The root `package.json`
   exists only to hold the `supabase` CLI as a dev dependency.
 
+Inside `frontend/src`, new module code goes in `modules/<module>/`
+(`data/`, `hooks/`, `components/`, `permissions.ts`), with thin route
+files in `routes/<module>/`. Existing HR and Finance code stays where it
+is until a pure-move slice. See `docs/DESIGN.md`, "Project layout".
+
 ## Commands
 
 From `frontend/`:
@@ -43,6 +48,7 @@ npm run dev         # dev server (Vite, port 8080)
 npm run build       # production build
 npm run build:dev   # build in development mode
 npm run preview     # preview a production build
+npm test            # vitest, pure-logic unit tests only
 npm run lint        # eslint .
 npm run format      # prettier --write .
 ```
@@ -62,9 +68,10 @@ npx supabase gen types typescript --local > frontend/src/lib/database.types.ts
 Regenerate `database.types.ts` after any schema change rather than
 hand-editing it.
 
-There is no unit-test framework in this repo. Verification is lint,
-`tsc`, build, `db reset`, the duplicate-overload check, a types regen
-diff, and a **role matrix** for anything touching RPCs or RLS:
+Unit tests cover pure logic only (`npm test`: vitest, no DOM or component
+tests; see `docs/DESIGN.md`, "Project layout"). Verification is lint,
+`tsc`, `npm test`, build, `db reset`, the duplicate-overload check, a
+types regen diff, and a **role matrix** for anything touching RPCs or RLS:
 
 ```sh
 ./scripts/role-matrix.sh supabase/role-matrix/<file>.sql

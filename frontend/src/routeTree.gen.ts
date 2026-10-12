@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as AccountingRouteImport } from './routes/accounting'
+import { Route as AdmissionsRouteRouteImport } from './routes/admissions/route'
 import { Route as BankingRouteImport } from './routes/banking'
 import { Route as EmployeesRouteImport } from './routes/employees'
 import { Route as EndOfDayRouteImport } from './routes/end-of-day'
@@ -31,6 +32,8 @@ import { Route as AccountingJournalEntriesRouteImport } from './routes/accountin
 import { Route as AccountingLedgerRouteImport } from './routes/accounting.ledger'
 import { Route as AccountingProfitLossRouteImport } from './routes/accounting.profit-loss'
 import { Route as AccountingTrialBalanceRouteImport } from './routes/accounting.trial-balance'
+import { Route as AdmissionsIndexRouteImport } from './routes/admissions/index'
+import { Route as AdmissionsApplicationIdRouteImport } from './routes/admissions/$applicationId'
 import { Route as BankingIndexRouteImport } from './routes/banking.index'
 import { Route as BankingHistoryRouteImport } from './routes/banking.history'
 import { Route as BankingReconcileRouteImport } from './routes/banking.reconcile'
@@ -86,6 +89,11 @@ const AcceptInviteRoute = AcceptInviteRouteImport.update({
 const AccountingRoute = AccountingRouteImport.update({
   id: '/accounting',
   path: '/accounting',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdmissionsRouteRoute = AdmissionsRouteRouteImport.update({
+  id: '/admissions',
+  path: '/admissions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BankingRoute = BankingRouteImport.update({
@@ -183,6 +191,16 @@ const AccountingTrialBalanceRoute = AccountingTrialBalanceRouteImport.update({
   id: '/trial-balance',
   path: '/trial-balance',
   getParentRoute: () => AccountingRoute,
+} as any)
+const AdmissionsIndexRoute = AdmissionsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdmissionsRouteRoute,
+} as any)
+const AdmissionsApplicationIdRoute = AdmissionsApplicationIdRouteImport.update({
+  id: '/$applicationId',
+  path: '/$applicationId',
+  getParentRoute: () => AdmissionsRouteRoute,
 } as any)
 const BankingIndexRoute = BankingIndexRouteImport.update({
   id: '/',
@@ -397,6 +415,7 @@ const SalesInvoiceIdEditRoute = SalesInvoiceIdEditRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admissions': typeof AdmissionsRouteRouteWithChildren
   '/accept-invite': typeof AcceptInviteRoute
   '/accounting': typeof AccountingRouteWithChildren
   '/banking': typeof BankingRouteWithChildren
@@ -417,6 +436,7 @@ export interface FileRoutesByFullPath {
   '/accounting/ledger': typeof AccountingLedgerRoute
   '/accounting/profit-loss': typeof AccountingProfitLossRoute
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
+  '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
@@ -440,6 +460,7 @@ export interface FileRoutesByFullPath {
   '/sales/new': typeof SalesNewRoute
   '/staff/$staffId': typeof StaffStaffIdRoute
   '/accounting/': typeof AccountingIndexRoute
+  '/admissions/': typeof AdmissionsIndexRoute
   '/banking/': typeof BankingIndexRoute
   '/customer-deposits/': typeof CustomerDepositsIndexRoute
   '/customers/': typeof CustomersIndexRoute
@@ -472,6 +493,7 @@ export interface FileRoutesByTo {
   '/accounting/ledger': typeof AccountingLedgerRoute
   '/accounting/profit-loss': typeof AccountingProfitLossRoute
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
+  '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
@@ -495,6 +517,7 @@ export interface FileRoutesByTo {
   '/sales/new': typeof SalesNewRoute
   '/staff/$staffId': typeof StaffStaffIdRoute
   '/accounting': typeof AccountingIndexRoute
+  '/admissions': typeof AdmissionsIndexRoute
   '/banking': typeof BankingIndexRoute
   '/customer-deposits': typeof CustomerDepositsIndexRoute
   '/customers': typeof CustomersIndexRoute
@@ -518,6 +541,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admissions': typeof AdmissionsRouteRouteWithChildren
   '/accept-invite': typeof AcceptInviteRoute
   '/accounting': typeof AccountingRouteWithChildren
   '/banking': typeof BankingRouteWithChildren
@@ -538,6 +562,7 @@ export interface FileRoutesById {
   '/accounting/ledger': typeof AccountingLedgerRoute
   '/accounting/profit-loss': typeof AccountingProfitLossRoute
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
+  '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
@@ -561,6 +586,7 @@ export interface FileRoutesById {
   '/sales/new': typeof SalesNewRoute
   '/staff/$staffId': typeof StaffStaffIdRoute
   '/accounting/': typeof AccountingIndexRoute
+  '/admissions/': typeof AdmissionsIndexRoute
   '/banking/': typeof BankingIndexRoute
   '/customer-deposits/': typeof CustomerDepositsIndexRoute
   '/customers/': typeof CustomersIndexRoute
@@ -585,6 +611,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admissions'
     | '/accept-invite'
     | '/accounting'
     | '/banking'
@@ -605,6 +632,7 @@ export interface FileRouteTypes {
     | '/accounting/ledger'
     | '/accounting/profit-loss'
     | '/accounting/trial-balance'
+    | '/admissions/$applicationId'
     | '/banking/history'
     | '/banking/reconcile'
     | '/customer-deposits/$depositId'
@@ -628,6 +656,7 @@ export interface FileRouteTypes {
     | '/sales/new'
     | '/staff/$staffId'
     | '/accounting/'
+    | '/admissions/'
     | '/banking/'
     | '/customer-deposits/'
     | '/customers/'
@@ -660,6 +689,7 @@ export interface FileRouteTypes {
     | '/accounting/ledger'
     | '/accounting/profit-loss'
     | '/accounting/trial-balance'
+    | '/admissions/$applicationId'
     | '/banking/history'
     | '/banking/reconcile'
     | '/customer-deposits/$depositId'
@@ -683,6 +713,7 @@ export interface FileRouteTypes {
     | '/sales/new'
     | '/staff/$staffId'
     | '/accounting'
+    | '/admissions'
     | '/banking'
     | '/customer-deposits'
     | '/customers'
@@ -705,6 +736,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admissions'
     | '/accept-invite'
     | '/accounting'
     | '/banking'
@@ -725,6 +757,7 @@ export interface FileRouteTypes {
     | '/accounting/ledger'
     | '/accounting/profit-loss'
     | '/accounting/trial-balance'
+    | '/admissions/$applicationId'
     | '/banking/history'
     | '/banking/reconcile'
     | '/customer-deposits/$depositId'
@@ -748,6 +781,7 @@ export interface FileRouteTypes {
     | '/sales/new'
     | '/staff/$staffId'
     | '/accounting/'
+    | '/admissions/'
     | '/banking/'
     | '/customer-deposits/'
     | '/customers/'
@@ -771,6 +805,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdmissionsRouteRoute: typeof AdmissionsRouteRouteWithChildren
   AcceptInviteRoute: typeof AcceptInviteRoute
   AccountingRoute: typeof AccountingRouteWithChildren
   BankingRoute: typeof BankingRouteWithChildren
@@ -819,6 +854,13 @@ declare module '@tanstack/react-router' {
       path: '/accounting'
       fullPath: '/accounting'
       preLoaderRoute: typeof AccountingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admissions': {
+      id: '/admissions'
+      path: '/admissions'
+      fullPath: '/admissions'
+      preLoaderRoute: typeof AdmissionsRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/banking': {
@@ -953,6 +995,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/accounting/trial-balance'
       preLoaderRoute: typeof AccountingTrialBalanceRouteImport
       parentRoute: typeof AccountingRoute
+    }
+    '/admissions/': {
+      id: '/admissions/'
+      path: '/'
+      fullPath: '/admissions/'
+      preLoaderRoute: typeof AdmissionsIndexRouteImport
+      parentRoute: typeof AdmissionsRouteRoute
+    }
+    '/admissions/$applicationId': {
+      id: '/admissions/$applicationId'
+      path: '/$applicationId'
+      fullPath: '/admissions/$applicationId'
+      preLoaderRoute: typeof AdmissionsApplicationIdRouteImport
+      parentRoute: typeof AdmissionsRouteRoute
     }
     '/banking/': {
       id: '/banking/'
@@ -1244,6 +1300,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdmissionsRouteRouteChildren {
+  AdmissionsApplicationIdRoute: typeof AdmissionsApplicationIdRoute
+  AdmissionsIndexRoute: typeof AdmissionsIndexRoute
+}
+
+const AdmissionsRouteRouteChildren: AdmissionsRouteRouteChildren = {
+  AdmissionsApplicationIdRoute: AdmissionsApplicationIdRoute,
+  AdmissionsIndexRoute: AdmissionsIndexRoute,
+}
+
+const AdmissionsRouteRouteWithChildren = AdmissionsRouteRoute._addFileChildren(
+  AdmissionsRouteRouteChildren,
+)
+
 interface AccountingRouteChildren {
   AccountingBalanceSheetRoute: typeof AccountingBalanceSheetRoute
   AccountingCashFlowRoute: typeof AccountingCashFlowRoute
@@ -1412,6 +1482,7 @@ const StaffRouteWithChildren = StaffRoute._addFileChildren(StaffRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdmissionsRouteRoute: AdmissionsRouteRouteWithChildren,
   AcceptInviteRoute: AcceptInviteRoute,
   AccountingRoute: AccountingRouteWithChildren,
   BankingRoute: BankingRouteWithChildren,

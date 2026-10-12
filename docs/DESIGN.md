@@ -907,6 +907,74 @@ depend on them holding true for every new table/function added.
   started for the old user is discarded by a generation counter. This prevents a slow previous-user load from completing
   late and polluting the current user's state.
 
+## Project layout
+
+Adopted 2026-10-12 with admissions slice 7a. The ERP is organised by
+module (admissions now; hr and finance later) as far as the tools allow.
+
+```
+frontend/src/
+  routes/                  router-generated tree; route files only
+    admissions/
+      route.tsx            /admissions layout and role guard
+      index.tsx            /admissions (list)
+      $applicationId.tsx   /admissions/:applicationId (detail)
+    ...                    existing HR, Finance and store routes, flat, unchanged
+  modules/
+    admissions/
+      data/                Supabase calls only, explicit column lists, no React
+      hooks/               component-state hooks, no module-level caches
+      components/          the module's pages and panels
+      permissions.ts       pure role and capability rules for showing controls
+      labels.ts            display labels
+  components/ui/           shadcn primitives (stays the shadcn home)
+  components/ data/ lib/ hooks/   existing shared and HR/Finance code, unchanged
+docs/
+  admissions/              module docs (PORT-PLAN.md)
+  hr/ finance/             created with each module's first doc, not before
+  DESIGN.md PLANNING.md CONSTRAINTS.md JOURNAL.md STACK.md   stay top level
+supabase/
+  migrations/              flat (the CLI needs it); admissions files use an
+                           admissions_ infix after the timestamp
+  role-matrix/             flat; probe files are named for their migration
+  golden/                  payroll golden suite
+frontend/src/lib/database.types.ts   one generated file
+```
+
+Rules:
+
+- **New module code goes in its module folder**
+  (`frontend/src/modules/<module>/`). Nothing new for a module goes in the
+  top-level `components/`, `data/` or `hooks/`.
+- **Routes are thin.** A file under `routes/<module>/` holds
+  `createFileRoute`, the section guard and an import of a page component
+  from its module. Every `.tsx` under `routes/` becomes a route, so helper
+  files never live there (the router ignores only `-`-prefixed names).
+  Directory routes (`routes/admissions/route.tsx`, `index.tsx`,
+  `$id.tsx`) generate the same route ids and URLs as the dotted flat form,
+  so moving a module's routes into a directory later changes no `Link`.
+- **A module never imports another module.** The app shell (sidebar,
+  AuthGate) may import a module's `permissions.ts`, which is pure.
+- **No data fetching in route loaders or `beforeLoad`, and no SSR data.**
+  The session lives in browser storage, so a server render has no user.
+- **Pure rules get unit tests.** `npm test` (vitest, `vitest.config.ts`,
+  node environment, `src/**/*.test.ts`) covers pure functions such as
+  `modules/admissions/permissions.ts`. There is no DOM or component test
+  setup; rendering is checked in the browser.
+- **`frontend/src/shared/` does not exist yet.** Shared pieces stay where
+  they are and are imported via `@/`; a piece moves to `shared/` in the
+  pure-move refactor slice, once a second module needs it. Stray admissions
+  files outside the module (`data/admissions-capabilities-store.ts`,
+  `components/settings/admissions-access-dialog.tsx`) move then too.
+- **Admissions lint rules.** `eslint.config.js` makes `select("*")` and
+  any `token_hash` literal an error under `src/modules/admissions/`. It's
+  best-effort (a computed string evades it), so reviews still grep.
+- **Probes stay flat** in `supabase/role-matrix/`. `scripts/role-matrix.sh`
+  takes the file path as its argument and would work from any folder, but
+  the path is written into CLAUDE.md, the test-runner agent, DESIGN.md,
+  CONSTRAINTS.md and comments in applied migrations; moving it is a
+  pure-move slice of its own if ever wanted.
+
 ## Branding
 
 TCS naming has been applied throughout the fork (sidebar, login page,
