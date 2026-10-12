@@ -1826,3 +1826,87 @@ insert into public.application_documents (id, application_id, document_type, sto
 insert into public.application_notes (id, application_id, author_id, content, created_at) values
   ('d7a00000-0000-4000-8000-000600000001', 'd7a00000-0000-4000-8000-000400000001', '30000000-0000-0000-0000-000000000004', 'Demo note: called the family, invented.', '2026-09-01 10:00:00+00'),
   ('d7a00000-0000-4000-8000-000600000002', 'd7a00000-0000-4000-8000-000400000002', '30000000-0000-0000-0000-000000000004', 'Demo note: waiting on a clearer proof of funds.', '2026-09-02 10:00:00+00');
+
+-- ------------------------------------------------------------ admissions demo (slice 7b1)
+
+-- Invented demo applicants at the decision, offer and enrolled stages, LOCAL
+-- ONLY (never seed.production.sql). Inserted as postgres, so the identity
+-- and audit triggers write nothing and decided_by is set explicitly to the
+-- historical dummy Manager. Offer token hashes are SHA-256 of
+-- "demo-token-N", so no real link opens them. Offer dates are relative to
+-- the reset, so the pending and expired rows stay pending and expired.
+--   Kilo: accepted decision, no offer (Generate offer).
+--   Lima: offer pending, in date (Record response, Reset).
+--   Mike: offer pending, past its expiry (shows expired, Reset).
+--   November: offer accepted, Grade 6, one document not approved (Mark enrolled, with the warning).
+--   Oscar: offer accepted, "Grade 11" (enrolment refused until the grade is corrected).
+--   Papa: offer declined.
+--   Quebec: enrolled, with student ID 26039901 (out of the probes' ranges).
+-- Capacity: Grade 3 at Main for 2026/2027 is set to 1. Kilo and Quebec are
+-- both accepted Grade 3 at Main, so it is already over, and accepting
+-- Demo Pupil Alpha (Grade 3, Main) shows the capacity warning.
+insert into public.families (id, referral_source, comments) values
+  ('d7b00000-0000-4000-8000-000100000001', 'website', 'Demo family, invented.'),
+  ('d7b00000-0000-4000-8000-000100000002', 'social_media', '');
+
+insert into public.guardians (id, family_id, first_name, surname, email, phone, relationship, address, town_city) values
+  ('d7b00000-0000-4000-8000-000200000001', 'd7b00000-0000-4000-8000-000100000001', 'Demo', 'Parent Kilo', 'parent.kilo@example.test', '+233200000111', 'mother', '', ''),
+  ('d7b00000-0000-4000-8000-000200000002', 'd7b00000-0000-4000-8000-000100000002', 'Demo', 'Parent November', 'parent.november@example.test', '+233200000112', 'father', '', '');
+
+insert into public.students (id, family_id, full_name, date_of_birth, gender, nationality, current_school, current_grade, student_id) values
+  ('d7b00000-0000-4000-8000-000300000001', 'd7b00000-0000-4000-8000-000100000001', 'Demo Pupil Kilo', '2018-01-10', 'male', 'Demoland', 'Demo Primary', 'Grade 2', null),
+  ('d7b00000-0000-4000-8000-000300000002', 'd7b00000-0000-4000-8000-000100000001', 'Demo Pupil Lima', '2017-02-11', 'female', 'Demoland', 'Demo Primary', 'Grade 3', null),
+  ('d7b00000-0000-4000-8000-000300000003', 'd7b00000-0000-4000-8000-000100000001', 'Demo Pupil Mike', '2016-03-12', 'male', 'Demoland', 'Demo Primary', 'Grade 4', null),
+  ('d7b00000-0000-4000-8000-000300000004', 'd7b00000-0000-4000-8000-000100000002', 'Demo Pupil November', '2015-04-13', 'female', 'Demoland', 'Demo Primary', 'Grade 5', null),
+  ('d7b00000-0000-4000-8000-000300000005', 'd7b00000-0000-4000-8000-000100000002', 'Demo Pupil Oscar', '2010-05-14', 'male', 'Demoland', 'Demo High', 'Grade 10', null),
+  ('d7b00000-0000-4000-8000-000300000006', 'd7b00000-0000-4000-8000-000100000002', 'Demo Pupil Papa', '2019-06-15', 'female', 'Demoland', '', '', null),
+  ('d7b00000-0000-4000-8000-000300000007', 'd7b00000-0000-4000-8000-000100000002', 'Demo Pupil Quebec', '2018-07-16', 'male', 'Demoland', 'Demo Primary', 'Grade 2', '26039901');
+
+insert into public.applications
+  (id, student_id, stage, academic_year, year_group_applied_for, month_of_enrollment, branch_id,
+   declaration_signature_name, declaration_agreed, declaration_agreed_at, created_at) values
+  ('d7b00000-0000-4000-8000-000400000001', 'd7b00000-0000-4000-8000-000300000001', 'document_review', '2026/2027', 'Grade 3', 'September', '00000000-0000-0000-0000-000000000001', 'Demo Parent Kilo', true, '2026-09-10 09:00:00+00', '2026-09-10 09:00:00+00'),
+  ('d7b00000-0000-4000-8000-000400000002', 'd7b00000-0000-4000-8000-000300000002', 'offer', '2026/2027', 'Grade 4', 'September', '00000000-0000-0000-0000-000000000001', 'Demo Parent Kilo', true, '2026-09-11 09:00:00+00', '2026-09-11 09:00:00+00'),
+  ('d7b00000-0000-4000-8000-000400000003', 'd7b00000-0000-4000-8000-000300000003', 'offer', '2026/2027', 'Grade 5', 'September', '00000000-0000-0000-0000-000000000001', 'Demo Parent Kilo', true, '2026-09-12 09:00:00+00', '2026-09-12 09:00:00+00'),
+  ('d7b00000-0000-4000-8000-000400000004', 'd7b00000-0000-4000-8000-000300000004', 'offer', '2026/2027', 'Grade 6', 'September', '00000000-0000-0000-0000-000000000001', 'Demo Parent November', true, '2026-09-13 09:00:00+00', '2026-09-13 09:00:00+00'),
+  ('d7b00000-0000-4000-8000-000400000005', 'd7b00000-0000-4000-8000-000300000005', 'offer', '2026/2027', 'Grade 11', 'September', '00000000-0000-0000-0000-000000000001', 'Demo Parent November', true, '2026-09-14 09:00:00+00', '2026-09-14 09:00:00+00'),
+  ('d7b00000-0000-4000-8000-000400000006', 'd7b00000-0000-4000-8000-000300000006', 'offer_declined', '2026/2027', 'Nursery 1', 'September', '00000000-0000-0000-0000-000000000002', 'Demo Parent November', true, '2026-09-15 09:00:00+00', '2026-09-15 09:00:00+00'),
+  ('d7b00000-0000-4000-8000-000400000007', 'd7b00000-0000-4000-8000-000300000007', 'enrolled', '2026/2027', 'Grade 3', 'September', '00000000-0000-0000-0000-000000000001', 'Demo Parent November', true, '2026-09-16 09:00:00+00', '2026-09-16 09:00:00+00');
+
+insert into public.application_decisions (application_id, decision_type, decided_by, decided_at, notes) values
+  ('d7b00000-0000-4000-8000-000400000001', 'accepted', '30000000-0000-0000-0000-000000000004', '2026-09-20 09:00:00+00', 'Demo decision, invented.'),
+  ('d7b00000-0000-4000-8000-000400000002', 'accepted', '30000000-0000-0000-0000-000000000004', '2026-09-20 09:00:00+00', ''),
+  ('d7b00000-0000-4000-8000-000400000003', 'accepted', '30000000-0000-0000-0000-000000000004', '2026-09-20 09:00:00+00', ''),
+  ('d7b00000-0000-4000-8000-000400000004', 'accepted', '30000000-0000-0000-0000-000000000004', '2026-09-20 09:00:00+00', ''),
+  ('d7b00000-0000-4000-8000-000400000005', 'accepted', '30000000-0000-0000-0000-000000000004', '2026-09-20 09:00:00+00', 'Demo: grade needs correcting before enrolment.'),
+  ('d7b00000-0000-4000-8000-000400000006', 'accepted', '30000000-0000-0000-0000-000000000004', '2026-09-20 09:00:00+00', ''),
+  ('d7b00000-0000-4000-8000-000400000007', 'accepted', '30000000-0000-0000-0000-000000000004', '2026-09-20 09:00:00+00', '');
+
+insert into public.application_offers (application_id, token_hash, sent_at, expires_at, response, responded_at) values
+  ('d7b00000-0000-4000-8000-000400000002', encode(extensions.digest('demo-token-2', 'sha256'), 'hex'), now() - interval '2 days', now() + interval '12 days', 'pending', null),
+  ('d7b00000-0000-4000-8000-000400000003', encode(extensions.digest('demo-token-3', 'sha256'), 'hex'), now() - interval '20 days', now() - interval '6 days', 'pending', null),
+  ('d7b00000-0000-4000-8000-000400000004', encode(extensions.digest('demo-token-4', 'sha256'), 'hex'), now() - interval '5 days', now() + interval '9 days', 'accepted', now() - interval '1 day'),
+  ('d7b00000-0000-4000-8000-000400000005', encode(extensions.digest('demo-token-5', 'sha256'), 'hex'), now() - interval '5 days', now() + interval '9 days', 'accepted', now() - interval '1 day'),
+  ('d7b00000-0000-4000-8000-000400000006', encode(extensions.digest('demo-token-6', 'sha256'), 'hex'), now() - interval '5 days', now() + interval '9 days', 'declined', now() - interval '2 days'),
+  ('d7b00000-0000-4000-8000-000400000007', encode(extensions.digest('demo-token-7', 'sha256'), 'hex'), '2026-09-21 09:00:00+00', '2026-10-05 09:00:00+00', 'accepted', '2026-09-22 09:00:00+00');
+
+insert into public.application_documents (id, application_id, document_type, storage_path, status, uploaded_at) values
+  ('d7b00000-0000-4000-8000-000800000001', 'd7b00000-0000-4000-8000-000400000004', 'birth_certificate', null, 'required', null),
+  ('d7b00000-0000-4000-8000-000800000002', 'd7b00000-0000-4000-8000-000400000004', 'passport_photo', null, 'required', null);
+
+insert into public.admissions_capacity (academic_year, grade_id, branch_id, capacity)
+select '2026/2027', g.id, '00000000-0000-0000-0000-000000000001', 1
+from public.admissions_grades g where g.name = 'Grade 3';
+
+-- Move every demo reference to the 09xx range, so the numbering probes
+-- (which clear the counters and expect -0001) never meet a number a demo
+-- row already holds. postgres only: the guard on changing a reference
+-- applies to signed-in callers.
+update public.applications a set application_reference = 'APP-2026-' || lpad((900 + r.n)::text, 4, '0')
+from (select id, row_number() over (order by id) as n from public.applications
+      where id::text like 'd7%' and application_reference is not null) r
+where a.id = r.id;
+update public.applications a set inquiry_reference = 'INQ-2026-' || lpad((900 + r.n)::text, 4, '0')
+from (select id, row_number() over (order by id) as n from public.applications
+      where id::text like 'd7%' and inquiry_reference is not null) r
+where a.id = r.id;

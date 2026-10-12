@@ -5271,6 +5271,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      correct_application_grade: {
+        Args: { p_application_id: string; p_grade_id: string }
+        Returns: Json
+      }
       create_account: {
         Args: {
           p_category: string

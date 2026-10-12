@@ -53,6 +53,25 @@ export default tseslint.config(
   {
     files: ["src/modules/admissions/**/*.{ts,tsx}"],
     rules: {
+      // Offer tokens and applicant data never go into browser storage.
+      "no-restricted-globals": [
+        "error",
+        { name: "localStorage", message: "Admissions data never goes into browser storage." },
+        { name: "sessionStorage", message: "Admissions data never goes into browser storage." },
+      ],
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "window",
+          property: "localStorage",
+          message: "Admissions data never goes into browser storage.",
+        },
+        {
+          object: "window",
+          property: "sessionStorage",
+          message: "Admissions data never goes into browser storage.",
+        },
+      ],
       "no-restricted-syntax": [
         "error",
         {

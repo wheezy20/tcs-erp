@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import {
@@ -11,6 +13,7 @@ import {
   ApplicationNotFound,
   BackToApplications,
 } from "@/modules/admissions/components/application-not-found";
+import { DecisionOfferPanel } from "@/modules/admissions/components/decision-offer-panel";
 import { DocumentsPanel } from "@/modules/admissions/components/documents-panel";
 import { HealthPanel } from "@/modules/admissions/components/health-panel";
 import { NotesPanel } from "@/modules/admissions/components/notes-panel";
@@ -33,6 +36,9 @@ export function ApplicationDetailPage({ applicationId }: { applicationId: string
 
 function ApplicationDetail({ applicationId }: { applicationId: string }) {
   const { role, staffId } = useAdmissionsAccess();
+  // Bumped after a decision, offer, enrolment or grade change, so the
+  // Applicant card re-reads the student (a new student ID).
+  const [version, setVersion] = useState(0);
   const summary = useLoad(
     () => getApplicationSummary(applicationId),
     [applicationId],
@@ -56,6 +62,10 @@ function ApplicationDetail({ applicationId }: { applicationId: string }) {
   const app = summary.data;
   // A failed refresh after a stage change keeps the page and says so.
   const refreshError = summary.error;
+  async function afterPipelineChange() {
+    setVersion((v) => v + 1);
+    await summary.reload();
+  }
 
   return (
     <>
@@ -88,7 +98,13 @@ function ApplicationDetail({ applicationId }: { applicationId: string }) {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <ApplicantAndFamily studentId={app.studentId} />
+          <ApplicantAndFamily studentId={app.studentId} version={version} />
+          <DecisionOfferPanel
+            key={staffId ?? "none"}
+            app={app}
+            role={role}
+            onChanged={afterPipelineChange}
+          />
           <NotesPanel applicationId={app.id} role={role} staffId={staffId} />
           <DocumentsPanel applicationId={app.id} role={role} />
         </div>
@@ -132,10 +148,10 @@ function ApplicationCard({ app }: { app: ApplicationSummary }) {
   );
 }
 
-function ApplicantAndFamily({ studentId }: { studentId: string }) {
+function ApplicantAndFamily({ studentId, version }: { studentId: string; version: number }) {
   const res = useLoad(
     () => getStudentAndFamily(studentId),
-    [studentId],
+    [studentId, version],
     "Could not load the applicant.",
   );
   if (res.error) return <ErrorCard title="Applicant" message={res.error} />;

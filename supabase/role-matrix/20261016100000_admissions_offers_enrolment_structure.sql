@@ -1,7 +1,7 @@
 -- Role matrix for 20261016100000_admissions_offers_enrolment, STRUCTURE file (admissions slice 6b,
 -- docs/admissions/PORT-PLAN.md): grants and settings of the
 -- twelve new functions, the exact 169 anon-executable count, the exact
--- 35-value audit list (this file owns the exact list from slice 6b on),
+-- 35-value audit list (owned from slice 7b1 on by that slice's structure file),
 -- triggers, admissions_settings and the offer status view's shape and
 -- grants, the helpers' behaviour, the token minting by source, and the lock
 -- order and re-checks by source (S13: a single session can't race itself).
@@ -108,13 +108,13 @@ begin
   end loop;
 end $$;
 
--- probe: S6 the audit action list has exactly the 35 values
+-- probe: S6 the audit action list still holds the 35 values (7b1's structure file owns the exact list)
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if (select array_agg(m[1] order by m[1]) from pg_constraint c,
         regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_]+)''::text', 'g') m
       where c.conname = 'audit_log_action_check')
-     is distinct from array['admissions_capabilities_changed', 'admissions_capacity_changed', 'admissions_settings_changed', 'application_decision_changed', 'application_document_status_changed', 'application_offer_changed', 'application_stage_changed', 'discount_applied', 'employee_approved', 'employee_created', 'employee_reactivated', 'employee_rejected', 'employee_suspended', 'employees_imported', 'expense_voided', 'invoice_voided', 'pay_config_amended_and_approved', 'pay_config_approved', 'pay_config_exemptions_changed', 'pay_config_proposed', 'pay_config_rejected', 'payroll_run_approved', 'payroll_run_exclusion_added', 'payroll_run_exclusion_removed', 'payroll_run_rejected', 'payroll_run_submitted', 'return_processed', 'sale_voided', 'staff_advance_approved', 'staff_advance_change_approved', 'staff_advance_change_proposed', 'staff_advance_change_rejected', 'staff_advance_proposed', 'staff_advance_rejected', 'vat_override'] then
+     @> array['admissions_capabilities_changed', 'admissions_capacity_changed', 'admissions_settings_changed', 'application_decision_changed', 'application_document_status_changed', 'application_offer_changed', 'application_stage_changed', 'discount_applied', 'employee_approved', 'employee_created', 'employee_reactivated', 'employee_rejected', 'employee_suspended', 'employees_imported', 'expense_voided', 'invoice_voided', 'pay_config_amended_and_approved', 'pay_config_approved', 'pay_config_exemptions_changed', 'pay_config_proposed', 'pay_config_rejected', 'payroll_run_approved', 'payroll_run_exclusion_added', 'payroll_run_exclusion_removed', 'payroll_run_rejected', 'payroll_run_submitted', 'return_processed', 'sale_voided', 'staff_advance_approved', 'staff_advance_change_approved', 'staff_advance_change_proposed', 'staff_advance_change_rejected', 'staff_advance_proposed', 'staff_advance_rejected', 'vat_override'] is not true then
     raise exception 'audit action list wrong';
   end if;
 end $$;
@@ -331,7 +331,9 @@ declare t text;
 begin
   foreach t in array array['public.students', 'public.application_offers', 'public.application_decisions', 'public.applications'] loop
     if has_table_privilege('authenticated', t, 'INSERT,UPDATE,DELETE,TRUNCATE')
-       or not has_table_privilege('authenticated', t, 'SELECT')
+       or not (has_table_privilege('authenticated', t, 'SELECT')
+                or (t = 'public.application_offers'
+                    and has_column_privilege('authenticated', t, 'application_id', 'SELECT')))
        or has_table_privilege('anon', t, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') then
       raise exception 'grants changed on %', t;
     end if;
@@ -357,6 +359,8 @@ begin
   end loop;
 end $$;
 
+-- correct_application_grade (7b1) is not in this list on purpose: it takes only the
+-- application lock, which 20261018100000_admissions_grade_correction_structure.sql S5 pins.
 -- probe: S13 accept and enrol paths: lock application, decision, offer, student, counter; re-check under the locks
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$

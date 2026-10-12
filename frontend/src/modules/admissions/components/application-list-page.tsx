@@ -31,6 +31,7 @@ import {
   canSeeUnbandedGrades,
   gradeFilterOptions,
   isAdmissionsReadOnly,
+  emptyListMessage,
   officerHasNoScope,
 } from "@/modules/admissions/permissions";
 
@@ -182,7 +183,7 @@ export function ApplicationListPage() {
           <p className="p-10 text-center text-sm text-muted-foreground">Loading…</p>
         ) : rows.length === 0 ? (
           <p className="p-10 text-center text-sm text-muted-foreground">
-            {isFiltered ? "No applications match." : "No applications yet."}
+            {emptyListMessage(role, isFiltered)}
           </p>
         ) : (
           <div className="overflow-x-auto">

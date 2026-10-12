@@ -756,6 +756,14 @@ depend on them holding true for every new table/function added.
   application reference and are readable by Manager, Accountant and Auditor.
   Document status audit rows carry document type and application reference, readable
   the same way. Service-role or postgres changes write no audit row.
+  Admissions audit payloads carry references, codes and statuses, never names,
+  notes, contact details or health data. **The one exception** is
+  `application_grade_corrected` (slice 7b1): its `before` holds the old
+  `year_group_applied_for` exactly as the applicant typed it, truncated to 50
+  characters, because a correction is meaningless without the value it
+  replaced. It is applicant-typed free text in a grade field, readable by
+  Manager, Accountant and Auditor like every audit row. No other payload may
+  carry applicant free text without the same explicit decision.
 - **Admissions data tables: select-only with RLS through SECURITY DEFINER
   visibility helpers (admissions slices 3a, 3b, 4 and 5, `20261011100000`,
   `20261012100000`, `20261013100000`, `20261014100000`).** Tables like `families`,
@@ -795,10 +803,15 @@ depend on them holding true for every new table/function added.
   decides which rows the caller sees. Logic from a helper that has no grant
   for authenticated (`_offer_effective_response`) is written out in the view
   itself. The view alone doesn't hide the column while the table's own
-  select grant still covers it. For offers that is deliberate (D-6q, 2026-10-12):
-  the hash can't be reversed and gives no access on its own, and a
-  column-level grant would make `select *` fail. The UI selects explicit
-  columns and never `token_hash`.
+  select grant still covers it, so from slice 7b1 (`20261018100000`, reversing
+  D-6q) `application_offers` has a column-level select grant for authenticated
+  that leaves out `token_hash`: a signed-in `select token_hash` or `select *`
+  on the table is refused, while the view and explicit-column reads keep
+  working. **Any column added to `application_offers` later needs its own
+  explicit `grant select (column)` to authenticated**, or staff can't read it;
+  the 7b1 structure probe (S7) pins the column count so a new column fails it
+  until the grant is decided. The UI selects explicit columns and never
+  `token_hash`.
 - **The anon surface is SECURITY DEFINER functions only (codified
   2026-09-29).** Onboarding (`20260921100000`) set the pattern, and the
   admissions port's public forms will lean on it heavily. `anon` never

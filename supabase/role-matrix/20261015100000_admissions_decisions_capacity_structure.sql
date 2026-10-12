@@ -197,7 +197,9 @@ declare t text;
 begin
   foreach t in array array['public.application_decisions', 'public.application_offers', 'public.admissions_capacity'] loop
     if has_table_privilege('authenticated', t, 'INSERT,UPDATE,DELETE,TRUNCATE')
-       or not has_table_privilege('authenticated', t, 'SELECT')
+       or not (has_table_privilege('authenticated', t, 'SELECT')
+                or (t = 'public.application_offers'
+                    and has_column_privilege('authenticated', t, 'application_id', 'SELECT')))
        or has_table_privilege('anon', t, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') then
       raise exception 'grants changed on %', t;
     end if;

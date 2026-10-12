@@ -9,6 +9,7 @@ import {
   canViewAdmissions,
   canWriteAdmissions,
   documentStatusTargets,
+  emptyListMessage,
   gradeFilterOptions,
   healthPanelState,
   isAdmissionsReadOnly,
@@ -157,5 +158,22 @@ describe("detail route id", () => {
     expect(isApplicationId("not-a-uuid")).toBe(false);
     expect(isApplicationId("d7a00000-0000-4000-8000-000400000001x")).toBe(false);
     expect(isApplicationId("")).toBe(false);
+  });
+});
+
+describe("empty list message", () => {
+  it("tells an officer about assigned grades without hinting at other applications", () => {
+    const msg = emptyListMessage("Admissions Officer", false);
+    expect(msg).toBe(
+      "No applications in your assigned grades. A Manager sets your admissions access in Settings.",
+    );
+    expect(msg).not.toMatch(/\d/);
+    expect(msg).not.toMatch(/other|outside|hidden/i);
+  });
+
+  it("keeps the plain messages for other roles and for a filtered list", () => {
+    expect(emptyListMessage("Manager", false)).toBe("No applications yet.");
+    expect(emptyListMessage("Auditor", false)).toBe("No applications yet.");
+    expect(emptyListMessage("Admissions Officer", true)).toBe("No applications match.");
   });
 });

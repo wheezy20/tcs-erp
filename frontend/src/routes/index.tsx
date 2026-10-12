@@ -19,6 +19,7 @@ import {
 
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { isAdmissionsOfficer, useAuth } from "@/data/auth-store";
 import { useCurrentBranch } from "@/data/branch-store";
@@ -63,7 +64,12 @@ function OfficerDashboard() {
   return (
     <PageHeader
       title={staff ? `Welcome, ${staff.name}` : "Welcome"}
-      description="Admissions isn't built yet. Your account can open Settings in the meantime."
+      description="Open Admissions to work on inquiries and applications in your assigned grades."
+      actions={
+        <Button asChild>
+          <Link to="/admissions">Open Admissions</Link>
+        </Button>
+      }
     />
   );
 }

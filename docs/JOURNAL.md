@@ -4473,3 +4473,95 @@ Slice 7a built 2026-10-12, uncommitted, awaiting Eyram's review.
 - Migrations 20261017100000 and 20261017110000 applied on hosted: Eyram's `npx supabase migration list` shows 20261017100000 and 20261017110000 on both Local and Remote.
 - The 7a frontend was deployed on 2026-10-12.
 - Slices 6a and 6b are also applied on hosted (same migration list output on 2026-10-12: 20261015100000 and 20261016100000 on both Local and Remote).
+
+---
+
+## 2026-10-12: Admissions slice 7b1, decision, offer and enrolment actions and grade correction
+
+Slice 7b was split on 2026-10-12 into 7b1 (actions on the application detail page) and 7b2 (Manager and Auditor admin screens at `/admissions/settings`). 7b1 is built and uncommitted. 7b2 has not started and waits for Eyram's go.
+
+**Decisions (2026-10-12):**
+
+- Grade correction applies only to an unrecognised grade (the narrow rule). It locks the application row only, and the function explains why.
+- D-6q reversed. `application_offers` select for authenticated is now a column-level grant without `token_hash`. Any column added later needs its own explicit grant (DESIGN.md).
+- The audit action list goes from 35 to 37 in 7b1: `application_grade_corrected`, plus `admissions_academic_year_changed`, whose trigger comes in 7b2. 7b2 then leaves the CHECK untouched, so the golden payslip suite runs once, in 7b1.
+- The grade audit row carries the old grade as the applicant typed it, truncated to 50 characters. This is the one free-text payload exception (DESIGN.md).
+- The offer link shows once, as plain text with a Copy button and the warning "Not live yet, do not send this link." Until slice 11 ships the parent page, staff record the parent's answer with Record response. The link shape is `<origin>/offer?token=<token>`. Tokens issued now stay valid for slice 11, and any offer can be reset for a new link until the parent accepts.
+- Accepted versus capacity counts are deferred.
+- 7b2 academic years: add, retire and reactivate; no rename. 7b2 also audits them.
+- D-6g stays open. No real applicant is enrolled on hosted until it is answered. The build does not depend on it.
+
+**Built (uncommitted):**
+
+- **Migration `20261018100000_admissions_grade_correction.sql`:**
+  - `correct_application_grade(p_application_id uuid, p_grade_id uuid) returns jsonb`. Manager only. The order is role, scope, arguments (an active grade with a student ID classification), then the application row lock, with these re-checks under it: found and in scope, not enrolled, the current grade unrecognised, and campus grade rules (covering Annex). It stores the grade's canonical name and returns `year_group_applied_for`, `grade_band` and `stage`. It touches no decision, offer, student or counter row.
+  - Trigger `applications_audit_grade` (`audit_application_grade()`) after update of `year_group_applied_for`. It fires for a signed-in actor only and carries the application reference, the new grade and the old grade.
+  - The audit CHECK goes to 37 values.
+  - The `application_offers` column grant: `id, application_id, sent_at, expires_at, response, responded_at`.
+- **Frontend (`frontend/src/modules/admissions/`):**
+  - `components/decision-offer-panel.tsx`:
+    - Record and Change decision. The capacity warning toast shows the RPC's own text.
+    - Generate offer, Reset offer and Record response.
+    - The one-time link panel. The token lives in component state only.
+    - Plain messages for a Manager or officer without decide, and for a failed capability check.
+  - `components/enrolment-controls.tsx`:
+    - Mark enrolled, Manager only. It lists every document that isn't approved, as a warning.
+    - Mark enrolled is disabled with the reason when the grade has no band, and the student ID is shown after success.
+    - Correct grade, Manager only.
+  - Other module files:
+    - `data/decisions.ts`: reads the decision, the offer status (from `application_offer_status` only) and the live decide capability.
+    - The RPC wrappers in `data/mutations.ts`, and the grade id in `data/reference.ts`.
+    - The display rules in `permissions.ts`.
+    - `decision-permissions.test.ts`, with 11 tests.
+    - The detail page reloads the Applicant card after enrolment.
+  - Outside the module: `eslint.config.js` bans `localStorage` and `sessionStorage` in the admissions module, and `database.types.ts` is regenerated (additive, one function).
+- **`seed.sql` (local only; `seed.production.sql` is unchanged):**
+  - Seven invented applications: an accepted decision without an offer, a pending offer, an expired offer, an accepted offer with Grade 6 and two documents not uploaded, an accepted offer with "Grade 11", a declined offer, and an enrolled pupil with student ID 26039901.
+  - One capacity row: Grade 3, Main, 2026/2027, capacity 1.
+  - Every demo reference (7a and 7b1) moved to the 09xx range.
+
+**Found during the build:** since 7a, the slice 5 numbering probe file had been failing. 7a's demo rows held `APP-2026-0001` onward, and the probes clear the counters and expect `-0001`. 7a's check pass ran only three of the older probe files. The fix is the 09xx move in `seed.sql`; no probe changed.
+
+**Earlier probe files changed on purpose (no check removed):**
+
+- These accept the offers column grant: A1 in `20261012100000_..._structure.sql`, S9 in `20261015100000_..._structure.sql`, and S14 in `20261016100000_..._structure.sql`.
+- A4 in `20261014100000_..._structure.sql` and S6 in `20261016100000_..._structure.sql` are now superset checks. The 7b1 structure file owns the exact `applications` trigger list (S4) and the exact 37-value audit list (S2). Keep S2 and S4 permanently.
+- 6b structure S13 has a comment pointing to 7b1 S5, which pins that the grade correction takes the application lock only.
+- 6b enrolment M13 sets aside non-fixture offers in its rolled-back setup, because the expiry sweep is global.
+- 6b offers B8 reads `token_hash` as postgres. It now checks that the stored hash is the SHA-256 of the latest token.
+
+**Verification:**
+
+- **Baseline before the first edit** (HEAD 35cce04, fresh reset): overload check clean, types identical, anon-executable count 169, golden payslip suite green.
+- **After the build** (test-runner):
+  - db reset and dev staff ok, overload check clean, types regen identical, anon count 169.
+  - All 32 role-matrix files green.
+  - Golden payslip suite green, with no expected figure changed.
+  - Lint 0 errors and 13 warnings (same as the baseline), tsc clean, `npm test` 30 tests pass, build ok.
+  - Nothing staged, and no service role key in `frontend/src`.
+- **New probe files:**
+  - `20261018100000_admissions_grade_correction.sql`: G1 to G10, plus T1, T1b and T2. T1 and T1b refuse `token_hash` and `select *` on `application_offers` for every role. T2 shows the granted columns and the status view still read.
+  - `_structure.sql`: S1 to S7.
+- **16 deliberate breaks, all caught.** Each break ran only against its target probe file and was restored against a catalog fingerprint.
+  - 13 database breaks: no Manager check, existence checked before role, no `for update`, no campus rule, no narrow rule, enrolled allowed, inactive grade accepted, anon execute, audit trigger dropped, audit without an actor, a name in the audit row, audit list not extended, and `token_hash` readable again.
+  - 3 frontend unit-test breaks: "checking" or "error" treated as granted, Reset offered on an accepted offer, and Mark enrolled offered with no band.
+  - The no-actor break was first missed. The G10 fixture had no campus, so the trigger's no-branch exit hid it. G10 now uses a campus and catches it.
+- **Dropped breaks:** message and label mutations; duplicate revoke mutants (equivalent); token persistence. There are no DOM tests, so persistence is covered by the eslint ban, which was checked to fire on `localStorage` and `window.sessionStorage`, and by review.
+- **Races** (two real sessions, local):
+  - Correction first: `mark_enrolled` waited about 2 seconds, then enrolled with classification 03.
+  - Two corrections: the second waited about 2 seconds and was refused by the narrow rule, leaving one audit row.
+  - Enrolment first with an unbanded grade is not a lock collision. A refused enrolment aborts and releases its lock at once. The outcome was still correct: the correction, then a successful enrolment.
+- **code-reviewer:** no blocking findings. Keep 7b1 structure S2 and S4 permanently.
+- **Not done:** no browser walk-through of the new screens yet.
+
+**Outstanding:**
+
+- Eyram's review, and a browser walk-through with the demo rows.
+- After commit, Eyram's production steps: `npx supabase db push`, then `frontend/scripts/deploy-production.sh`.
+- On hosted, a Manager must grant themselves `can_decide` (Settings, Staff, Admissions access) before the decision panel offers actions.
+
+**7b1 follow-up (2026-10-12, uncommitted):**
+
+- The Admissions Officer dashboard no longer says Admissions isn't built. It now points to Admissions, with an Open Admissions button. No other screen carried that text.
+- An officer's empty, unfiltered application list now says "No applications in your assigned grades. A Manager sets your admissions access in Settings." It gives no count and no hint about applications outside their grades. The rule is `emptyListMessage()` in `permissions.ts`, with a unit test (32 tests pass).
+- The local dev officer saw nothing because it had no admissions access row. Neither `seed.sql` nor `seed-local-dev-staff.sh` creates one, and the demo rows cover all three bands. The seed can't add one, because the dev accounts are created by the script after the seed runs. A pre-made row would also clash with the role-matrix probes, which insert the officer's access row in their own setup. To test the officer view locally, a Manager grants access in Settings, Staff, Admissions access.

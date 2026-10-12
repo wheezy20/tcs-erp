@@ -124,11 +124,11 @@ do $$ begin
   end if;
 end $$;
 
--- probe: A4 triggers: the four on applications, one audit trigger on documents, notes unchanged
+-- probe: A4 triggers: applications still has these four (7b1's structure S4 owns the exact list), one audit trigger on documents, notes unchanged
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if (select array_agg(tgname::text order by tgname) from pg_trigger where not tgisinternal and tgrelid = 'public.applications'::regclass)
-     is distinct from array['applications_assign_references', 'applications_audit_stage', 'applications_guard_update', 'applications_set_updated_at'] then
+     @> array['applications_assign_references', 'applications_audit_stage', 'applications_guard_update', 'applications_set_updated_at'] is not true then
     raise exception 'applications triggers wrong';
   end if;
   if (select array_agg(tgname::text) from pg_trigger where not tgisinternal and tgrelid = 'public.application_documents'::regclass)

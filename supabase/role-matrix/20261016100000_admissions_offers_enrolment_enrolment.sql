@@ -351,6 +351,8 @@ select public.settle_expired_offers();
 
 -- probe: M13 settle_expired_offers as service_role: settles only pending offers past expiry, offer to offer_declined, no audit row
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
+-- The sweep is global: set aside non-fixture offers (seed.sql demo rows from 7b1) so the counts are the fixtures'.
+delete from public.application_offers where application_id::text not like '9e06b000%';
 insert into public.families (id) values ('9e06b000-0000-4000-8000-000100000001');
 insert into public.students (id, family_id, full_name, student_id) values ('9e06b000-0000-4000-8000-000300000001', '9e06b000-0000-4000-8000-000100000001', 'Child 1 Fixture', null);
 insert into public.applications (id, student_id, academic_year, year_group_applied_for, stage, branch_id) values ('9e06b000-0000-4000-8000-000400000001', '9e06b000-0000-4000-8000-000300000001', '2027/2028', 'Grade 3', 'offer', null);

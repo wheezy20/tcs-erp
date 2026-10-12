@@ -667,14 +667,25 @@ insert into public.staff_admissions_capabilities (staff_id, grade_bands, all_gra
 insert into public.application_decisions (application_id, decision_type, notes) values ('9e06b000-0000-4000-8000-000400000001', 'accepted', 'seeded');
 insert into public.application_offers (application_id, token_hash, sent_at, expires_at, response) values ('9e06b000-0000-4000-8000-000400000001', encode(extensions.digest('seed1', 'sha256'), 'hex'), now() - interval '1 day', now() + interval '10 days', 'pending');
 -- as role:
+-- token_hash is read as postgres: from 7b1 no signed-in role can select it.
 do $$
-declare h1 text; h2 text; t1 text; t2 text;
+declare t1 text; t2 text;
 begin
   t1 := public.reset_offer('9e06b000-0000-4000-8000-000400000001')->>'token';
-  select token_hash into h1 from public.application_offers where application_id = '9e06b000-0000-4000-8000-000400000001';
   t2 := public.reset_offer('9e06b000-0000-4000-8000-000400000001')->>'token';
-  select token_hash into h2 from public.application_offers where application_id = '9e06b000-0000-4000-8000-000400000001';
-  if t1 = t2 or h1 = h2 or h1 is null then raise exception 'reset reused a token'; end if;
+  perform set_config('probe.t1', coalesce(t1, ''), true);
+  perform set_config('probe.t2', coalesce(t2, ''), true);
+end $$;
+reset role;
+do $$
+declare h text; t1 text := current_setting('probe.t1'); t2 text := current_setting('probe.t2');
+begin
+  select token_hash into h from public.application_offers where application_id = '9e06b000-0000-4000-8000-000400000001';
+  if t1 = '' or t2 = '' or t1 = t2 or h is null
+     or h <> encode(extensions.digest(t2, 'sha256'), 'hex')
+     or h = encode(extensions.digest(t1, 'sha256'), 'hex') then
+    raise exception 'reset reused a token';
+  end if;
 end $$;
 
 -- probe: B9 reset_offer: allowed on expired and withdrawn offers; refused on accepted, with no offer, and without an accepted decision

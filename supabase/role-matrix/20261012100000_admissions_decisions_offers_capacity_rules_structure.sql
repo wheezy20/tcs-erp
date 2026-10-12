@@ -361,7 +361,9 @@ begin
     if has_table_privilege('anon', t, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') then
       raise exception 'anon holds a privilege on %', t;
     end if;
-    if not has_table_privilege('authenticated', t, 'SELECT')
+    if not (has_table_privilege('authenticated', t, 'SELECT')
+            or (t = 'public.application_offers'
+                and has_column_privilege('authenticated', t, 'application_id', 'SELECT')))
        or has_table_privilege('authenticated', t, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') then
       raise exception 'authenticated privileges wrong on %', t;
     end if;

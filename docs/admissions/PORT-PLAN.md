@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12; the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) built uncommitted; 7b2 (admin screens) not started. The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -37,7 +37,8 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 6a | Decisions and capacity (staff side) | committed (5c56735) and applied on hosted | 5 |
 | 6b | Offers, enrolment gate, student IDs (staff side) | committed (6c1f014) and applied on hosted | 6a |
 | 7a | Staff pipeline UI: list, detail, notes, documents, health panel | applied on hosted, frontend deployed (2026-10-12) | 6b |
-| 7b | Staff pipeline UI: decision/offer/enrol actions, capacity, capability admin | not started | 7a |
+| 7b1 | Detail page actions: decision, offer, enrolment, grade correction | built uncommitted | 7a |
+| 7b2 | Admin screens: academic years, capacity, offer expiry, campus rules | not started | 7b1 |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | not started | 7b |
 | 9 | Public Application form: direct submit, uploads, matching, rules | not started | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
@@ -735,38 +736,55 @@ Slice 7a built 2026-10-12. Migrations applied on hosted and the frontend deploye
 
 **Size:** two routes, one store, reusing existing list and detail components.
 
-## Slice 7b — Staff pipeline UI: decisions, offers, enrolment, capacity, capabilities
+## Slice 7b: Staff pipeline UI (decisions, offers, enrolment, grade correction, admin screens)
+
+**Status:** split on 2026-10-12 into 7b1 and 7b2. 7b1 is built and uncommitted. 7b2 has not started and waits for Eyram's go.
+
+### 7b1: Actions on the application detail page
 
 **Delivers:**
 
-- A decision dialog that shows the capacity warning as a toast.
-- Generate and reset offer, with a reveal-once copyable link until slice 12.
-- Mark enrolled, showing the refusal message when the grade has no student ID code (D-6h), and listing any documents not yet approved as a warning (not a gate; decided 2026-10-12).
-- Settings → Admissions: the capacity table (Manager and Auditor only) and the campus grade rules (read-only display).
+- **Decision.** Record decision and Change decision dialogs (`record_decision`, `change_decision`).
+  - A capacity warning is shown as a toast with the RPC's own text: figures for a Manager, none for an officer.
+  - Shown only to staff whose live `has_admissions_capability('decide')` check returns true (D-2f). A Manager without it gets a plain message instead of a button.
+- **Offer.** Generate offer, Reset offer, and Record response for an answer by phone or on paper (`generate_offer`, `reset_offer`, `record_offer_response`).
+  - State comes from `application_offer_status` only.
+  - The token is shown once, in component state only, as a plain-text link `<origin>/offer?token=<token>` with a Copy button. A warning says not to send it until slice 11.
+- **Enrolment.** Mark enrolled (`mark_enrolled`, Manager only).
+  - Every document that isn't approved is listed as a warning, not a gate.
+  - The button is disabled with a plain reason when the grade has no band (D-6h).
+  - The student ID is shown after success.
+- **Grade correction.** `correct_application_grade(p_application_id uuid, p_grade_id uuid)`, Manager only, for an unrecognised grade only.
+  - The order is role, scope, arguments, then the application lock with re-checks.
+  - It is refused at enrolled, and when the campus grade rules (covering Annex) don't accept the new grade.
+  - It is audited as `application_grade_corrected`.
+- **Offers column grant.** `application_offers` select is a column-level grant without `token_hash` (D-6q reversed).
+- **Audit list.** 35 to 37 values, including `admissions_academic_year_changed` for 7b2.
+- **Demo rows** at decision, offer, offer declined and enrolled in `seed.sql`, plus one capacity row.
 
-**Not included:** email.
+**Role matrix:** `20261018100000_admissions_grade_correction.sql` and `_structure.sql`.
 
-**Carry-forwards from slice 6:**
-- A small Manager-only RPC to correct an application's applied-for grade (`year_group_applied_for`), since an application with an unbanded or legacy grade can otherwise never be enrolled (D-6h). Audited, scope-checked like the other stage RPCs; it needs its own role matrix probes, so 7b is no longer UI only. The RPC also checks that the Annex campus (if the application is for Annex) accepts the new grade.
-- The decision and offer actions show only to staff holding can_decide; a Manager without it gets the RPC's refusal.
+**Anon surface:** none. The anon-executable count stays 169.
 
-**TCS OS files to read:** `admin.py:384-433, 480-491`.
+### 7b2: Admin screens at `/admissions/settings`
 
-**Conventions:** as for 7a.
+**Delivers (planned):**
 
-**Role matrix:** the grade-correction RPC only.
+- A Manager and Auditor sidebar item. The Auditor gets read-only screens.
+- **Academic years:**
+  - `add_admissions_academic_year` and `set_admissions_academic_year_active` (retire and reactivate), Manager only. No rename.
+  - Audited as `admissions_academic_year_changed`. The action is already in the CHECK from 7b1, so 7b2 adds only the trigger and leaves the CHECK untouched.
+- **Capacity:** create, change and delete (the 6a RPCs).
+  - `create_admissions_capacity` refuses a year that isn't active on the list, with the same signature.
+  - Existing rows for an unlisted year stay untouched. The screen flags them and still allows changing the figure or deleting the row.
+- **Offer expiry:** `set_admissions_offer_ttl_days` (1 to 90).
+- **Campus grade rules:** a read-only display.
 
-**Anon surface:** none.
+**Carry-forward:** slices 8 and 9 validate the submitted year against the academic year list.
 
-**Carry-forwards from slice 7a:**
-- Manager-only add and deactivate RPCs for `admissions_academic_years`, and `create_admissions_capacity` refuses a year not on that list (same signature). Slices 8 and 9 validate the submitted year against the same list.
-- Demo rows at `offer` and `enrolled` in `seed.sql`, with their decision and offer rows.
-
-**Decisions for Eyram:** none new beyond D-6*. The grade-correction RPC's Annex check above was approved with the 7a plan (2026-10-12).
+**Not included:** accepted versus capacity counts (deferred), email (slice 12).
 
 **Proposed, not decided:** a read-only Audit log screen (Manager, Accountant, Auditor; filters by action and date) as its own slice after 7b (working name 7c).
-
-**Size:** UI over existing RPCs, plus the one grade-correction RPC.
 
 ## Slice 8 — Public request path and the public Inquiry form
 
@@ -1273,7 +1291,7 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-6n | Audit capacity and TTL changes | **Decided 2026-10-12, as recommended:** yes. |
 | D-6o | Capacity academic year | **Decided 2026-10-12, as recommended:** exact text, no year list yet; carried to slices 7b and 8. |
 | D-6p | Split slice 6 | **Decided 2026-10-12, as recommended:** 6a (decisions, capacity) and 6b (offers, enrolment). |
-| D-6q | Staff read of `application_offers.token_hash` | **Decided 2026-10-12:** leave the table-level select grant as it is, no revoke. The hash is the SHA-256 of 32 random bytes and can't be reversed; the offer page compares hashes, so the hash alone gives no access; `application_offer_status` hides it; and a column-level grant would make `select *` on the table fail. Slice 7a carries this forward: the UI selects explicit columns and never selects `token_hash`. |
+| D-6q | Staff read of `application_offers.token_hash` | **Decided 2026-10-12:** leave the table-level select grant as it is, no revoke. The hash is the SHA-256 of 32 random bytes and can't be reversed; the offer page compares hashes, so the hash alone gives no access; `application_offer_status` hides it; and a column-level grant would make `select *` on the table fail. Slice 7a carries this forward: the UI selects explicit columns and never selects `token_hash`. **Reversed 2026-10-12 for slice 7b1:** a column-level grant without `token_hash` (`20261018100000`). |
 | D-7a | Staff route prefix | `/admissions`. Public routes keep TCS OS's bare paths. |
 | D-8a | Bot-check placement | Supabase Edge Function; submit RPCs service-role-only. |
 | D-8b | Turnstile keys | New widget for the ERP hosts (or add hosts to the existing widget). Secret in Supabase secrets, site key in the Cloudflare build env. Eyram runs this. |

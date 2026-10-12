@@ -72,7 +72,8 @@ Slice 5 (numbering, stage transitions, notes and document review) committed (8b9
 Slice 6a (decisions and capacity staff side) committed (5c56735) and applied on hosted.
 Slice 6b (offers, enrolment gate, student IDs staff side) committed (6c1f014) and applied on hosted.
 Slice 7a (staff pipeline UI: list, detail, notes, documents, health panel) committed (de1aff9) and applied on hosted; frontend deployed on 2026-10-12.
-Decision batches recorded 2026-09-29 (D-2g, D-1b-a/b/c/d confirmed), 2026-10-05 (O-1 to O-9 confirmed), 2026-10-12 (D-6a to D-6p decided, D-6j changed to a withdrawn offer response) and 2026-10-12 (D-7a approved).
+Slice 7b split into 7b1 (detail page actions: decision, offer, enrolment, grade correction) built uncommitted and 7b2 (admin screens: academic years, capacity, offer expiry, campus rules) not started.
+Decision batches recorded 2026-09-29 (D-2g, D-1b-a/b/c/d confirmed), 2026-10-05 (O-1 to O-9 confirmed), 2026-10-12 (D-6a to D-6p decided, D-6j changed to a withdrawn offer response), 2026-10-12 (D-7a approved) and 2026-10-12 (7b split, D-6q reversed, grade correction narrow rule, audit extended to 37).
 
 Porting TCS OS's live admissions module: inquiries, applications,
 documents, decisions/offers/enrolment gating, reference numbering,

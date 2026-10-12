@@ -146,3 +146,148 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 export function isApplicationId(value: string): boolean {
   return UUID_PATTERN.test(value);
 }
+
+// ------------------------------------------------------------ decisions and offers
+
+/** The live has_admissions_capability('decide') result. Only "granted"
+ * offers a decision or offer control; "checking" and "error" offer none. */
+export type DecideCapability = "checking" | "error" | "granted" | "denied";
+
+export const DECISION_TYPES = ["accepted", "waitlisted", "rejected"] as const;
+
+const NO_DECISION_STAGES = ["inquiry", "enrolled"];
+
+function decides(role: Role, cap: DecideCapability): boolean {
+  return canWriteAdmissions(role) && cap === "granted";
+}
+
+/** record_decision: decide capability, no decision yet, not at inquiry or
+ * enrolled. */
+export function canRecordDecision(
+  role: Role,
+  cap: DecideCapability,
+  stage: string,
+  decisionType: string | null,
+): boolean {
+  return decides(role, cap) && decisionType === null && !NO_DECISION_STAGES.includes(stage);
+}
+
+/** change_decision targets. Once the parent has accepted the offer the
+ * decision can't leave accepted, so only a notes edit (accepted) remains. */
+export function decisionChangeTargets(
+  role: Role,
+  cap: DecideCapability,
+  stage: string,
+  decisionType: string | null,
+  offerResponse: string | null,
+): string[] {
+  if (!decides(role, cap) || decisionType === null || NO_DECISION_STAGES.includes(stage)) {
+    return [];
+  }
+  if (decisionType === "accepted" && offerResponse === "accepted") return ["accepted"];
+  return [...DECISION_TYPES];
+}
+
+export type OfferState = { response: string; effectiveResponse: string } | null;
+
+const GENERATE_OFFER_STAGES = ["application", "document_review", "waitlisted", "rejected"];
+
+/** generate_offer: accepted decision, no offer row, and a stage it accepts. */
+export function canGenerateOffer(
+  role: Role,
+  cap: DecideCapability,
+  stage: string,
+  decisionType: string | null,
+  offer: OfferState,
+): boolean {
+  return (
+    decides(role, cap) &&
+    decisionType === "accepted" &&
+    offer === null &&
+    GENERATE_OFFER_STAGES.includes(stage)
+  );
+}
+
+/** reset_offer: accepted decision, an offer the parent hasn't accepted
+ * (pending, expired, declined or withdrawn), not at inquiry or enrolled. */
+export function canResetOffer(
+  role: Role,
+  cap: DecideCapability,
+  stage: string,
+  decisionType: string | null,
+  offer: OfferState,
+): boolean {
+  return (
+    decides(role, cap) &&
+    decisionType === "accepted" &&
+    offer !== null &&
+    offer.response !== "accepted" &&
+    !NO_DECISION_STAGES.includes(stage)
+  );
+}
+
+/** record_offer_response: at offer, accepted decision, the offer pending and
+ * in date (the view's effective response). */
+export function canRecordOfferResponse(
+  role: Role,
+  cap: DecideCapability,
+  stage: string,
+  decisionType: string | null,
+  offer: OfferState,
+): boolean {
+  return (
+    decides(role, cap) &&
+    stage === "offer" &&
+    decisionType === "accepted" &&
+    offer?.effectiveResponse === "pending"
+  );
+}
+
+/** The parent response page's link for a token. The page itself arrives in
+ * slice 11 at TCS OS's path; the token is host independent. */
+export function offerLink(origin: string, token: string): string {
+  return `${origin}/offer?token=${encodeURIComponent(token)}`;
+}
+
+// ------------------------------------------------------------ enrolment and grade
+
+export type EnrolState = "hidden" | "blocked_by_grade" | "available";
+
+/** mark_enrolled: Manager only (no capability), at offer, with an accepted
+ * decision and an offer the parent accepted. A null grade band (from the
+ * database) means the grade has no student ID classification, which the
+ * RPC refuses, so the button is shown disabled with the reason. */
+export function enrolState(
+  role: Role,
+  stage: string,
+  decisionType: string | null,
+  offer: OfferState,
+  gradeBand: string | null,
+): EnrolState {
+  if (role !== "Manager" || stage !== "offer" || decisionType !== "accepted") return "hidden";
+  if (offer?.effectiveResponse !== "accepted") return "hidden";
+  return gradeBand === null ? "blocked_by_grade" : "available";
+}
+
+/** correct_application_grade: Manager only, an unrecognised grade (no band),
+ * not enrolled. */
+export function canCorrectGrade(role: Role, stage: string, gradeBand: string | null): boolean {
+  return role === "Manager" && gradeBand === null && stage !== "enrolled";
+}
+
+/** Documents to warn about before enrolment: every one not approved. A
+ * warning only; enrolment doesn't depend on documents. */
+export function documentsNotApproved<T extends { status: string }>(documents: T[]): T[] {
+  return documents.filter((d) => d.status !== "approved");
+}
+
+/** The list's empty state. An officer sees only their assigned grades, so an
+ * empty unfiltered list says so, without saying whether anything exists
+ * outside them. */
+export function emptyListMessage(role: Role, isFiltered: boolean): string {
+  if (isFiltered) return "No applications match.";
+  if (role === "Admissions Officer") {
+    return "No applications in your assigned grades. A Manager sets your admissions access in Settings.";
+  }
+  return "No applications yet.";
+}
