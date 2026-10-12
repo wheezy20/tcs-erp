@@ -4793,6 +4793,27 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _require_admissions_year_manager: {
+        Args: never
+        Returns: {
+          active: boolean
+          branch_id: string
+          created_at: string
+          email: string
+          employee_id: string | null
+          id: string
+          name: string
+          protected: boolean
+          role: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _settle_offer_expiry: {
         Args: { p_application_id: string }
         Returns: boolean
@@ -4806,6 +4827,21 @@ export type Database = {
         Returns: string
       }
       account_id_by_code: { Args: { p_code: string }; Returns: string }
+      add_admissions_academic_year: {
+        Args: { p_label: string }
+        Returns: {
+          created_at: string
+          is_active: boolean
+          label: string
+          position: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "admissions_academic_years"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       add_application_note: {
         Args: { p_application_id: string; p_content: string }
         Returns: {
@@ -6866,6 +6902,21 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "journal_entries"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_admissions_academic_year_active: {
+        Args: { p_active: boolean; p_label: string }
+        Returns: {
+          created_at: string
+          is_active: boolean
+          label: string
+          position: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "admissions_academic_years"
           isOneToOne: true
           isSetofReturn: false
         }

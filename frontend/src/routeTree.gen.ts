@@ -34,6 +34,7 @@ import { Route as AccountingProfitLossRouteImport } from './routes/accounting.pr
 import { Route as AccountingTrialBalanceRouteImport } from './routes/accounting.trial-balance'
 import { Route as AdmissionsIndexRouteImport } from './routes/admissions/index'
 import { Route as AdmissionsApplicationIdRouteImport } from './routes/admissions/$applicationId'
+import { Route as AdmissionsSettingsRouteImport } from './routes/admissions/settings'
 import { Route as BankingIndexRouteImport } from './routes/banking.index'
 import { Route as BankingHistoryRouteImport } from './routes/banking.history'
 import { Route as BankingReconcileRouteImport } from './routes/banking.reconcile'
@@ -200,6 +201,11 @@ const AdmissionsIndexRoute = AdmissionsIndexRouteImport.update({
 const AdmissionsApplicationIdRoute = AdmissionsApplicationIdRouteImport.update({
   id: '/$applicationId',
   path: '/$applicationId',
+  getParentRoute: () => AdmissionsRouteRoute,
+} as any)
+const AdmissionsSettingsRoute = AdmissionsSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AdmissionsRouteRoute,
 } as any)
 const BankingIndexRoute = BankingIndexRouteImport.update({
@@ -437,6 +443,7 @@ export interface FileRoutesByFullPath {
   '/accounting/profit-loss': typeof AccountingProfitLossRoute
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
   '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
+  '/admissions/settings': typeof AdmissionsSettingsRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
@@ -494,6 +501,7 @@ export interface FileRoutesByTo {
   '/accounting/profit-loss': typeof AccountingProfitLossRoute
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
   '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
+  '/admissions/settings': typeof AdmissionsSettingsRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
@@ -563,6 +571,7 @@ export interface FileRoutesById {
   '/accounting/profit-loss': typeof AccountingProfitLossRoute
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
   '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
+  '/admissions/settings': typeof AdmissionsSettingsRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
   '/customer-deposits/$depositId': typeof CustomerDepositsDepositIdRoute
@@ -633,6 +642,7 @@ export interface FileRouteTypes {
     | '/accounting/profit-loss'
     | '/accounting/trial-balance'
     | '/admissions/$applicationId'
+    | '/admissions/settings'
     | '/banking/history'
     | '/banking/reconcile'
     | '/customer-deposits/$depositId'
@@ -690,6 +700,7 @@ export interface FileRouteTypes {
     | '/accounting/profit-loss'
     | '/accounting/trial-balance'
     | '/admissions/$applicationId'
+    | '/admissions/settings'
     | '/banking/history'
     | '/banking/reconcile'
     | '/customer-deposits/$depositId'
@@ -758,6 +769,7 @@ export interface FileRouteTypes {
     | '/accounting/profit-loss'
     | '/accounting/trial-balance'
     | '/admissions/$applicationId'
+    | '/admissions/settings'
     | '/banking/history'
     | '/banking/reconcile'
     | '/customer-deposits/$depositId'
@@ -1008,6 +1020,13 @@ declare module '@tanstack/react-router' {
       path: '/$applicationId'
       fullPath: '/admissions/$applicationId'
       preLoaderRoute: typeof AdmissionsApplicationIdRouteImport
+      parentRoute: typeof AdmissionsRouteRoute
+    }
+    '/admissions/settings': {
+      id: '/admissions/settings'
+      path: '/settings'
+      fullPath: '/admissions/settings'
+      preLoaderRoute: typeof AdmissionsSettingsRouteImport
       parentRoute: typeof AdmissionsRouteRoute
     }
     '/banking/': {
@@ -1302,11 +1321,13 @@ declare module '@tanstack/react-router' {
 
 interface AdmissionsRouteRouteChildren {
   AdmissionsApplicationIdRoute: typeof AdmissionsApplicationIdRoute
+  AdmissionsSettingsRoute: typeof AdmissionsSettingsRoute
   AdmissionsIndexRoute: typeof AdmissionsIndexRoute
 }
 
 const AdmissionsRouteRouteChildren: AdmissionsRouteRouteChildren = {
   AdmissionsApplicationIdRoute: AdmissionsApplicationIdRoute,
+  AdmissionsSettingsRoute: AdmissionsSettingsRoute,
   AdmissionsIndexRoute: AdmissionsIndexRoute,
 }
 

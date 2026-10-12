@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) built uncommitted; 7b2 (admin screens) not started. The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) built uncommitted. The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -37,8 +37,8 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 6a | Decisions and capacity (staff side) | committed (5c56735) and applied on hosted | 5 |
 | 6b | Offers, enrolment gate, student IDs (staff side) | committed (6c1f014) and applied on hosted | 6a |
 | 7a | Staff pipeline UI: list, detail, notes, documents, health panel | applied on hosted, frontend deployed (2026-10-12) | 6b |
-| 7b1 | Detail page actions: decision, offer, enrolment, grade correction | built uncommitted | 7a |
-| 7b2 | Admin screens: academic years, capacity, offer expiry, campus rules | not started | 7b1 |
+| 7b1 | Detail page actions: decision, offer, enrolment, grade correction | committed (f04a336) | 7a |
+| 7b2 | Admin screens: academic years, capacity, offer expiry, campus rules | built uncommitted | 7b1 |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | not started | 7b |
 | 9 | Public Application form: direct submit, uploads, matching, rules | not started | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
@@ -768,19 +768,32 @@ Slice 7a built 2026-10-12. Migrations applied on hosted and the frontend deploye
 
 ### 7b2: Admin screens at `/admissions/settings`
 
-**Delivers (planned):**
+**Delivers:**
 
-- A Manager and Auditor sidebar item. The Auditor gets read-only screens.
-- **Academic years:**
-  - `add_admissions_academic_year` and `set_admissions_academic_year_active` (retire and reactivate), Manager only. No rename.
-  - Audited as `admissions_academic_year_changed`. The action is already in the CHECK from 7b1, so 7b2 adds only the trigger and leaves the CHECK untouched.
-- **Capacity:** create, change and delete (the 6a RPCs).
-  - `create_admissions_capacity` refuses a year that isn't active on the list, with the same signature.
-  - Existing rows for an unlisted year stay untouched. The screen flags them and still allows changing the figure or deleting the row.
-- **Offer expiry:** `set_admissions_offer_ttl_days` (1 to 90).
-- **Campus grade rules:** a read-only display.
+- Migration `20261018110000_admissions_academic_years_write.sql`:
+  - `add_admissions_academic_year(p_label text)`: Manager only. Returns the new row. Label trimmed and validated as YYYY/YYYY consecutive years (same rule as the table CHECK). Database assigns `position` as max+1 under a share row exclusive table lock. Duplicates (active or retired, padded or not) refused with message "That academic year is already on the list".
+  - `set_admissions_academic_year_active(p_label text, p_active boolean)`: Manager only. Retire or reactivate; no rename, no delete. Refuses unknown year, null flag, and no change.
+  - Helper `_require_admissions_year_manager()` runs first, before any argument is read, so every non-Manager gets the same error message regardless of input.
+  - Trigger `admissions_academic_years_audit` (after insert or update of `is_active`, signed-in actor only): fires `audit_admissions_academic_year()`, action `admissions_academic_year_changed`, entity_id is the label, branch is the actor's campus.
+  - `create_admissions_capacity` (same signature as 6a, create or replace): now refuses a year not active on the list with message "The academic year must be an active year on the academic year list". Takes FOR SHARE on the year row so it cannot be retired between check and insert. Existing capacity rows for an unlisted or retired year are untouched and remain editable and deletable. Consequence: a new capacity year must match the list format, so the old 50-character free text case can no longer be created.
+  - Grants: revoked from public and anon; the two RPCs granted to authenticated and service_role; helper and trigger function have no grant. Anon-executable count stays 169. No new table, policy or permission.
+- Frontend: `/admissions/settings` (thin route `routes/admissions/settings.tsx` and full component `modules/admissions/components/settings-page.tsx`). Sidebar item "Admissions Settings" for Manager and Auditor. Sections: Academic years (list, add, retire, reactivate); Offer expiry (show and edit `offer_ttl_days` via `set_admissions_offer_ttl_days`); Capacity (list, add, change, delete via the three 6a RPCs; rows whose year is retired or not on the list are flagged but still editable and deletable; add offers only active years); Campus grade rules (read only). Manager writes; Auditor sees no write controls and a Read-only badge. Officer, Attendant and Accountant get the role-blocked panel (new extracted component `role-blocked-panel.tsx`, also used by `/admissions` layout) and nothing is queried. New pure rules: `canViewAdmissionsSettings` and `canEditAdmissionsSettings` in `permissions.ts`. New helpers: `yearStatus`, `capacityYearOptions`, `parseWholeNumber`, `campusGradeSummary` in `settings-rules.ts` with `settings-rules.test.ts`. New `data/settings.ts` (explicit column selects) and six mutation wrappers in `data/mutations.ts`. `database.types.ts` regenerated (additive).
+- Probes: new `20261018110000_admissions_academic_years_write.sql` (A1 to A13, C1 to C5) and `_structure.sql` (S1 to S7). Changed on purpose: `20261015100000_admissions_decisions_capacity_capacity.sql` V6d and V7 setups insert 2028/2029 and 2030/2031 into the year list; V7's 50-character year case moved to the new file's C1 as a refusal. No other probe changed.
 
-**Carry-forward:** slices 8 and 9 validate the submitted year against the academic year list.
+**Verification:**
+
+- Baseline before the first edit (HEAD f04a336, fresh reset): overload check clean, types identical, anon count 169. After the build (test-runner): db reset and dev staff ok, overload check clean, types regen identical, anon count 169; six role-matrix files green (the two new files, 6a capacity and 6a structure, 7a academic years, 7b1 grade correction structure whose S2 shows the audit list still exactly 37); npm test 39 tests pass; tsc clean; lint 0 errors 13 warnings (same as baseline); build ok; no `select("*")` or `token_hash` in the admissions module; no service role key in `frontend/src`; nothing staged. Golden payroll suite skipped (audit CHECK and nothing payroll related changed).
+- Six deliberate breaks, all caught, each on a fresh reset against only its probe file: no Manager check on add (A1 to A5 mismatched), unlisted year accepted by capacity (C1, C2), retired year accepted (C2), anon granted execute on add (S1, S7), audit trigger dropped (structure S3; behaviour A10, A11), and Auditor allowed to edit in `canEditAdmissionsSettings` (unit test failed). None dropped.
+- Races: none tested by plan (simple writes).
+- Code-reviewer: no blocking findings. Non-blocking notes: unused v_staff variables; the 50-character length check in capacity create is now only reachable by labels the list check refuses anyway (kept so its message is unchanged); hard-coded "1 to 90" and maxLength copies in the UI; the null campus cast in the capacity wrapper.
+- Browser walk-through: not done.
+
+**Outstanding:**
+
+- Eyram's review before commit.
+- After commit: Eyram's production steps (`npx supabase db push`, then `frontend/scripts/deploy-production.sh`).
+
+**Carry-forward:** slices 8 and 9 validate the submitted year against the academic year list. The list is now written only through the two Manager RPCs; years are retired rather than deleted or renamed; capacity creation requires an active listed year while older rows stay editable.
 
 **Not included:** accepted versus capacity counts (deferred), email (slice 12).
 

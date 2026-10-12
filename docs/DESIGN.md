@@ -979,6 +979,20 @@ Rules:
   pure-move refactor slice, once a second module needs it. Stray admissions
   files outside the module (`data/admissions-capabilities-store.ts`,
   `components/settings/admissions-access-dialog.tsx`) move then too.
+- **Admissions academic year list: curated entries, retired not deleted
+  (slice 7b2, `20261018110000`).**  The table `admissions_academic_years`
+  holds a school-managed list of academic years available for applications,
+  marked active or retired. New years are added only through
+  `add_admissions_academic_year(p_label text)` (Manager only), which
+  validates the format (YYYY/YYYY, consecutive years), applies a share row
+  exclusive lock to prevent duplicates, and assigns `position` as max+1.
+  `set_admissions_academic_year_active(p_label text, p_active boolean)`
+  (Manager only) retires or reactivates a year; renaming and deletion are
+  not permitted. `create_admissions_capacity` requires a year that is both
+  listed and active; existing capacity rows for a retired or unlisted year
+  stay editable and deletable (the UI flags them). Auditing happens through
+  `admissions_academic_years_audit()`, triggered after active-status updates.
+  Slices 8 and 9 validate submitted years against the list.
 - **Admissions lint rules.** `eslint.config.js` makes `select("*")` and
   any `token_hash` literal an error under `src/modules/admissions/`. It's
   best-effort (a computed string evades it), so reviews still grep.

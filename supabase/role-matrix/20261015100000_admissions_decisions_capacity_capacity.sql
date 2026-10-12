@@ -243,21 +243,28 @@ end $$;
 -- expect: Manager
 insert into public.admissions_capacity (id, academic_year, grade_id, branch_id, capacity) values ('9e060000-0000-4000-8000-000700000001', '2027/2028', (select id from public.admissions_grades where name = 'Grade 3'), null, 5);
 insert into public.admissions_capacity (id, academic_year, grade_id, branch_id, capacity) values ('9e060000-0000-4000-8000-000700000002', '2027/2028', (select id from public.admissions_grades where name = 'Grade 3'), '00000000-0000-0000-0000-000000000001', 5);
+-- From 7b2 (20261018110000) the year must be active on the list.
+insert into public.admissions_academic_years (label, position) values ('2028/2029', 3);
 -- as role:
 select public.create_admissions_capacity('2027/2028', (select id from public.admissions_grades where name = 'Grade 3'), '00000000-0000-0000-0000-000000000002', 5);
 select public.create_admissions_capacity('2027/2028', (select id from public.admissions_grades where name = 'Grade 4'), null, 5);
 select public.create_admissions_capacity('2028/2029', (select id from public.admissions_grades where name = 'Grade 3'), null, 5);
 
--- probe: V7 year stored trimmed; 50 characters, 0 and 100000 accepted
+-- probe: V7 year stored trimmed; 0 and 100000 accepted
 -- expect: Manager
+-- From 7b2 (20261018110000) the year must be active on the list, so a
+-- 50-character year can no longer be created (the list's format refuses
+-- it); 7b2's own probes cover that refusal.
+insert into public.admissions_academic_years (label, position) values ('2030/2031', 3);
+-- as role:
 select public.create_admissions_capacity('  2030/2031  ', (select id from public.admissions_grades where name = 'Grade 3'), null, 0);
-select public.create_admissions_capacity('yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy', (select id from public.admissions_grades where name = 'Grade 3'), null, 100000);
+select public.create_admissions_capacity('2027/2028', (select id from public.admissions_grades where name = 'Grade 3'), null, 100000);
 reset role;
 do $$
 declare
   r jsonb := current_setting('t.r', true)::jsonb;
 begin
-  if not coalesce((exists (select 1 from public.admissions_capacity where academic_year = '2030/2031' and capacity = 0) and exists (select 1 from public.admissions_capacity where char_length(academic_year) = 50 and capacity = 100000)), false) then raise exception 'year not trimmed or boundary refused'; end if;
+  if not coalesce((exists (select 1 from public.admissions_capacity where academic_year = '2030/2031' and capacity = 0) and exists (select 1 from public.admissions_capacity where academic_year = '2027/2028' and capacity = 100000)), false) then raise exception 'year not trimmed or boundary refused'; end if;
 end $$;
 
 -- probe: V7b the created row is returned

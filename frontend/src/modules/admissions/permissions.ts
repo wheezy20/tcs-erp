@@ -291,3 +291,17 @@ export function emptyListMessage(role: Role, isFiltered: boolean): string {
   }
   return "No applications yet.";
 }
+
+// ------------------------------------------------------------ settings screen
+
+/** /admissions/settings: Manager and Auditor only. Capacity and the offer
+ * expiry are readable by those two roles only (RLS), so an officer never
+ * reaches the page and nothing is queried for them. */
+export function canViewAdmissionsSettings(role: Role): boolean {
+  return role === "Manager" || role === "Auditor";
+}
+
+/** Every settings write RPC is Manager only; the Auditor reads. */
+export function canEditAdmissionsSettings(role: Role): boolean {
+  return role === "Manager";
+}

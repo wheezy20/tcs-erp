@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-// The admissions write RPCs (slices 5, 6a, 6b and 7b1). Each one re-checks
+// The admissions write RPCs (slices 5, 6a, 6b, 7b1 and 7b2). Each one re-checks
 // role, scope and stage under a row lock and raises a plain message on
 // refusal; callers show that message as-is through getErrorMessage().
 // Nothing here decides anything.
@@ -155,5 +155,54 @@ export async function correctApplicationGrade(
     p_application_id: applicationId,
     p_grade_id: gradeId,
   });
+  if (error) throw error;
+}
+
+// ------------------------------------------------------------ settings (Manager only)
+
+export async function addAcademicYear(label: string): Promise<void> {
+  const { error } = await supabase.rpc("add_admissions_academic_year", { p_label: label });
+  if (error) throw error;
+}
+
+export async function setAcademicYearActive(label: string, active: boolean): Promise<void> {
+  const { error } = await supabase.rpc("set_admissions_academic_year_active", {
+    p_label: label,
+    p_active: active,
+  });
+  if (error) throw error;
+}
+
+/** A null campus means the figure isn't campus specific. */
+export async function createCapacity(
+  academicYear: string,
+  gradeId: string,
+  branchId: string | null,
+  capacity: number,
+): Promise<void> {
+  const { error } = await supabase.rpc("create_admissions_capacity", {
+    p_academic_year: academicYear,
+    p_grade_id: gradeId,
+    p_branch_id: branchId as unknown as string,
+    p_capacity: capacity,
+  });
+  if (error) throw error;
+}
+
+export async function updateCapacity(id: string, capacity: number): Promise<void> {
+  const { error } = await supabase.rpc("update_admissions_capacity", {
+    p_id: id,
+    p_capacity: capacity,
+  });
+  if (error) throw error;
+}
+
+export async function deleteCapacity(id: string): Promise<void> {
+  const { error } = await supabase.rpc("delete_admissions_capacity", { p_id: id });
+  if (error) throw error;
+}
+
+export async function setOfferTtlDays(days: number): Promise<void> {
+  const { error } = await supabase.rpc("set_admissions_offer_ttl_days", { p_days: days });
   if (error) throw error;
 }

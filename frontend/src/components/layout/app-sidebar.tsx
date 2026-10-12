@@ -27,7 +27,7 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { canViewFinancials, isAdmissionsOfficer, useAuth } from "@/data/auth-store";
-import { canViewAdmissions } from "@/modules/admissions/permissions";
+import { canViewAdmissions, canViewAdmissionsSettings } from "@/modules/admissions/permissions";
 
 type NavItem = { title: string; url: string; icon: LucideIcon };
 
@@ -64,7 +64,10 @@ export const navSections: { key: string; label: string; dormant?: boolean; items
   {
     key: "admissions",
     label: "Admissions",
-    items: [{ title: "Applications", url: "/admissions", icon: GraduationCap }],
+    items: [
+      { title: "Applications", url: "/admissions", icon: GraduationCap },
+      { title: "Admissions Settings", url: "/admissions/settings", icon: Settings },
+    ],
   },
   {
     key: "stores",
@@ -105,6 +108,10 @@ const FINANCE_GATED_URLS = new Set([
 // guards the pages, RLS the data); hidden from Attendant and Accountant.
 const ADMISSIONS_GATED_URLS = new Set(["/admissions"]);
 
+// Manager and Auditor only (modules/admissions/components/settings-page.tsx
+// blocks every other role, RLS the data).
+const ADMISSIONS_SETTINGS_URLS = new Set(["/admissions/settings"]);
+
 export function AppSidebar({
   collapsed,
   onToggle,
@@ -118,19 +125,26 @@ export function AppSidebar({
   const { staff: currentStaff } = useAuth();
   const canViewGated = canViewFinancials(currentStaff?.role);
   const canViewAdmissionsSection = canViewAdmissions(currentStaff?.role);
+  const canViewAdmissionsSettingsItem = canViewAdmissionsSettings(currentStaff?.role);
   // Read-only roles for the operational POS screens: routes/pos.tsx blocks
   // both from Checkout/Returns, so the nav link points them at Sales
   // history instead of the Checkout screen they'd land on and bounce off.
   const posReadOnly = currentStaff?.role === "Auditor" || currentStaff?.role === "Accountant";
   const [storesOpen, setStoresOpen] = useState(false);
 
+  // Applications stays unhighlighted on Admissions Settings, its sibling item.
   const isActive = (url: string) =>
-    url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(`${url}/`);
+    url === "/"
+      ? pathname === "/"
+      : url === "/admissions" && pathname.startsWith("/admissions/settings")
+        ? false
+        : pathname === url || pathname.startsWith(`${url}/`);
 
   const visibleItems = (items: NavItem[]) =>
     items
       .filter((item) => !FINANCE_GATED_URLS.has(item.url) || canViewGated)
       .filter((item) => !ADMISSIONS_GATED_URLS.has(item.url) || canViewAdmissionsSection)
+      .filter((item) => !ADMISSIONS_SETTINGS_URLS.has(item.url) || canViewAdmissionsSettingsItem)
       .map((item) =>
         item.url === "/pos" && posReadOnly ? { ...item, url: "/pos/history" } : item,
       );
