@@ -4468,3 +4468,8 @@ Slice 7a built 2026-10-12, uncommitted, awaiting Eyram's review.
 
 **Outstanding for Eyram:** review slice 7a. After commit, production steps are Eyram's: `npx supabase db push` (the two migrations; before the frontend deploy, since the list needs the view), then `frontend/scripts/deploy-production.sh`. No hosted seed or hand step; demo rows are local only.
 
+## 2026-10-12: Admissions slice 7a applied on hosted and deployed
+
+- Migrations 20261017100000 and 20261017110000 applied on hosted: Eyram's `npx supabase migration list` shows 20261017100000 and 20261017110000 on both Local and Remote.
+- The 7a frontend was deployed on 2026-10-12.
+- Slices 6a and 6b are also applied on hosted (same migration list output on 2026-10-12: 20261015100000 and 20261016100000 on both Local and Remote).

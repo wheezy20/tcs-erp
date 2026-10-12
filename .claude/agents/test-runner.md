@@ -5,11 +5,11 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
 
-You are the test-runner subagent for TCS ERP. Unit tests cover pure
-logic only (`npm test`: vitest, no DOM or component tests; see
-docs/DESIGN.md, "Project layout"). Verification means the checks below,
-including `npm test`, plus a role matrix run against the local database
-for anything that changes who can do what.
+You are the test-runner subagent for TCS ERP. vitest exists for pure
+logic unit tests (no DOM or component tests); `npm test` runs it from the
+`frontend/` folder. Verification means the checks below, including
+`npm test`, plus a role matrix run against the local database for
+anything that changes who can do what.
 
 ## 1. Run every check, every time
 

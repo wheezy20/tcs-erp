@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a and 6b built and committed; slice 7a built, awaiting Eyram's review (uncommitted); the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12; the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -36,7 +36,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 5 | Reference numbering + stage transitions + notes/document review RPCs | committed (admissions 5, 8b9c1d4) | 4 |
 | 6a | Decisions and capacity (staff side) | committed (5c56735) and applied on hosted | 5 |
 | 6b | Offers, enrolment gate, student IDs (staff side) | committed (6c1f014) and applied on hosted | 6a |
-| 7a | Staff pipeline UI: list, detail, notes, documents, health panel | built, awaiting Eyram's review (uncommitted) | 6b |
+| 7a | Staff pipeline UI: list, detail, notes, documents, health panel | applied on hosted, frontend deployed (2026-10-12) | 6b |
 | 7b | Staff pipeline UI: decision/offer/enrol actions, capacity, capability admin | not started | 7a |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | not started | 7b |
 | 9 | Public Application form: direct submit, uploads, matching, rules | not started | 8 |
@@ -701,7 +701,7 @@ An expired offer is probed as a refusal plus `effective_response = 'expired'`: a
 
 ## Slice 7a — Staff pipeline UI: list, detail, notes, documents, health panel
 
-Slice 7a built 2026-10-12, uncommitted, awaiting Eyram's review.
+Slice 7a built 2026-10-12. Migrations applied on hosted and the frontend deployed on 2026-10-12. Evidence: Eyram's `npx supabase migration list` shows 20261017100000 and 20261017110000 on both Local and Remote.
 
 **Delivers:**
 
