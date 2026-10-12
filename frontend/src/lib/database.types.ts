@@ -4518,6 +4518,11 @@ export type Database = {
         }
         Returns: string
       }
+      _admissions_capacity_warning: {
+        Args: { p_application_id: string; p_reveal_figures: boolean }
+        Returns: string
+      }
+      _admissions_grade_id: { Args: { p_grade: string }; Returns: string }
       _admissions_reference_year: { Args: { p_at?: string }; Returns: number }
       _admissions_sequence_text: { Args: { p_seq: number }; Returns: string }
       _employee_import_check: { Args: { p_rows: Json }; Returns: Json }
@@ -4535,6 +4540,10 @@ export type Database = {
         Returns: string
       }
       _next_admissions_sequence: { Args: { p_key: string }; Returns: number }
+      _offer_effective_response: {
+        Args: { p_expires_at: string; p_response: string }
+        Returns: string
+      }
       _payroll_run_unaccounted: {
         Args: { p_run_id: string }
         Returns: {
@@ -4576,6 +4585,27 @@ export type Database = {
       _provision_bank_gl_account: {
         Args: { p_bank_name: string; p_created_by?: string }
         Returns: string
+      }
+      _require_admissions_decider: {
+        Args: never
+        Returns: {
+          active: boolean
+          branch_id: string
+          created_at: string
+          email: string
+          employee_id: string | null
+          id: string
+          name: string
+          protected: boolean
+          role: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       _require_admissions_writer: {
         Args: never
@@ -4873,6 +4903,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      change_decision: {
+        Args: {
+          p_application_id: string
+          p_decision_type: string
+          p_notes: string
+        }
+        Returns: Json
+      }
       clear_statement_line: {
         Args: { p_line_id: string; p_note?: string }
         Returns: {
@@ -5088,6 +5126,27 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "accounts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_admissions_capacity: {
+        Args: {
+          p_academic_year: string
+          p_branch_id: string
+          p_capacity: number
+          p_grade_id: string
+        }
+        Returns: {
+          academic_year: string
+          branch_id: string | null
+          capacity: number
+          grade_id: string
+          id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "admissions_capacity"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -5557,6 +5616,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      delete_admissions_capacity: { Args: { p_id: string }; Returns: undefined }
       delete_payslip: { Args: { p_payslip_id: string }; Returns: undefined }
       delete_product: { Args: { p_id: string }; Returns: undefined }
       discard_draft_document: {
@@ -6367,6 +6427,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      record_decision: {
+        Args: {
+          p_application_id: string
+          p_decision_type: string
+          p_notes: string
+        }
+        Returns: Json
+      }
       record_document_acceptance: {
         Args: { p_document_id: string; p_signature_name: string }
         Returns: undefined
@@ -6926,6 +6994,22 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "bank_statement_lines"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_admissions_capacity: {
+        Args: { p_capacity: number; p_id: string }
+        Returns: {
+          academic_year: string
+          branch_id: string | null
+          capacity: number
+          grade_id: string
+          id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "admissions_capacity"
           isOneToOne: true
           isSetofReturn: false
         }

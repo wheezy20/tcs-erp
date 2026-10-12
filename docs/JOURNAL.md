@@ -4360,3 +4360,29 @@ Slice 5 built 2026-10-11, uncommitted. Delivers reference numbering (INQ and APP
 
 **Outstanding for Eyram:** review the slice. The production step after review is `npx supabase db push` (Eyram's to run); no seed or frontend change.
 
+
+---
+
+## 2026-10-12: Admissions slice 6a, decisions and capacity (staff side)
+
+Slice 6 split into 6a (decisions and capacity) and 6b (offers, enrolment gate, student IDs). 6a built, uncommitted, awaiting Eyram's review. 6b not started.
+
+**Migration** `20261015100000_admissions_decisions_capacity.sql`, 11 new functions, no existing function, policy or table grant changed:
+- `application_offers.response` gains `withdrawn` (D-6j, changed from the recommendation of reusing `expired`). A withdrawn offer counts like a declined one.
+- Helpers with no grant: `_require_admissions_decider()` (the slice 5 writer guard, then the decide capability), `_admissions_grade_id()`, `_offer_effective_response()` (a pending offer strictly past `expires_at` reads as expired, using `clock_timestamp()` because `now()` goes stale after a lock wait), `_admissions_capacity_warning()`.
+- `record_decision` creates the one decision and refuses when one exists; `change_decision` changes it and refuses when none exists or nothing changes (D-6k). Both need can_decide, held explicitly by a Manager too, and scope for an officer; checks run role, capability, scope, then again under the application row lock. Both refuse at inquiry or enrolled (D-6f). waitlisted and rejected move the stage; accepted never does. When `change_decision` takes a decision away from accepted, a pending offer is withdrawn and an offer the parent accepted blocks the change.
+- Capacity warning, returned to both a Manager and an officer when the resulting decision is accepted: strictly greater than the capacity, null-safe campus match, leaving out `offer_declined` applications and offers declined, withdrawn or past expiry (D-6c). Only the Manager's text carries figures. It never blocks.
+- Manager-only `create_admissions_capacity`, `update_admissions_capacity` (figure only), `delete_admissions_capacity`.
+- Audit by trigger, signed-in actor only: `application_decision_changed` (decision type set or changed; not on a notes-only edit) and `admissions_capacity_changed`. The action list goes from 31 to 33.
+
+**Decisions (2026-10-12):** D-6a to D-6i and D-6k to D-6p as recommended (see PORT-PLAN's consolidated table); D-6j changed to `withdrawn`. No document gate for offers or enrolment; 7b lists unapproved documents as a warning. D-6g keeps the enrolment calendar year, with an open question: do the real current TCS student IDs follow YYPPNNNN, and which year did they use? D-6h refuses enrolment for an unbanded or legacy grade, with a 7b carry-forward for a Manager-only grade-correction RPC. PORT-PLAN's migrated-data wording dropped (nothing is imported from TCS OS).
+
+**Probes:** `20261015100000_admissions_decisions_capacity_structure.sql` (28), `_decisions.sql` (80), `_capacity.sql` (72), 180 in all. One intended change to an earlier file: slice 5 structure probe A5 now checks the audit list still contains its 31 values; the newest slice's structure file pins the exact list (33 here). No 3b probe listed the offer response values, so no 3b file changed. Probe S13 checks the source of `record_decision` and `change_decision` for the application row lock and the scope re-check under it, which no single-session behaviour probe can see.
+
+**Verification:** baseline at HEAD 8b9c1d4 on a fresh reset: 22 probe files and the golden suite green, anon-executable count 169. After the build: db reset, duplicate-overload check, lint (0 errors, 13 warnings), tsc and build pass; types regen additive; all 25 probe files and the golden suite green, the 22 earlier files' output unchanged; anon-executable count 169. 45 deliberate breaks, all caught except equivalent mutants (`clock_timestamp()` with `>=`, and dropping the anon or authenticated revoke while the PUBLIC revoke stays). Two gaps closed: a probe helper that passed on NULL, and a missing lock or under-lock re-check (probe S13, also shown by races).
+
+**Races (local):** two `record_decision` calls: the second waited, then was refused; one decision, one audit row. Two `change_decision` calls serialized, two audit rows. A scope change held under lock made a waiting officer's `record_decision` fail with "Application not found". `change_decision` against an offer being accepted by a raw write: accept first, the change is refused; change first, the offer is withdrawn, but an unguarded raw write could still set it to accepted. So 6b's accept paths must lock the application, then the offer, and re-check pending, expiry and the accepted decision under the lock (recorded as a 6b carry-forward).
+
+**code-reviewer:** no blocking findings. Noted, not changed: the warning can undercount when two applications for the same year, grade and campus are accepted at the same moment (a soft warning; a capacity row lock would make it exact); the 3b identity trigger re-stamps `decided_by` and `decided_at` on a notes-only edit, so `decided_at` means last changed; the branch-null audit skip is unreachable because `staff.branch_id` is not null; an accepted decision can sit on a waitlisted or rejected stage (TCS OS parity; 6b's `generate_offer` allows those stages).
+
+**Outstanding for Eyram:** review 6a. After commit, `npx supabase db push`; then on hosted a Manager grants themselves can_decide in Settings, since no migration grants a capability.

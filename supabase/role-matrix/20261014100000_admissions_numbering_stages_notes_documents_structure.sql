@@ -141,13 +141,13 @@ do $$ begin
   end if;
 end $$;
 
--- probe: A5 the audit action list has exactly the 31 values
+-- probe: A5 the audit action list still holds all 31 slice 5 values (the newest slice pins the exact list)
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
-  if (select array_agg(m[1] order by m[1]) from pg_constraint c,
+  if not coalesce((select array_agg(m[1] order by m[1]) from pg_constraint c,
         regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_]+)''::text', 'g') m
       where c.conname = 'audit_log_action_check')
-     is distinct from array['admissions_capabilities_changed', 'application_document_status_changed', 'application_stage_changed', 'discount_applied', 'employee_approved', 'employee_created', 'employee_reactivated', 'employee_rejected', 'employee_suspended', 'employees_imported', 'expense_voided', 'invoice_voided', 'pay_config_amended_and_approved', 'pay_config_approved', 'pay_config_exemptions_changed', 'pay_config_proposed', 'pay_config_rejected', 'payroll_run_approved', 'payroll_run_exclusion_added', 'payroll_run_exclusion_removed', 'payroll_run_rejected', 'payroll_run_submitted', 'return_processed', 'sale_voided', 'staff_advance_approved', 'staff_advance_change_approved', 'staff_advance_change_proposed', 'staff_advance_change_rejected', 'staff_advance_proposed', 'staff_advance_rejected', 'vat_override'] then
+     @> array['admissions_capabilities_changed', 'application_document_status_changed', 'application_stage_changed', 'discount_applied', 'employee_approved', 'employee_created', 'employee_reactivated', 'employee_rejected', 'employee_suspended', 'employees_imported', 'expense_voided', 'invoice_voided', 'pay_config_amended_and_approved', 'pay_config_approved', 'pay_config_exemptions_changed', 'pay_config_proposed', 'pay_config_rejected', 'payroll_run_approved', 'payroll_run_exclusion_added', 'payroll_run_exclusion_removed', 'payroll_run_rejected', 'payroll_run_submitted', 'return_processed', 'sale_voided', 'staff_advance_approved', 'staff_advance_change_approved', 'staff_advance_change_proposed', 'staff_advance_change_rejected', 'staff_advance_proposed', 'staff_advance_rejected', 'vat_override'], false) then
     raise exception 'audit action list wrong';
   end if;
 end $$;

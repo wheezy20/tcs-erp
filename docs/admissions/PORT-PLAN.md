@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5 built (5 awaiting Eyram's review, uncommitted); the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
+**Status:** slices 0 to 5 built and committed; slice 6 is split into 6a (built, awaiting Eyram's review, uncommitted) and 6b (not started); the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -18,7 +18,7 @@ The plan runs in three stretches:
 
 Public writes that need a secret (the Turnstile check, rate limiting, signed upload URLs) go through one Supabase Edge Function. The database functions behind it are service-role-only, so `anon` can't call them directly. Email is an outbox table written in the same transaction as the record, drained asynchronously by an Edge Function that pg_cron and pg_net trigger.
 
-At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's public routes use TCS OS's exact paths (`/inquiry`, `/apply`, `/offer`, `/api/admissions/unsubscribe/<token>/`), so every link already in a parent's inbox keeps resolving, including RFC 8058 one-click POSTs, with no redirect needed. Tokens migrate as SHA-256 hashes of the verbatim TCS OS tokens.
+At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's public routes use TCS OS's exact paths (`/inquiry`, `/apply`, `/offer`, `/api/admissions/unsubscribe/<token>/`), so every link already in a parent's inbox keeps resolving, including RFC 8058 one-click POSTs, with no redirect needed. Nothing is imported from TCS OS: its applications, inquiries, offers and drafts are all test data, so no TCS OS token is carried across.
 
 ## Status
 
@@ -33,18 +33,19 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 3a | Core admissions schema (families, guardians, students, applications, contacts, notes) | committed (admissions 3a) | 2 |
 | 3b | Decisions, offers, capacity, campus grade rules | committed (admissions 3b) | 3a |
 | 4 | Health info, documents metadata, private bucket | committed (admissions 4) | 3b |
-| 5 | Reference numbering + stage transitions + notes/document review RPCs | built, awaiting Eyram's review (uncommitted) | 4 |
-| 6 | Decisions, offers, enrolment gate, capacity warning (staff side) | not started | 5 |
-| 7a | Staff pipeline UI: list, detail, notes, documents, health panel | not started | 6 |
+| 5 | Reference numbering + stage transitions + notes/document review RPCs | committed (admissions 5, 8b9c1d4) | 4 |
+| 6a | Decisions and capacity (staff side) | built, awaiting Eyram's review (uncommitted) | 5 |
+| 6b | Offers, enrolment gate, student IDs (staff side) | not started | 6a |
+| 7a | Staff pipeline UI: list, detail, notes, documents, health panel | not started | 6b |
 | 7b | Staff pipeline UI: decision/offer/enrol actions, capacity, capability admin | not started | 7a |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | not started | 7b |
 | 9 | Public Application form: direct submit, uploads, matching, rules | not started | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
-| 11 | Public offer response page | not started | 8, 6 |
+| 11 | Public offer response page | not started | 8, 6b |
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | not started | 8 (and 6, 9, 10 for the emails it sends) |
 | 13 | Lead capture (marketing-site endpoints) | not started | 8, 12 |
 | 14 | Bulk email + one-click unsubscribe | not started | 12, 13 |
-| 15 | Hand migration of real records, cutover, domain, TCS OS shutdown | not started | all |
+| 15 | Cutover, domain, TCS OS shutdown (nothing is imported) | not started | all |
 
 Slice 0 is independent of admissions and can run first or in parallel.
 
@@ -560,7 +561,7 @@ Select-only RLS on every table for `authenticated`; no write grants or policies 
 
 ## Slice 5 — Reference numbering, stage transitions, notes and document review
 
-**Status:** built, awaiting Eyram's review (uncommitted).
+**Status:** committed (8b9c1d4) and applied on hosted.
 
 **Delivers:** Migration `20261014100000_admissions_numbering_stages_notes_documents.sql`:
 
@@ -612,64 +613,73 @@ An officer holding only `can_decide` or only `can_view_health`, with no bands an
 
 ## Slice 6 — Decisions, offers, the enrolment gate, the capacity warning (staff side)
 
+**Status:** split into 6a and 6b (decided 2026-10-12). 6a built, awaiting Eyram's review (uncommitted). 6b not started.
+
 **Design carry-forwards:**
-- Slice 3b (D-3c): Capacity figures readable by Manager and Auditor only (not Admissions Officers). Write figure-free message or boolean warning to officers, never actual numbers.
-- Slice 5: Reuses _next_admissions_sequence('STUDENT-YY-PP') and _admissions_sequence_text for student IDs (YYPPNNNN). The offer needs-accepted-decision and enrolled needs-decision-and-offer gate is built here.
+- Slice 3b (D-3c): capacity figures are readable by Manager and Auditor only. An officer gets a figure-free warning, never the numbers.
+- Slice 5: student IDs (YYPPNNNN) reuse `_next_admissions_sequence('STUDENT-YY-PP')` and `_admissions_sequence_text` (D-5f). The gate "an offer needs an accepted decision; enrolled needs a decision and an offer" is built here (D-5k). `set_application_stage` never targets offer, offer_declined or enrolled, and never moves out of offer or enrolled, so those stages are reached only through this slice's RPCs.
+- Slice 3a: deletes stay restricted deliberately, because families, students and applications cascade to notes and contacts. No delete RPC for decisions or offers.
 
-**Delivers:**
+**Who may do what (D-2f, D-6d):** the decision and offer RPCs need the decide capability, held explicitly by a Manager too, and an Admissions Officer needs the application in scope (grade bands, or `all_grades`; unbanded and legacy grades only with `all_grades`). Checks run role, then capability, then scope; out of scope and not found give the same error. `mark_enrolled`, the capacity RPCs and the offer TTL setting are Manager only, with no capability needed. Auditor, Attendant and Accountant never write.
 
-- `record_decision(p_application_id, p_decision_type, p_notes)` requires `can_decide`, the grade scope for an Admissions Officer, and a Manager or Admissions Officer role. It updates or inserts the single decision row through an explicit update path rather than an upsert.
-  - A **negative** decision (`waitlisted` or `rejected`) sets the stage to match, unless the stage is `enrolled` (`models.py:418-445`).
-  - `accepted` never moves the stage.
-  - It returns `{capacity_warning: text | null}`. The warning appears when `accepted` and a capacity row exists for (year, grade, campus) and the count of `accepted` decisions for that key exceeds capacity. It never blocks (`admin.py:273-307`).
-- `generate_offer(p_application_id)` requires `can_decide`. In one transaction:
-  1. require an accepted decision (the gate checks `decision_type`, not current stage, so waitlisted → accepted → offer works, `02-stack-and-schema.md:241-250`);
-  2. mint a new 32-byte token and store only its SHA-256 hash (the onboarding pattern);
-  3. set `sent_at` to now and `expires_at` to now plus the offer TTL (D-6a), with `response = 'pending'`;
-  4. set the stage to `offer`;
-  5. return the raw token once. Staff can copy the link, reveal-once as in onboarding, until slice 12 emails it.
-- `reset_offer(p_application_id)` requires `can_decide` and mints a **new** token, killing the old link (D-6b).
-- `_settle_offer_expiry(offer_id)`: if `pending` and `now() > expires_at`, set `expired`, then apply the negative propagation (stage `offer` becomes `offer_declined`, `models.py:484-511`). Every RPC that reads or acts on an offer calls it.
-- Staff read functions expose `effective_response`, computed as expired when pending and past expiry, so a display is never stale even before the settle runs.
-- `mark_enrolled(p_application_id)` is Manager only. Gate: an accepted decision and an accepted offer, after settling expiry (`models.py:306-320`). Then assign `students.student_id` = `YY` + `PP` (classification code from `admissions_grades`, by the grade applied for) + `NNNN`, from counter key `STUDENT-YY-PP`, once per student. If the grade has no code (SHS or free text), **leave it null** and return a warning (`models.py:93-116`).
-- Capacity CRUD RPCs, Manager only.
-- An audit trigger for decisions and offers.
+### 6a: decisions and capacity
 
-**Not included:** the parent-facing respond flow (slice 11), the offer email (slice 12).
+**Delivers:** migration `20261015100000_admissions_decisions_capacity.sql`:
 
-**Carry-forward from slice 3a:** deletes should be restricted deliberately because families, students and applications cascade to notes and contacts.
+- **`application_offers.response`** gains `withdrawn` (D-6j), a change to the 3b check. A withdrawn offer counts like a declined one everywhere.
+- **Helpers (no grant):** `_require_admissions_decider()` (`_require_admissions_writer()`, then the decide capability), `_admissions_grade_id()` (same normalisation as `admissions_grade_band()`), `_offer_effective_response()` (a pending offer strictly past `expires_at` reads as expired, using `clock_timestamp()`; computed, never stored), `_admissions_capacity_warning()`.
+- **`record_decision(p_application_id, p_decision_type, p_notes)`:** creates the single decision and refuses when one exists (D-6k). Refused at inquiry or enrolled (D-6f). waitlisted and rejected move the stage to match; accepted never moves it. Returns `{decision_type, stage, capacity_warning}`.
+- **`change_decision(p_application_id, p_decision_type, p_notes)`:** changes the existing decision and refuses when there is none, when nothing changes, and at inquiry or enrolled. Leaving accepted withdraws a pending offer (response `withdrawn`) and is refused once the parent has accepted the offer; a declined, withdrawn or expired offer is left as it is (D-6j). Returns `{decision_type, stage, offer_withdrawn, capacity_warning}`.
+- **Capacity warning (D-6c, D-6o):** returned when the resulting decision is accepted. It matches the capacity row on exact `academic_year` text, the grade resolved from `year_group_applied_for`, and the campus (a null campus matches only a null-campus row). It counts applications with an accepted decision for that key, leaving out those at `offer_declined` and those whose offer is declined, withdrawn or past its expiry (a deliberate change from TCS OS, which counted every accepted decision). It warns only when the count is strictly greater than the capacity, never at equality; capacity 0 warns on the first acceptance; no capacity row means no warning. It never blocks. A Manager's text gives the figures; an officer's says only that the grade is over its planned capacity.
+- **Capacity RPCs, Manager only:** `create_admissions_capacity` (year trimmed, 1 to 50 characters; grade and campus must exist; 0 to 100,000; a duplicate gets a plain message), `update_admissions_capacity` (the figure only; the year, grade and campus never change), `delete_admissions_capacity`.
+- **Campus rules:** not checked here (3b decision (f): slice 9's submit RPC only).
+- **Audit (D-6n):** `application_decision_changed` (insert, or the decision type changes; a notes-only edit writes no row): before `{decision_type}` or null, after `{decision_type, application_reference}`. `admissions_capacity_changed` (insert, change, delete): `{academic_year, grade, campus, capacity}` by name. Only for a signed-in actor; no names of people, notes or health data. The audit action list goes from 31 to 33 values.
+- **Production step after the 6a push:** no migration grants a capability, so on hosted a Manager must grant themselves can_decide in Settings before anyone can record a decision.
 
-**TCS OS files to read:** `models.py:300-352, 392-541`; `admin.py:129-170, 256-307, 384-433`; `docs/admissions/02-stack-and-schema.md:207-328`; settings `OFFER_EXPIRY_DAYS` (`tcs_os/settings.py:458`).
+**Probes:** supabase/role-matrix/20261015100000_admissions_decisions_capacity_structure.sql (28), _decisions.sql (80), _capacity.sql (72): 180 in all. One intended change to an earlier file: slice 5 structure probe A5 now checks that the audit list still contains its 31 values, and the 6a structure file pins the exact 33. No 3b probe listed the offer response values, so no 3b file changed. Probe S13 checks the source of `record_decision` and `change_decision` for the row lock and the scope re-check under it.
 
-**Conventions:** create-can't-overwrite (decision update is explicit); the onboarding token pattern (CSPRNG, hash-only, reveal-once, expiry checked on every use, single-use under a row lock); mutation window; audit via triggers; computed-never-stored for `effective_response`.
+**Verification:** baseline at HEAD 8b9c1d4 on fresh reset (22 probe files and golden suite green, anon-executable 169). After build: db reset, duplicate-overload check, lint 0 errors 13 warnings, tsc and build pass; types regen additive; all 25 probe files green (the 22 earlier files' output unchanged from baseline); golden suite unchanged; anon-executable 169. Deliberate breaks: 45 variants; all caught by probes except two equivalent mutants (clock_timestamp() with >= instead of >, and dropping anon or authenticated revoke when PUBLIC revoke remains). Gaps found and closed: probe helper passed silently on NULL (fixed with coalesce), and missing lock or under-lock scope re-check (closed by probe S13, also shown by races). Races on local DB: two record_decision calls (second waited, then refused "already been recorded"; one decision, one audit row); change_decision against offer acceptance, both call orders (accept-first: change refused; change-first: offer withdrew); two change_decision calls serialized with two audit rows; scope re-check under lock refused a decision on an application moved out of band.
 
-**Role matrix:**
+### 6b: offers, the enrolment gate and student IDs (planned)
 
-| Probe | anon | AO | Mgr | Acc | Aud |
-|---|---|---|---|---|---|
-| `record_decision`, no capability | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Same, with `can_decide` on that role | | ✓ if in scope | ✓ | ✗ (grant refused) | ✗ (grant refused) |
-| `generate_offer` without an accepted decision | ✗ | ✗ | ✗ | ✗ | ✗ |
-| `generate_offer` with an accepted decision, with `can_decide` | | in scope ✓ | ✓ | | |
-| `mark_enrolled`, offer pending | ✗ | ✗ | ✗ | ✗ | ✗ |
-| `mark_enrolled`, offer accepted | ✗ | ✗ | ✓ | ✗ | ✗ |
-| `mark_enrolled`, accepted but past expiry | ✗ for everyone | | | | |
-| Capacity write | ✗ | ✗ | ✓ | ✗ | ✗ |
+- **`admissions_settings`** singleton with `offer_ttl_days` (default 14, 1 to 90; D-6a), read by Manager and Auditor, changed by the Manager-only `set_admissions_offer_ttl_days`, audited as `admissions_settings_changed`. Slice 8 adds its own columns to this table.
+- **`generate_offer`:** needs an accepted decision (the gate checks the decision, not the stage, so waitlisted then accepted then offer works); allowed from application, document_review, waitlisted or rejected; refused when an offer row exists. Mints a 32-byte token, stores only its SHA-256 hash, sets `sent_at`, `expires_at` (now plus the TTL) and `response = 'pending'`, moves the stage to offer, and returns the raw token once.
+- **`reset_offer`:** always a new token, so the old link finds nothing (D-6b); allowed on a pending offer, which is how a lost link is recovered, and refused once the parent has accepted (D-6m). Moves the stage back to offer.
+- **`record_offer_response`:** a reply the parent gives staff (D-6e). accepted or declined only, on an offer that is effectively pending; declined moves the stage to offer_declined.
+- **Expiry (D-6l):** no read path writes. Staff RPCs compute the effective response and refuse an expired offer; only a service_role sweep, `settle_expired_offers()`, writes `expired` and moves the stage from offer to offer_declined (no actor, so no audit row). Slice 12 schedules the sweep.
+- **View `application_offer_status`** (`security_invoker`), without `token_hash`, showing `effective_response` (withdrawn shown as withdrawn).
+- **`mark_enrolled`:** Manager only (D-6d). Needs stage offer, an accepted decision and an offer whose effective response is accepted. Assigns `students.student_id` once per student (D-5f, D-6g, D-6h, D-6i): YY is the calendar year of enrolment in Africa/Accra (TCS OS parity); PP is the grade's classification code; NNNN comes from the counter key `STUDENT-YY-PP`. An unbanded or legacy grade (Grade 10 to 12, "2027", free text) refuses enrolment instead of leaving the ID empty. A student who already has an ID keeps it; a second enrolment for the same student in the same academic year is refused. The enrolment stage audit row carries the student ID. A `students_guard_student_id` trigger stops a signed-in caller changing an assigned ID.
+- **Audit:** `application_offer_changed` (no token or hash), `admissions_settings_changed`. The list goes from 33 to 35 values.
+- **Carry-forwards from the 6a tests and review:** every path that accepts an offer (`record_offer_response`, and slice 11's `respond_to_offer`) must lock the application, then the offer, and re-check under the lock that the response is still pending, the offer is in date and the decision is still accepted; a 6a race showed that an unguarded write can leave a rejected decision with an accepted offer. Every 6b read of an offer must use the effective response, never the stored `response`, because an expired offer keeps a stored `pending`. `mark_enrolled` takes locks in the same order as `change_decision`: application, then decision, then offer.
+- **Races to test:** two enrolments at the same grade and year, the same application twice, two applications of one student, `generate_offer` against `reset_offer`, `change_decision` against `generate_offer`, and the sweep against `record_offer_response`.
 
-Attendant and Accountant are ✗ on every probe in this table.
+**Not included:** the parent-facing respond flow (slice 11), the offer email (slice 12), a document gate (no document has to be approved before an offer or enrolment; decided 2026-10-12).
 
-The expired case asserts the settle marks the offer `expired` and the stage `offer_declined`, even though the transaction is rolled back. Value probes: the student ID format; the Grade 10 case leaves it null; the capacity warning text appears once the count exceeds capacity and not at equality.
+**Open question for Eyram (D-6g):** do the real current TCS student IDs already follow YYPPNNNN, and if so which year did they use: the enrolment year, or the academic year's start year?
 
-**Anon surface:** none.
+**TCS OS files read:** `models.py:93-116, 300-352, 392-541`; `admin.py:129-170, 256-307, 384-433`; `docs/admissions/02-stack-and-schema.md:207-328`; `tcs_os/settings.py:458` (`OFFER_EXPIRY_DAYS`, default 14).
 
-**Decisions for Eyram:**
+**Conventions:** create-can't-overwrite (decision create and change are separate RPCs); the onboarding token pattern (CSPRNG, hash only, reveal once, expiry checked on every use); audit via triggers; computed, never stored, for the effective offer response.
 
-- **D-6a.** Offer TTL. Recommendation: 14 days, TCS OS's default. Eyram checks the live `OFFER_EXPIRY_DAYS` env value on Cloud Run. Store it as an admissions setting row, not a constant.
-- **D-6b.** Re-offer. Recommendation: always a new token. TCS OS reuses the old one.
-- **D-6c.** Capacity count basis. TCS OS counts **all** accepted decisions, including applications later `offer_declined`. Recommendation: exclude `offer_declined` and count the rest, and flag it as a deliberate change from TCS OS. Or keep TCS OS parity.
-- **D-6d.** Is `mark_enrolled` Manager only? Recommendation: yes. It matches TCS OS hiding `mark_as_enrolled` from coordinators.
+**Role matrix** (six columns; base: a Grade 3 application, Manager and officer both hold can_decide, officer holds `{primary}`):
 
-**Size:** about six RPCs, one helper, one trigger, about 16 probes. This is the densest backend slice. If it overruns, split 6a (decisions and capacity) from 6b (offers and enrolment).
+| Probe | anon | Att | Mgr | Acc | Aud | AO |
+|---|---|---|---|---|---|---|
+| `record_decision`, `change_decision` | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ in scope |
+| same, nobody holds can_decide | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| same, officer holds can_decide with no bands, out of band, or an unbanded grade without `all_grades` | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
+| same, officer holds can_decide and `all_grades`, Grade 11 or "2027" | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ |
+| capacity create, update, delete | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
+| `generate_offer`, `reset_offer`, `record_offer_response` (6b) | ✗ | ✗ | ✓ | ✗ | ✗ | ✓ in scope |
+| `mark_enrolled` with an accepted offer (6b) | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
+| `mark_enrolled` with a pending offer, or one past its expiry (6b) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| `settle_expired_offers` (6b) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+
+An expired offer is probed as a refusal plus `effective_response = 'expired'`: an RPC that raises rolls back anything it wrote, so the stage settling to offer_declined is probed on the sweep, not on a refused call.
+
+**Anon surface:** none. The anon-executable function count stays at 169.
+
+**Decisions (decided 2026-10-12):** D-6a to D-6i and D-6k to D-6p as recommended; D-6j changed to a `withdrawn` response. See the consolidated table.
 
 ## Slice 7a — Staff pipeline UI: list, detail, notes, documents, health panel
 
@@ -709,23 +719,27 @@ The expired case asserts the settle marks the offer `expired` and the stage `off
 
 - A decision dialog that shows the capacity warning as a toast.
 - Generate and reset offer, with a reveal-once copyable link until slice 12.
-- Mark enrolled, showing a missing-student-ID warning.
+- Mark enrolled, showing the refusal message when the grade has no student ID code (D-6h), and listing any documents not yet approved as a warning (not a gate; decided 2026-10-12).
 - Settings → Admissions: the capacity table (Manager and Auditor only) and the campus grade rules (read-only display).
 - Wiring the slice 2 capabilities panel into the staff list.
 
 **Not included:** email.
 
+**Carry-forwards from slice 6:**
+- A small Manager-only RPC to correct an application's applied-for grade (`year_group_applied_for`), since an application with an unbanded or legacy grade can otherwise never be enrolled (D-6h). Audited, scope-checked like the other stage RPCs; it needs its own role matrix probes, so 7b is no longer UI only.
+- The decision and offer actions show only to staff holding can_decide; a Manager without it gets the RPC's refusal.
+
 **TCS OS files to read:** `admin.py:384-433, 480-491`.
 
 **Conventions:** as for 7a.
 
-**Role matrix:** none new.
+**Role matrix:** the grade-correction RPC only.
 
 **Anon surface:** none.
 
 **Decisions for Eyram:** none new beyond D-6*.
 
-**Size:** UI only, over existing RPCs.
+**Size:** UI over existing RPCs, plus the one grade-correction RPC.
 
 ## Slice 8 — Public request path and the public Inquiry form
 
@@ -896,10 +910,10 @@ The token functions are token-gated, so any caller holding the token succeeds.
 
 **Delivers:**
 
-- `get_offer_context(p_token)` is **anon**, SECURITY DEFINER. It settles expiry first and returns only student first name, grade, campus name, `expires_at` and `response`.
+- `get_offer_context(p_token)` is **anon**, SECURITY DEFINER. It hashes the token it is given (SHA-256 hex), looks the offer up by `token_hash` (already unique, so indexed), and returns only student first name, grade, campus name, `expires_at` and the effective response, computed without writing: an anon read path never settles expiry. A withdrawn, declined, expired or accepted offer shows as closed.
 - `admissions-public` action `offer_respond`: Turnstile (TCS OS gates this, `views.py:268-270`), then service-role `respond_to_offer(p_token, p_response)`:
-  1. lock `for update`;
-  2. settle expiry;
+  1. look up the application by token hash, lock the application `for update`, then lock the offer and re-check the hash (the same lock order as `reset_offer`, so the two can't deadlock);
+  2. settle expiry, committing that result rather than raising after it;
   3. require `pending`;
   4. accept only `accepted` or `declined` (`serializers.py:413-418`);
   5. set `responded_at`.
@@ -1109,13 +1123,9 @@ Since all TCS OS applications and inquiries are test data, offer and draft links
 
 ### Options
 
-1. **Migrate tokens with the records** (recommended for offers and unsubscribes; decide drafts from the inventory).
-   - The migration script computes `encode(digest(<raw token>, 'sha256'), 'hex')` from TCS OS's plaintext column and inserts only the hash. The raw token never lands in the ERP database.
-   - The ERP's token functions hash whatever string they're given, so 43-character legacy tokens work unchanged, provided no ERP function enforces a 64-hex format. **Constraint for slices 6, 10 and 14.**
-   - `expires_at` and `response` copy verbatim, so lazy expiry carries on.
-   - Unsubscribe hashes migrate for every Guardian and Lead that received any campaign, including rows otherwise considered test data, if their addresses are real (inventory).
+1. **Migrate tokens with the records.** Dropped (2026-10-11): all TCS OS data is test data and nothing is imported, so no offer, draft or token is carried across. Whether any unsubscribe address is real stays the open question above.
 2. **TCS OS keeps honouring tokens until they expire.** That conflicts with retiring TCS OS. It also breaks "no dual intake" for offers (a response is a state change) and for draft submit (which is intake). Unsubscribe tokens never expire, so TCS OS could never shut down. **Not recommended.**
-3. **Redirect or serve on `admissions.tcsch.edu.gh`** (recommended, combined with option 1):
+3. **Redirect or serve on `admissions.tcsch.edu.gh`** (recommended):
    - Attach `admissions.tcsch.edu.gh` as a **custom domain on the ERP Worker**. The zone is already on Cloudflare (`deployment.md`: CNAME to `ghs.googlehosted.com`, and Turnstile allowed-domains).
    - The ERP's public routes use TCS OS's paths exactly: `/inquiry`, `/apply` (reads `?draft_token=`), `/offer` (reads `?token=`), and the server route `/api/admissions/unsubscribe/$token/`. So legacy links resolve with **no redirect at all**, query strings intact, and the RFC 8058 POST is answered directly with a `200`. Mail providers aren't required to follow redirects on POST.
    - `/` returns a 302 to `/inquiry`. `/admin/*` returns a 302 to the ERP staff host's `/admissions`.
@@ -1131,7 +1141,7 @@ Since all TCS OS applications and inquiries are test data, offer and draft links
   - (c) extend their expiry during migration.
 
   Recommendation: decide from the inventory count. If it's 0–3 drafts, (b) is simplest and safest for health data. Draft `data` can hold health answers.
-- **Offers.** Between "TCS OS intake stopped" and "DNS flipped", a parent can't respond. Keep that window short (hours), or extend pending offers' `expires_at` by the window length during migration (D-15c).
+- **Offers.** TCS OS offers are test data and aren't carried across, so no parent needs to respond across the window.
 - **Unsubscribes.** These aren't intake. During the window TCS OS can still honour them if only intake POSTs are blocked. Any `unsubscribed_at` set in the window must be carried across, so migrate *after* the block, with a final unsubscribe re-sync just before the DNS flip.
 
 ---
@@ -1220,10 +1230,22 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-4d | Retention of health data | Keep for enrolled students; purge for closed-negative applications and expired drafts after a period set with TCS (Act 843 check). |
 | D-5a | Reference formats final | Keep verbatim. |
 | D-5b | Manager moving an application out of a terminal stage | Allowed except out of `enrolled`; audited. |
-| D-6a | Offer TTL | 14 days, as a setting; confirm the live Cloud Run value. |
-| D-6b | Re-offer token | Always a new token. |
-| D-6c | Capacity count basis | Exclude `offer_declined` (a deliberate change from TCS OS), or keep parity. |
-| D-6d | `mark_enrolled` | Manager only. |
+| D-6a | Offer TTL | **Decided 2026-10-12, as recommended:** 14 days in `admissions_settings.offer_ttl_days` (1 to 90), changed by a Manager-only RPC, read by Manager and Auditor (6b). |
+| D-6b | Re-offer token | **Decided 2026-10-12, as recommended:** always a new token; reset moves the stage back to offer. |
+| D-6c | Capacity count basis | **Decided 2026-10-12, as recommended:** leave out `offer_declined` and offers declined, withdrawn or past expiry (a deliberate change from TCS OS). |
+| D-6d | `mark_enrolled` | **Decided 2026-10-12, as recommended:** Manager only, no capability needed. |
+| D-6e | Staff-recorded offer response | **Decided 2026-10-12, as recommended:** `record_offer_response` for a reply the parent gives staff (6b). |
+| D-6f | Decisions at inquiry or enrolled | **Decided 2026-10-12, as recommended:** refused. |
+| D-6g | Student ID year | **Decided 2026-10-12, as recommended:** the calendar year of enrolment, Africa/Accra (TCS OS parity). Open: do the real current TCS student IDs follow YYPPNNNN, and which year did they use? |
+| D-6h | Unbanded or legacy grade at enrolment | **Decided 2026-10-12, as recommended:** refuse enrolment. Slice 7b adds a Manager-only grade-correction RPC. |
+| D-6i | A student's second application | **Decided 2026-10-12, as recommended:** keep the existing ID; refuse a second enrolment in the same academic year; the enrolment stage audit row carries the ID. |
+| D-6j | Decision change once an offer exists | **Decided 2026-10-12, changed from the recommendation:** a pending offer is withdrawn with a new `withdrawn` response (not `expired`); an accepted offer blocks the change; enrolled blocks it. |
+| D-6k | Separate create and change RPCs for decisions | **Decided 2026-10-12, as recommended:** `record_decision` and `change_decision`. |
+| D-6l | Offer expiry writes | **Decided 2026-10-12, as recommended:** no read path writes; a service_role sweep settles; slice 12 schedules it. |
+| D-6m | `reset_offer` on a pending or accepted offer | **Decided 2026-10-12, as recommended:** allowed on pending, refused on accepted. |
+| D-6n | Audit capacity and TTL changes | **Decided 2026-10-12, as recommended:** yes. |
+| D-6o | Capacity academic year | **Decided 2026-10-12, as recommended:** exact text, no year list yet; carried to slices 7b and 8. |
+| D-6p | Split slice 6 | **Decided 2026-10-12, as recommended:** 6a (decisions, capacity) and 6b (offers, enrolment). |
 | D-7a | Staff route prefix | `/admissions`. Public routes keep TCS OS's bare paths. |
 | D-8a | Bot-check placement | Supabase Edge Function; submit RPCs service-role-only. |
 | D-8b | Turnstile keys | New widget for the ERP hosts (or add hosts to the existing widget). Secret in Supabase secrets, site key in the Cloudflare build env. Eyram runs this. |
@@ -1248,9 +1270,9 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-14b | Unsubscribe GET behaviour | Confirm button on GET; POST unsubscribes. |
 | D-14c | Bulk sending subdomain | `updates.tcsch.edu.gh`. |
 | D-14d | Server-route path handling | Confirm the exact trailing-slash path works; fallback in `src/server.ts`. |
-| D-15a | Token migration versus TCS OS honouring tokens | Migrate hashes of the verbatim tokens (offers, unsubscribes, and drafts if any are kept). Don't keep TCS OS alive for tokens. |
+| D-15a | Token migration versus TCS OS honouring tokens | **Dropped 2026-10-11:** nothing is imported, so no tokens move. Don't keep TCS OS alive for tokens. |
 | D-15b | Redirect mapping | Attach `admissions.tcsch.edu.gh` to the ERP Worker. Serve identical public paths, 302 `/` and `/admin`, 410 everything else. |
-| D-15c | Pending offers across the window | Extend `expires_at` by the window length during migration. |
+| D-15c | Pending offers across the window | **Dropped 2026-10-11:** TCS OS offers are test data and aren't carried across. |
 | D-15d | Stopping TCS OS intake | A Cloudflare WAF rule blocking `POST /api/admissions/{inquiries,applications,upload-url,application-drafts,offers}*` (needs the record proxied), or a maintenance deploy of TCS OS by Eyram. |
 | D-15e | DNS and cutover sequence | As in the runbook, including `app.tcsch.edu.gh` for the ERP staff host (confirm the ERP's production host). |
 | D-15f | How long TCS OS stays read-only before shutdown | 30 days, covering one full draft TTL. Then delete the Cloud Run service, queues and secrets, and rotate or delete the TCS OS Resend key and Turnstile secret. |

@@ -64,8 +64,13 @@ how to close the manual-path gap is not yet decided.
 1b-i (allowlist guards, can_read_store, list_staff_names, regression matrix)
 committed and deployed; 1b-ii (Admissions Officer role) committed and deployed.
 Slice 1c (session timeout readable by every staff role) committed and deployed.
-Slice 2 (admissions grade reference data and capabilities layer) built, awaiting Eyram's review (uncommitted).
-Decision batches recorded 2026-09-29 (D-2g, D-1b-a/b/c/d confirmed) and 2026-10-05 (O-1 to O-9 confirmed).
+Slice 2 (admissions grade reference data and capabilities layer) committed and applied on hosted.
+Slice 3a (applicants, guardians, students, applications, contacts, notes) committed and applied on hosted.
+Slice 3b (decisions, offers, capacity, campus rules) committed and applied on hosted.
+Slice 4 (health answers, documents and private storage bucket) committed and applied on hosted.
+Slice 5 (numbering, stage transitions, notes and document review) committed (8b9c1d4) and applied on hosted.
+Slice 6a (decisions and capacity staff side) built, awaiting Eyram's review (uncommitted).
+Decision batches recorded 2026-09-29 (D-2g, D-1b-a/b/c/d confirmed), 2026-10-05 (O-1 to O-9 confirmed) and 2026-10-12 (D-6a to D-6p decided, D-6j changed to a withdrawn offer response).
 
 Porting TCS OS's live admissions module: inquiries, applications,
 documents, decisions/offers/enrolment gating, reference numbering,
