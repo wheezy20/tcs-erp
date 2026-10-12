@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5 built and committed; slice 6 is split into 6a (built, awaiting Eyram's review, uncommitted) and 6b (not started); the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
+**Status:** slices 0 to 5 and 6a built and committed; slice 6b built, awaiting Eyram's review (uncommitted); the rest is plan. Two batches of decisions are recorded below ("Decisions recorded"); the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -34,8 +34,8 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 3b | Decisions, offers, capacity, campus grade rules | committed (admissions 3b) | 3a |
 | 4 | Health info, documents metadata, private bucket | committed (admissions 4) | 3b |
 | 5 | Reference numbering + stage transitions + notes/document review RPCs | committed (admissions 5, 8b9c1d4) | 4 |
-| 6a | Decisions and capacity (staff side) | built, awaiting Eyram's review (uncommitted) | 5 |
-| 6b | Offers, enrolment gate, student IDs (staff side) | not started | 6a |
+| 6a | Decisions and capacity (staff side) | committed (5c56735) | 5 |
+| 6b | Offers, enrolment gate, student IDs (staff side) | built, awaiting Eyram's review (uncommitted) | 6a |
 | 7a | Staff pipeline UI: list, detail, notes, documents, health panel | not started | 6b |
 | 7b | Staff pipeline UI: decision/offer/enrol actions, capacity, capability admin | not started | 7a |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | not started | 7b |
@@ -613,7 +613,7 @@ An officer holding only `can_decide` or only `can_view_health`, with no bands an
 
 ## Slice 6 — Decisions, offers, the enrolment gate, the capacity warning (staff side)
 
-**Status:** split into 6a and 6b (decided 2026-10-12). 6a built, awaiting Eyram's review (uncommitted). 6b not started.
+**Status:** split into 6a and 6b (decided 2026-10-12). 6a committed (5c56735). 6b built, awaiting Eyram's review (uncommitted).
 
 **Design carry-forwards:**
 - Slice 3b (D-3c): capacity figures are readable by Manager and Auditor only. An officer gets a figure-free warning, never the numbers.
@@ -640,7 +640,7 @@ An officer holding only `can_decide` or only `can_view_health`, with no bands an
 
 **Verification:** baseline at HEAD 8b9c1d4 on fresh reset (22 probe files and golden suite green, anon-executable 169). After build: db reset, duplicate-overload check, lint 0 errors 13 warnings, tsc and build pass; types regen additive; all 25 probe files green (the 22 earlier files' output unchanged from baseline); golden suite unchanged; anon-executable 169. Deliberate breaks: 45 variants; all caught by probes except two equivalent mutants (clock_timestamp() with >= instead of >, and dropping anon or authenticated revoke when PUBLIC revoke remains). Gaps found and closed: probe helper passed silently on NULL (fixed with coalesce), and missing lock or under-lock scope re-check (closed by probe S13, also shown by races). Races on local DB: two record_decision calls (second waited, then refused "already been recorded"; one decision, one audit row); change_decision against offer acceptance, both call orders (accept-first: change refused; change-first: offer withdrew); two change_decision calls serialized with two audit rows; scope re-check under lock refused a decision on an application moved out of band.
 
-### 6b: offers, the enrolment gate and student IDs (planned)
+### 6b: offers, the enrolment gate and student IDs
 
 - **`admissions_settings`** singleton with `offer_ttl_days` (default 14, 1 to 90; D-6a), read by Manager and Auditor, changed by the Manager-only `set_admissions_offer_ttl_days`, audited as `admissions_settings_changed`. Slice 8 adds its own columns to this table.
 - **`generate_offer`:** needs an accepted decision (the gate checks the decision, not the stage, so waitlisted then accepted then offer works); allowed from application, document_review, waitlisted or rejected; refused when an offer row exists. Mints a 32-byte token, stores only its SHA-256 hash, sets `sent_at`, `expires_at` (now plus the TTL) and `response = 'pending'`, moves the stage to offer, and returns the raw token once.
@@ -652,6 +652,24 @@ An officer holding only `can_decide` or only `can_view_health`, with no bands an
 - **Audit:** `application_offer_changed` (no token or hash), `admissions_settings_changed`. The list goes from 33 to 35 values.
 - **Carry-forwards from the 6a tests and review:** every path that accepts an offer (`record_offer_response`, and slice 11's `respond_to_offer`) must lock the application, then the offer, and re-check under the lock that the response is still pending, the offer is in date and the decision is still accepted; a 6a race showed that an unguarded write can leave a rejected decision with an accepted offer. Every 6b read of an offer must use the effective response, never the stored `response`, because an expired offer keeps a stored `pending`. `mark_enrolled` takes locks in the same order as `change_decision`: application, then decision, then offer.
 - **Races to test:** two enrolments at the same grade and year, the same application twice, two applications of one student, `generate_offer` against `reset_offer`, `change_decision` against `generate_offer`, and the sweep against `record_offer_response`.
+
+**Built (2026-10-12), awaiting Eyram's review, uncommitted.** Migration `20261016100000_admissions_offers_enrolment.sql`: 12 new functions (`generate_offer`, `reset_offer`, `record_offer_response`, `mark_enrolled`, `set_admissions_offer_ttl_days`, `settle_expired_offers`; helpers with no grant `_admissions_grade_code`, `_next_admissions_student_id`, `_settle_offer_expiry`; trigger functions `guard_student_id`, `audit_application_offer`, `audit_admissions_settings`), one replaced (`audit_application_stage`, which now adds `student_id` to the after payload when the stage becomes enrolled), 4 new triggers (`application_offers_audit`, `admissions_settings_audit`, `admissions_settings_set_updated_at`, `students_guard_student_id`), the `admissions_settings` table and the `application_offer_status` view. 6a's `_offer_effective_response` and `_admissions_grade_id` are reused, not redefined. As built, beyond the bullets above:
+
+- **Lock order** on every accept and enrol path: application, decision, offer, student, counter. This satisfies both the request for application, offer, student, counter and the carry-forward that `mark_enrolled` matches `change_decision` (application, decision, offer). Everything is re-checked under the locks. `settle_expired_offers` locks the application, then the offer.
+- **`settle_expired_offers`** also refuses any caller with `auth.uid()` set, as a backstop behind the grant.
+- **The view** writes the expiry rule out inline, because `_offer_effective_response` has no grant for authenticated.
+- **`reset_offer`** needs an accepted decision and an existing offer, works on a pending (including expired), declined, expired or withdrawn offer, and is refused at inquiry or enrolled.
+- **`admissions_settings`:** service_role gets select and update only. `application_offer_changed` carries the response, `expires_at`, a `token_replaced` boolean and the application reference. 6a's `change_decision` withdrawal now also writes one of these rows.
+
+**Probes:** `supabase/role-matrix/20261016100000_admissions_offers_enrolment_structure.sql` (20), `_offers.sql` (53), `_enrolment.sql` (23): 96 in all. Probe S13 checks the lock order and the re-checks under the locks by source; S15 checks token minting and hashing by source. Two intended changes to the 6a structure file: S6 now checks that the audit list still contains its 33 values (the 6b structure file pins the exact 35), and S8 now allows the new `application_offers_audit` trigger (S8 had pinned "offers has no trigger"; this second change follows from the approved offer audit trigger).
+
+**Verification:** baseline at HEAD 5c56735 on a fresh reset: overload check clean, types matched, golden suite green. After the build: db reset, overload check clean, types regen additive and identical to the working-tree file, lint 0 errors 13 warnings, tsc and build pass, all 28 probe files green, golden suite green, anon-executable count 169. 20 deliberate breaks, each run only against its target probe file, all caught (capability, scope and their order 4; locks and re-checks 6; token hashing and storage 2; the view 2; grants and anon surface 2; audit rows 2; student ID guard and counter 2).
+
+**Races (local, two sessions):** `change_decision` against `record_offer_response`, both orders (accept first: the change waited and was refused; change first: the accept waited and was refused, offer withdrawn); `change_decision` against `generate_offer`, both orders; two enrolments at one grade and year (consecutive IDs); the same application twice (second refused, one stage audit row); one student's two applications in one year (second refused) and in two years (second kept the ID); the sweep against `record_offer_response`, both orders (accept first: sweep settled nothing; sweep first: accept refused). `generate_offer` against `reset_offer` was dropped: both serialize on the application lock with no distinct outcome.
+
+**code-reviewer:** no blocking findings. Not changed: authenticated still has table-level select on `application_offers`, `token_hash` included (from 3b), so the view alone doesn't hide the hash from a Manager, Auditor or deciding officer. Decided 2026-10-12 to leave the grant as it is (D-6q). `mark_enrolled` has no grade-visibility re-check under the lock (Manager only).
+
+**Production step after commit:** `npx supabase db push` (Eyram's to run).
 
 **Not included:** the parent-facing respond flow (slice 11), the offer email (slice 12), a document gate (no document has to be approved before an offer or enrolment; decided 2026-10-12).
 
@@ -679,7 +697,7 @@ An expired offer is probed as a refusal plus `effective_response = 'expired'`: a
 
 **Anon surface:** none. The anon-executable function count stays at 169.
 
-**Decisions (decided 2026-10-12):** D-6a to D-6i and D-6k to D-6p as recommended; D-6j changed to a `withdrawn` response. See the consolidated table.
+**Decisions (decided 2026-10-12):** D-6a to D-6i and D-6k to D-6p as recommended; D-6j changed to a `withdrawn` response; D-6q, the `token_hash` read grant stays. See the consolidated table.
 
 ## Slice 7a — Staff pipeline UI: list, detail, notes, documents, health panel
 
@@ -698,6 +716,8 @@ An expired offer is probed as a refusal plus `effective_response = 'expired'`: a
 **Not included:** decision, offer and enrolment actions (7b), public pages.
 
 **Carry-forward from slice 3a:** nothing can create admissions rows until slice 8, so this UI needs invented demo rows seeded in `seed.sql` for development.
+
+**Carry-forward from slice 6b (D-6q):** every query selects explicit columns, and the UI never selects `token_hash`. Offer status is read from `application_offer_status`, which leaves it out. Authenticated keeps a table-level select on `application_offers`, so nothing in the database stops a `select *` from returning the hash.
 
 **Design note (D-4c):** Health read audit must be decided before this slice builds on the table. Auditing health reads would mean reading through a SECURITY DEFINER RPC instead of the table policy.
 
@@ -1246,6 +1266,7 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-6n | Audit capacity and TTL changes | **Decided 2026-10-12, as recommended:** yes. |
 | D-6o | Capacity academic year | **Decided 2026-10-12, as recommended:** exact text, no year list yet; carried to slices 7b and 8. |
 | D-6p | Split slice 6 | **Decided 2026-10-12, as recommended:** 6a (decisions, capacity) and 6b (offers, enrolment). |
+| D-6q | Staff read of `application_offers.token_hash` | **Decided 2026-10-12:** leave the table-level select grant as it is, no revoke. The hash is the SHA-256 of 32 random bytes and can't be reversed; the offer page compares hashes, so the hash alone gives no access; `application_offer_status` hides it; and a column-level grant would make `select *` on the table fail. Slice 7a carries this forward: the UI selects explicit columns and never selects `token_hash`. |
 | D-7a | Staff route prefix | `/admissions`. Public routes keep TCS OS's bare paths. |
 | D-8a | Bot-check placement | Supabase Edge Function; submit RPCs service-role-only. |
 | D-8b | Turnstile keys | New widget for the ERP hosts (or add hosts to the existing widget). Secret in Supabase secrets, site key in the Cloudflare build env. Eyram runs this. |

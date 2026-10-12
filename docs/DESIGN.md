@@ -790,6 +790,15 @@ depend on them holding true for every new table/function added.
   load keeps the values it supplies. Tokens are stored only as SHA-256 hex
   hashes with a format check on the hash column. Audit rows for stage and
   document status changes are trigger-written only for a signed-in actor.
+  A staff view that leaves out a secret column (`application_offer_status`
+  leaves out `token_hash`) is `security_invoker`, so the table's RLS still
+  decides which rows the caller sees. Logic from a helper that has no grant
+  for authenticated (`_offer_effective_response`) is written out in the view
+  itself. The view alone doesn't hide the column while the table's own
+  select grant still covers it. For offers that is deliberate (D-6q, 2026-10-12):
+  the hash can't be reversed and gives no access on its own, and a
+  column-level grant would make `select *` fail. The UI selects explicit
+  columns and never `token_hash`.
 - **The anon surface is SECURITY DEFINER functions only (codified
   2026-09-29).** Onboarding (`20260921100000`) set the pattern, and the
   admissions port's public forms will lean on it heavily. `anon` never

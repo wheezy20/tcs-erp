@@ -204,6 +204,24 @@ export type Database = {
         }
         Relationships: []
       }
+      admissions_settings: {
+        Row: {
+          id: number
+          offer_ttl_days: number
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          offer_ttl_days?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          offer_ttl_days?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       allowance_types: {
         Row: {
           branch_id: string
@@ -4506,7 +4524,44 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      application_offer_status: {
+        Row: {
+          application_id: string | null
+          effective_response: string | null
+          expires_at: string | null
+          id: string | null
+          responded_at: string | null
+          response: string | null
+          sent_at: string | null
+        }
+        Insert: {
+          application_id?: string | null
+          effective_response?: never
+          expires_at?: string | null
+          id?: string | null
+          responded_at?: string | null
+          response?: string | null
+          sent_at?: string | null
+        }
+        Update: {
+          application_id?: string | null
+          effective_response?: never
+          expires_at?: string | null
+          id?: string | null
+          responded_at?: string | null
+          response?: string | null
+          sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_offers_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       _admissions_capability_holder_problem: {
@@ -4522,6 +4577,7 @@ export type Database = {
         Args: { p_application_id: string; p_reveal_figures: boolean }
         Returns: string
       }
+      _admissions_grade_code: { Args: { p_grade: string }; Returns: string }
       _admissions_grade_id: { Args: { p_grade: string }; Returns: string }
       _admissions_reference_year: { Args: { p_at?: string }; Returns: number }
       _admissions_sequence_text: { Args: { p_seq: number }; Returns: string }
@@ -4540,6 +4596,10 @@ export type Database = {
         Returns: string
       }
       _next_admissions_sequence: { Args: { p_key: string }; Returns: number }
+      _next_admissions_student_id: {
+        Args: { p_code: string; p_year: number }
+        Returns: string
+      }
       _offer_effective_response: {
         Args: { p_expires_at: string; p_response: string }
         Returns: string
@@ -4627,6 +4687,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      _settle_offer_expiry: {
+        Args: { p_application_id: string }
+        Returns: boolean
       }
       _staff_advance_change_problem: {
         Args: {
@@ -5674,6 +5738,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      generate_offer: { Args: { p_application_id: string }; Returns: Json }
       generate_onboarding_token: {
         Args: { p_employee_id: string; p_ttl_days?: number }
         Returns: {
@@ -5747,6 +5812,7 @@ export type Database = {
           name: string
         }[]
       }
+      mark_enrolled: { Args: { p_application_id: string }; Returns: Json }
       match_statement_line: {
         Args: { p_journal_line_id: string; p_line_id: string }
         Returns: {
@@ -6469,6 +6535,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      record_offer_response: {
+        Args: { p_application_id: string; p_response: string }
+        Returns: Json
+      }
       record_supplier_payment: {
         Args: {
           p_amount: number
@@ -6667,6 +6737,7 @@ export type Database = {
         }
       }
       require_writable_role: { Args: never; Returns: undefined }
+      reset_offer: { Args: { p_application_id: string }; Returns: Json }
       reverse_journal_entry: {
         Args: { p_date?: string; p_description?: string; p_entry_id: string }
         Returns: {
@@ -6698,6 +6769,20 @@ export type Database = {
           p_staff_id: string
         }
         Returns: undefined
+      }
+      set_admissions_offer_ttl_days: {
+        Args: { p_days: number }
+        Returns: {
+          id: number
+          offer_ttl_days: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "admissions_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_application_document_status: {
         Args: { p_document_id: string; p_status: string }
@@ -6835,6 +6920,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      settle_expired_offers: { Args: never; Returns: number }
       settlement_account: {
         Args: { p_bank_account_id: string; p_method: string }
         Returns: string

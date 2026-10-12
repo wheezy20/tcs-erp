@@ -1,7 +1,7 @@
 -- Role matrix for 20261015100000_admissions_decisions_capacity, STRUCTURE file (admissions slice 6a,
 -- docs/admissions/PORT-PLAN.md): function grants and settings, the exact 169
--- anon-executable count, the exact 33-value audit list (this file owns the
--- exact list from slice 6a on), the five-value offer response check, trigger
+-- anon-executable count, all 33 slice 6a audit actions still present (the
+-- newest slice's structure file pins the exact list), the five-value offer response check, trigger
 -- names, select-only table grants, direct writes denied, and the two SQL
 -- helpers' behaviour. Catalog probes raise on failure and expect every role.
 --
@@ -106,13 +106,13 @@ end $$;
 
 -- ================================================================ constraints
 
--- probe: S6 the audit action list has exactly the 33 values
+-- probe: S6 the audit action list still holds all 33 slice 6a values (the newest slice pins the exact list)
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
-  if (select array_agg(m[1] order by m[1]) from pg_constraint c,
+  if not coalesce((select array_agg(m[1] order by m[1]) from pg_constraint c,
         regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_]+)''::text', 'g') m
       where c.conname = 'audit_log_action_check')
-     is distinct from array['admissions_capabilities_changed', 'admissions_capacity_changed', 'application_decision_changed', 'application_document_status_changed', 'application_stage_changed', 'discount_applied', 'employee_approved', 'employee_created', 'employee_reactivated', 'employee_rejected', 'employee_suspended', 'employees_imported', 'expense_voided', 'invoice_voided', 'pay_config_amended_and_approved', 'pay_config_approved', 'pay_config_exemptions_changed', 'pay_config_proposed', 'pay_config_rejected', 'payroll_run_approved', 'payroll_run_exclusion_added', 'payroll_run_exclusion_removed', 'payroll_run_rejected', 'payroll_run_submitted', 'return_processed', 'sale_voided', 'staff_advance_approved', 'staff_advance_change_approved', 'staff_advance_change_proposed', 'staff_advance_change_rejected', 'staff_advance_proposed', 'staff_advance_rejected', 'vat_override'] then
+     @> array['admissions_capabilities_changed', 'admissions_capacity_changed', 'application_decision_changed', 'application_document_status_changed', 'application_stage_changed', 'discount_applied', 'employee_approved', 'employee_created', 'employee_reactivated', 'employee_rejected', 'employee_suspended', 'employees_imported', 'expense_voided', 'invoice_voided', 'pay_config_amended_and_approved', 'pay_config_approved', 'pay_config_exemptions_changed', 'pay_config_proposed', 'pay_config_rejected', 'payroll_run_approved', 'payroll_run_exclusion_added', 'payroll_run_exclusion_removed', 'payroll_run_rejected', 'payroll_run_submitted', 'return_processed', 'sale_voided', 'staff_advance_approved', 'staff_advance_change_approved', 'staff_advance_change_proposed', 'staff_advance_change_rejected', 'staff_advance_proposed', 'staff_advance_rejected', 'vat_override'], false) then
     raise exception 'audit action list wrong';
   end if;
 end $$;
@@ -162,7 +162,7 @@ exception when check_violation then null; end $$;
 
 -- ================================================================ triggers and tables
 
--- probe: S8 triggers: decisions has the audit and identity triggers, capacity the audit trigger, offers none
+-- probe: S8 triggers: decisions has the audit and identity triggers, capacity the audit trigger, offers only 6b's audit trigger
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if (select array_agg(tgname::text order by tgname) from pg_trigger where not tgisinternal and tgrelid = 'public.application_decisions'::regclass)
@@ -173,7 +173,8 @@ do $$ begin
      is distinct from array['admissions_capacity_audit'] then
     raise exception 'capacity triggers wrong';
   end if;
-  if exists (select 1 from pg_trigger where not tgisinternal and tgrelid = 'public.application_offers'::regclass) then
+  if exists (select 1 from pg_trigger where not tgisinternal and tgrelid = 'public.application_offers'::regclass
+             and tgname <> 'application_offers_audit') then
     raise exception 'offers gained a trigger';
   end if;
 end $$;
