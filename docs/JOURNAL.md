@@ -4568,7 +4568,7 @@ Slice 7b was split on 2026-10-12 into 7b1 (actions on the application detail pag
 
 ## 2026-10-12: Admissions slice 7b2, admin screens and academic year list management
 
-Slice 7b2 built on 2026-10-12, uncommitted and awaiting Eyram's review before production steps.
+Slice 7b2 built on 2026-10-12 and committed as bed38c9; production steps not yet run.
 
 **What was built:**
 
@@ -4600,3 +4600,19 @@ Slice 7b2 built on 2026-10-12, uncommitted and awaiting Eyram's review before pr
 
 - Slices 8 and 9 validate the submitted year against the academic year list.
 - The academic year list is now written only through the two Manager RPCs. Years are retired rather than deleted or renamed. Capacity creation requires an active listed year while older rows stay editable.
+
+## 2026-10-12: D-6g answered (student IDs) and the staff ID format
+
+**D-6g is answered and closed.** Eyram's answer: two digit calendar year of enrolment, then a two digit group code, then a four digit roll starting at 0001. The roll restarts per year and per group, so 26010001, 26020001 and 26030001 can all exist. The year is the year the student is enrolled in the system: a student accepted and enrolled in 2026 who starts school in 2027 keeps the 26 ID. Group codes: Pre Nursery to Nursery 2 is 01, KG 1 and 2 is 02, Primary 1 to 6 is 03, JHS 1 to 3 is 04.
+
+Checked read-only against the code, no change needed (details in PORT-PLAN, slice 6b):
+
+- The 14 grades' classification codes, seeded only in `20261005100000`, match the groups, reading Kindergarten 1 and 2 as KG 1 and 2, Grade 1 to 6 as Primary 1 to 6, and Grade 7 to 9 as JHS 1 to 3. That name correspondence is a reading of the TCS OS grade names, not something Eyram stated.
+- `_next_admissions_student_id` (`20261016100000`) counts per `STUDENT-YY-PP` key from 1, and `mark_enrolled` takes the year from `_admissions_reference_year(clock_timestamp())`, the Africa/Accra calendar year (`20261014100000`).
+- Not checked on hosted. The hosted grade codes need the read-only query given to Eyram.
+
+The earlier lines "D-6g stays open" (6b and 7b1 entries) are superseded by this entry.
+
+**Staff IDs (new, HR, not admissions).** Format `ST26-01002`: ST means staff, 26 is the year, then a dash, then a two digit class code (01 admin, 02 teaching, 03 non teaching), then a three digit roll number (002 in the example). **Open:** whether the roll restarts per year, per class, both or neither. Not built. A read-only check found no staff number or ID generated anywhere today: `employees` and `staff` have uuid keys only, the employee import template has no ID column, and the onboarding item "Staff Email & ID Issued" is derived from a linked login and a school email. Recorded in PLANNING, Phase 1.
+
+No code changed and no probes run.

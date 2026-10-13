@@ -42,6 +42,16 @@ import may slip past the import's duplicate check and create a
 double entry. No uniqueness constraints were added (Eyram, 2026-10-08);
 how to close the manual-path gap is not yet decided.
 
+**Staff IDs (format given by Eyram 2026-10-12, not built).** Format
+`ST26-01002`: ST means staff, 26 is the year, then a dash, then a two
+digit class code (01 admin, 02 teaching, 03 non teaching), then a three
+digit roll number (002 in the example). **Open question:** does the roll
+restart per year, per class, both, or neither? Not answered; nothing may
+assume it. Today the ERP generates no staff number: `employees` and
+`staff` are keyed by uuid only, the employee import template has no ID
+column, and the onboarding item "Staff Email & ID Issued" is derived
+from a linked login plus a school email, not from any ID value.
+
 - **Accounting** — chart of accounts, journal entries, ledger, trial
   balance, P&L, balance sheet, cash flow, bank reconciliation. Inherited
   from Wilelik essentially as-is; it's already a proper double-entry
@@ -72,7 +82,7 @@ Slice 5 (numbering, stage transitions, notes and document review) committed (8b9
 Slice 6a (decisions and capacity staff side) committed (5c56735) and applied on hosted.
 Slice 6b (offers, enrolment gate, student IDs staff side) committed (6c1f014) and applied on hosted.
 Slice 7a (staff pipeline UI: list, detail, notes, documents, health panel) committed (de1aff9) and applied on hosted; frontend deployed on 2026-10-12.
-Slice 7b split into 7b1 (detail page actions: decision, offer, enrolment, grade correction) committed (f04a336) and 7b2 (admin screens: academic years, capacity, offer expiry, campus rules) built uncommitted.
+Slice 7b split into 7b1 (detail page actions: decision, offer, enrolment, grade correction) committed (f04a336) and 7b2 (admin screens: academic years, capacity, offer expiry, campus rules) committed as bed38c9.
 Decision batches recorded 2026-09-29 (D-2g, D-1b-a/b/c/d confirmed), 2026-10-05 (O-1 to O-9 confirmed), 2026-10-12 (D-6a to D-6p decided, D-6j changed to a withdrawn offer response), 2026-10-12 (D-7a approved) and 2026-10-12 (7b split, D-6q reversed, grade correction narrow rule, audit extended to 37).
 
 Porting TCS OS's live admissions module: inquiries, applications,

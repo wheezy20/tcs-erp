@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) built uncommitted. The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -38,7 +38,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 6b | Offers, enrolment gate, student IDs (staff side) | committed (6c1f014) and applied on hosted | 6a |
 | 7a | Staff pipeline UI: list, detail, notes, documents, health panel | applied on hosted, frontend deployed (2026-10-12) | 6b |
 | 7b1 | Detail page actions: decision, offer, enrolment, grade correction | committed (f04a336) | 7a |
-| 7b2 | Admin screens: academic years, capacity, offer expiry, campus rules | built uncommitted | 7b1 |
+| 7b2 | Admin screens: academic years, capacity, offer expiry, campus rules | committed (bed38c9) | 7b1 |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | not started | 7b |
 | 9 | Public Application form: direct submit, uploads, matching, rules | not started | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
@@ -674,7 +674,14 @@ An officer holding only `can_decide` or only `can_view_health`, with no bands an
 
 **Not included:** the parent-facing respond flow (slice 11), the offer email (slice 12), a document gate (no document has to be approved before an offer or enrolment; decided 2026-10-12).
 
-**Open question for Eyram (D-6g):** do the real current TCS student IDs already follow YYPPNNNN, and if so which year did they use: the enrolment year, or the academic year's start year?
+**D-6g, answered 2026-10-12 (the open question is closed).** Eyram's answer: two digit calendar year of enrolment, then a two digit group code, then a four digit roll starting at 0001. The roll restarts per year and per group, so 26010001, 26020001 and 26030001 can all exist. The year is the year the student is enrolled in the system: a student accepted and enrolled in 2026 who starts school in 2027 keeps the 26 ID. Group codes: Pre Nursery to Nursery 2 is 01, KG 1 and 2 is 02, Primary 1 to 6 is 03, JHS 1 to 3 is 04.
+
+Checked against the code on 2026-10-12, no change needed:
+
+- `admissions_grades.classification_code` (seeded only in `20261005100000_admissions_grades_and_capabilities.sql`; no later migration and nothing in `seed.sql` or `seed.production.sql` changes it): Pre Nursery, Nursery 1 and Nursery 2 are 01; Kindergarten 1 and 2 are 02; Grade 1 to Grade 6 are 03; Grade 7 to Grade 9 are 04. That matches the answer if Kindergarten 1 and 2 are KG 1 and 2, Grade 1 to 6 are Primary 1 to 6, and Grade 7 to 9 are JHS 1 to 3. The system uses the TCS OS grade names; that the names correspond this way is a reading of the names, not something Eyram stated.
+- The roll restarts per year and per group: `_next_admissions_student_id(p_code, p_year)` (`20261016100000_admissions_offers_enrolment.sql`) draws from the counter key `STUDENT-YY-PP` through `_next_admissions_sequence`, whose first value is 1, padded to four digits by `_admissions_sequence_text`.
+- The year is the Accra calendar year at enrolment: `mark_enrolled` passes `_admissions_reference_year(clock_timestamp())`, which is `extract(year from p_at at time zone 'Africa/Accra')` (`20261014100000_admissions_numbering_stages_notes_documents.sql`). The academic year is not used.
+- Not covered by the answer: past roll 9999, `_admissions_sequence_text` prints five digits, so the ID would be nine characters.
 
 **TCS OS files read:** `models.py:93-116, 300-352, 392-541`; `admin.py:129-170, 256-307, 384-433`; `docs/admissions/02-stack-and-schema.md:207-328`; `tcs_os/settings.py:458` (`OFFER_EXPIRY_DAYS`, default 14).
 
@@ -738,7 +745,7 @@ Slice 7a built 2026-10-12. Migrations applied on hosted and the frontend deploye
 
 ## Slice 7b: Staff pipeline UI (decisions, offers, enrolment, grade correction, admin screens)
 
-**Status:** split on 2026-10-12 into 7b1 and 7b2. 7b1 is built and uncommitted. 7b2 has not started and waits for Eyram's go.
+**Status:** split on 2026-10-12 into 7b1 and 7b2. 7b1 is committed as f04a336 and applied on hosted, with its frontend deployed (Eyram's migration list on 2026-10-12 showed `20261018100000` on both Local and Remote, and the push and the deploy both succeeded). 7b2 is committed as bed38c9; its production steps have not been run yet.
 
 ### 7b1: Actions on the application detail page
 
@@ -790,8 +797,8 @@ Slice 7a built 2026-10-12. Migrations applied on hosted and the frontend deploye
 
 **Outstanding:**
 
-- Eyram's review before commit.
-- After commit: Eyram's production steps (`npx supabase db push`, then `frontend/scripts/deploy-production.sh`).
+- Committed as bed38c9.
+- Eyram's production steps (`npx supabase db push`, then `frontend/scripts/deploy-production.sh`).
 
 **Carry-forward:** slices 8 and 9 validate the submitted year against the academic year list. The list is now written only through the two Manager RPCs; years are retired rather than deleted or renamed; capacity creation requires an active listed year while older rows stay editable.
 
@@ -1294,7 +1301,7 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-6d | `mark_enrolled` | **Decided 2026-10-12, as recommended:** Manager only, no capability needed. |
 | D-6e | Staff-recorded offer response | **Decided 2026-10-12, as recommended:** `record_offer_response` for a reply the parent gives staff (6b). |
 | D-6f | Decisions at inquiry or enrolled | **Decided 2026-10-12, as recommended:** refused. |
-| D-6g | Student ID year | **Decided 2026-10-12, as recommended:** the calendar year of enrolment, Africa/Accra (TCS OS parity). Open: do the real current TCS student IDs follow YYPPNNNN, and which year did they use? |
+| D-6g | Student ID year | **Decided 2026-10-12, as recommended:** the calendar year of enrolment, Africa/Accra (TCS OS parity). **Answered 2026-10-12, closed:** IDs are YY (calendar year of enrolment in the system) + PP (group code) + NNNN (roll from 0001, restarting per year and per group). A student enrolled in 2026 who starts in 2027 keeps the 26 ID. Matches the build; see slice 6b. |
 | D-6h | Unbanded or legacy grade at enrolment | **Decided 2026-10-12, as recommended:** refuse enrolment. Slice 7b adds a Manager-only grade-correction RPC. |
 | D-6i | A student's second application | **Decided 2026-10-12, as recommended:** keep the existing ID; refuse a second enrolment in the same academic year; the enrolment stage audit row carries the ID. |
 | D-6j | Decision change once an offer exists | **Decided 2026-10-12, changed from the recommendation:** a pending offer is withdrawn with a new `withdrawn` response (not `expired`); an accepted offer blocks the change; enrolled blocks it. |
