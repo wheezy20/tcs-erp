@@ -54,7 +54,7 @@ function validDraft(): InquiryDraft {
         religion: "Christian",
         address: "1 Ring Road",
         townCity: "Accra",
-        phone: "+233551794822",
+        phone: "+233000000000",
         email: "ama@example.com",
       },
     ],
@@ -164,13 +164,13 @@ describe("validateInquiry", () => {
     expect(phoneError("+12345678")).toBeUndefined(); // 8 digits
     expect(phoneError("+123456789012345")).toBeUndefined(); // 15 digits
     expect(phoneError("+1234567890123456")).toBeTruthy(); // 16 digits
-    expect(phoneError("+233 55-179 4822")).toBeUndefined(); // spaces and dashes
-    expect(phoneError("0551794822")).toBeTruthy(); // missing plus
-    expect(phoneError("+233551ABC822")).toBeTruthy(); // letters
+    expect(phoneError("+233 00-000 0000")).toBeUndefined(); // spaces and dashes
+    expect(phoneError("0000000000")).toBeTruthy(); // missing plus
+    expect(phoneError("+233000ABC000")).toBeTruthy(); // letters
   });
 
   it("cleans the phone before sending it", () => {
-    expect(cleanPhone(" +233 55-179 4822 ")).toBe("+233551794822");
+    expect(cleanPhone(" +233 00-000 0000 ")).toBe("+233000000000");
     const d = validDraft();
     d.guardians[0].phone = "+44 20-7946 0958";
     const g = (buildInquiryPayload(d).guardians as Record<string, unknown>[])[0];

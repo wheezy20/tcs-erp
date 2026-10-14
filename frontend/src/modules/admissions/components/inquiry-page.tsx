@@ -458,7 +458,7 @@ function InquiryForm({
                       id={id("phone")}
                       type="tel"
                       inputMode="tel"
-                      placeholder="+233 55 179 4822"
+                      placeholder="+233 XX XXX XXXX"
                       maxLength={32}
                       aria-invalid={errors[k("phone")] ? true : undefined}
                       value={g.phone}
@@ -576,6 +576,7 @@ function InquiryForm({
                       <Input
                         id={id("school")}
                         maxLength={255}
+                        placeholder="N/A if not yet in school"
                         aria-invalid={errors[k("currentSchool")] ? true : undefined}
                         value={s.currentSchool}
                         onChange={(e) =>

@@ -16,7 +16,7 @@ export const PHONE_PATTERN = /^\+[0-9]{8,15}$/;
 
 /** Shown under the phone field and as its error. */
 export const PHONE_HINT =
-  "Start with a plus sign and your country code, then 8 to 15 digits, for example +233 55 179 4822. Spaces and dashes are fine.";
+  "Start with a plus sign and your country code, then 8 to 15 digits, for example +233 XX XXX XXXX. Spaces and dashes are fine.";
 
 /** The phone as stored: spaces and dashes removed, so a plus sign and digits. */
 export function cleanPhone(phone: string): string {

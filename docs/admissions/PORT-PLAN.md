@@ -951,7 +951,7 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
   - inline errors next to each field, including server errors. `submit_inquiry` names the field in the error DETAIL, and the Edge Function passes it on only when it matches a strict path pattern;
   - asterisks on required fields;
   - a thank-you page that says the school will contact the parent and shows the INQ reference or references to keep. No confirmation email exists until slice 12;
-  - the phone hint "Start with a plus sign and your country code, then 8 to 15 digits, for example +233 55 179 4822. Spaces and dashes are fine."
+  - the phone hint "Start with a plus sign and your country code, then 8 to 15 digits, for example +233 XX XXX XXXX. Spaces and dashes are fine."
 
 **Anon surface gate (approved 2026-10-14).** `get_public_admissions_options` changes only the campus label string, and adds an `applications_open` key. Its signature is unchanged, and the anon-executable count stays at 170.
 

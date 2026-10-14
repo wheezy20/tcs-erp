@@ -4832,3 +4832,13 @@ Eyram removed the extra early-care option from the enquiry form's current grade 
 - The 8b deliberate-break set drops the early-care break. It was already listed as dropped, and that entry is removed.
 - New probe L13 in `supabase/role-matrix/20261021110000_admissions_inquiry_form_polish.sql`: a role allowed to edit branches (Manager, Attendant) can still change a branch's name and other columns after the label guard, and the label stays unchanged. L3 and L4 prove signed-in users can't set or change `public_label`.
 - Verification: on a fresh reset, the 8b polish probe file and the slice 8 submit_inquiry and options probe files are green. The inquiry vitest file passes, `tsc` is clean, the overload check is clean and the types are identical.
+
+## 2026-10-14: Enquiry form phone example replaced
+
+The enquiry form's phone example was a real personal number, carried over from TCS OS. Every example now uses a placeholder.
+
+- Parents now see `+233 XX XXX XXXX` in the phone hint, the input placeholder and the server's phone error message.
+- New migration `20261022100000_admissions_inquiry_phone_example.sql` re-creates `submit_inquiry` with only that message changed. The committed slice 8 and 8b migrations still contain the old number in their text, but they are not edited, because they may already be applied. The new function supersedes them.
+- Tests and probes use obviously invalid all-zero numbers (`+233000000000`).
+- Not changed: git history (commits c71b363 and 32eae11) still contains the number. Removing it would mean rewriting history, which is Eyram's decision.
+- Verification: on a fresh reset, the three affected probe files are green. 27 handler tests, 7 integration tests and 40 inquiry vitest tests pass. `tsc` is clean, the overload check is clean and the types are identical.
