@@ -4842,3 +4842,26 @@ The enquiry form's phone example was a real personal number, carried over from T
 - Tests and probes use obviously invalid all-zero numbers (`+233000000000`).
 - Not changed: git history (commits c71b363 and 32eae11) still contains the number. Removing it would mean rewriting history, which is Eyram's decision.
 - Verification: on a fresh reset, the three affected probe files are green. 27 handler tests, 7 integration tests and 40 inquiry vitest tests pass. `tsc` is clean, the overload check is clean and the types are identical.
+
+## 2026-10-14: D-9d revised, strict phone format
+
+Eyram changed the enquiry form's phone rule on 2026-10-14. It replaces the earlier rule from the same day, which removed spaces and dashes before checking for a plus sign and 8 to 15 digits. The point is the format: foreign numbers are still accepted.
+
+- **Rule:** a plus sign and digits only, stored as sent.
+  - Ghana: +233 and exactly 9 digits, the first not 0, for example +233590000000.
+  - Any other country: a country code not starting with 0, and 8 to 15 digits in all, for example +442079460958.
+  - Spaces, dashes, letters and extra digits are refused; nothing is cleaned or stripped any more.
+- **On the form:**
+  - Digits typed without a plus sign are a Ghana number and get +233 in front. Every number shows with no spaces.
+  - A foreign number starts with + and the country code.
+  - Spaces, letters, dashes or other symbols, a leading 0 on a Ghana number, a country code starting with 0, and too many digits show an error at once. The typed text stays visible.
+  - The hint reads "Format: +233590000000. Country code and your number, no spaces." The placeholder is +233590000000.
+- **Built:**
+  - New migration `20261023100000_admissions_inquiry_phone_format.sql` re-creates `submit_inquiry` with only the phone check, its message and the stored value changed. Committed migrations are not edited.
+  - Form logic: `readPhoneInput`, `storedPhone`, `phoneError` and `isValidPhone` replace `cleanPhone`.
+  - Probe Q10 in `20261020120000_admissions_submit_inquiry.sql` was rewritten for the new rule, with a fresh email per attempt so the per-email limit can't mask a result. Fixtures in the 8b probe files and the integration test now use +233590000000.
+- **Verification:**
+  - On a fresh reset, the three affected probe files are green.
+  - Two deliberate breaks, both caught by Q10: the server check loosened to the old 8 to 15 digit rule, and the old space and dash stripping put back.
+  - 42 inquiry vitest tests, 27 handler tests and 7 integration tests pass.
+  - `tsc` clean, lint 0 errors (13 warnings, baseline), overload check clean, types identical.

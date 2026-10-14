@@ -55,7 +55,7 @@ update public.admissions_settings set public_intake_open = true where id = 1;
 select set_config('tcs.p', jsonb_build_object(
   'referral_source', 'website',
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
-    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000000', 'email', 'q2@example.test')),
+    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000000', 'email', 'q2@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
     'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
@@ -78,7 +78,7 @@ grant execute on function public.submit_inquiry(jsonb) to authenticated, anon;
 select set_config('tcs.p', jsonb_build_object(
   'referral_source', 'website',
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
-    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000000', 'email', 'q4@example.test')),
+    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000000', 'email', 'q4@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
     'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
@@ -95,9 +95,9 @@ select set_config('tcs.p', jsonb_build_object(
   'referral_source', 'other', 'referral_source_other', ' Radio ', 'comments', ' Hello ',
   'guardians', jsonb_build_array(
     jsonb_build_object('surname', ' Mensah ', 'first_name', 'Ama', 'relationship', 'mother', 'religion', 'Christian',
-      'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000000', 'email', ' Q5@Example.TEST '),
+      'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000000', 'email', ' Q5@Example.TEST '),
     jsonb_build_object('surname', 'Mensah', 'first_name', 'Kwame', 'relationship', 'father', 'religion', 'Christian',
-      'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000001', 'email', 'kwame@example.test')),
+      'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000001', 'email', 'kwame@example.test')),
   'students', jsonb_build_array(
     jsonb_build_object('full_name', 'Esi Mensah', 'date_of_birth', '2022-05-06',
       'prior_schooling', 'not_yet_in_school', 'grade_id', (select id from public.admissions_grades where name = 'Nursery 1'),
@@ -156,7 +156,7 @@ select set_config('tcs.families', (select count(*)::text from public.families), 
 select set_config('tcs.p', jsonb_build_object(
   'referral_source', 'website',
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
-    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000000', 'email', 'q6@example.test')),
+    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000000', 'email', 'q6@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
     'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
@@ -188,7 +188,7 @@ select set_config('tcs.g9', (select id::text from public.admissions_grades where
 select set_config('tcs.p', jsonb_build_object(
   'referral_source', 'website',
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
-    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000000', 'email', 'q7@example.test')),
+    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000000', 'email', 'q7@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
     'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
@@ -271,7 +271,7 @@ delete from public.public_rate_limits;
 select set_config('tcs.p', jsonb_build_object(
   'referral_source', 'website',
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
-    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000000', 'email', 'limit@example.test')),
+    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000000', 'email', 'limit@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
     'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
@@ -323,7 +323,7 @@ select set_config('tcs.families', (select count(*)::text from public.families), 
 select set_config('tcs.p', jsonb_build_object(
   'referral_source', 'website',
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
-    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000000', 'email', 'twice@example.test')),
+    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000000', 'email', 'twice@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
     'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
@@ -340,13 +340,13 @@ do $$ begin
   end if;
 end $$;
 
--- probe: Q10 service_role: phone edges (D-9d): 8 and 15 digits pass, spaces and dashes are stripped and the cleaned form stored; 7, 16, no plus and letters refused with TCS22
+-- probe: Q10 service_role: phone edges (D-9d revised): +233 and 9 digits, or another country code and 8 to 15 digits, pass and are stored as sent; spaces, dashes, a wrong Ghana length, leading 0, country code 0, 7 or 16 digits, no plus and letters refused with TCS22
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 update public.admissions_settings set public_intake_open = true where id = 1;
 select set_config('tcs.p', jsonb_build_object(
   'referral_source', 'website',
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
-    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000000', 'email', 'phone@example.test')),
+    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000000', 'email', 'phone@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
     'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
@@ -360,18 +360,24 @@ declare
   ph text;
   refs text[];
   stored text[] := '{}';
+  n integer := 0;
 begin
-  foreach ph in array array['+12345678', '+123456789012345', ' +233 00-000 0000 '] loop
-    refs := public.submit_inquiry(jsonb_set(p, '{guardians,0,phone}', to_jsonb(ph)));
+  -- A fresh email per attempt, so only the phone rule decides.
+  foreach ph in array array['+233590000000', '+442079460958', '+12025550123', '+123456789012345', '+12345678'] loop
+    n := n + 1;
+    refs := public.submit_inquiry(jsonb_set(jsonb_set(p, '{guardians,0,phone}', to_jsonb(ph)),
+      '{guardians,0,email}', to_jsonb('phone' || n || '@example.test')));
     stored := stored || (select g.phone from public.guardians g join public.students s on s.family_id = g.family_id
                          join public.applications a on a.student_id = s.id where a.inquiry_reference = refs[1]);
   end loop;
-  if stored is distinct from array['+12345678', '+123456789012345', '+233000000000'] then
+  if stored is distinct from array['+233590000000', '+442079460958', '+12025550123', '+123456789012345', '+12345678'] then
     raise exception 'stored phones wrong: %', stored;
   end if;
-  foreach ph in array array['+1234567', '+1234567890123456', '0000000000', '+233000ABC000'] loop
+  foreach ph in array array['+23359000000', '+2335900000000', '+233 59 000 0000', '+233-59-000-0000', '+44 20 7946 0958', '+44-20-7946-0958', '+233090000000', '+0441234567', '+1234567', '+1234567890123456', '0590000000', '233590000000', '+233590ABC000'] loop
     begin
-      perform public.submit_inquiry(jsonb_set(p, '{guardians,0,phone}', to_jsonb(ph)));
+      n := n + 1;
+      perform public.submit_inquiry(jsonb_set(jsonb_set(p, '{guardians,0,phone}', to_jsonb(ph)),
+        '{guardians,0,email}', to_jsonb('phone' || n || '@example.test')));
       raise exception 'phone % accepted', ph;
     exception when sqlstate 'TCS22' then null;
     end;

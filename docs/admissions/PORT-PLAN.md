@@ -856,7 +856,7 @@ Slice 7a built 2026-10-12. Migrations applied on hosted and the frontend deploye
   - 1–2 guardians and 1–5 students;
   - required fields;
   - relationship and referral enums, with `referral_source_other` required when the source is `other`;
-  - phone matching `^\+\d{3}\d{9}$` (TCS OS; superseded by D-9d, decided 2026-10-14: a plus sign and 8 to 15 digits after removing spaces and dashes);
+  - phone matching `^\+\d{3}\d{9}$` (TCS OS; superseded by D-9d, revised 2026-10-14: a plus sign and digits only, stored as sent: +233 and exactly 9 digits (the first not 0), for example +233590000000, or another country code (not starting with 0) and 8 to 15 digits in all, for example +442079460958; spaces, dashes, letters and extra digits are refused);
   - email format.
 
   It creates a family, guardians, students and one `inquiry` application per child. INQ references come from slice 5's trigger. **No de-duplication**, matching TCS OS (D-8c).
@@ -913,7 +913,7 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
 - **(a) Forwarded IP, launch gate.** Code review noted that with a client-controlled `x-forwarded-for`, each spoofed request makes a fresh rate-limit row and a siteverify call before Turnstile refuses it. It also lets someone burn another visitor's IP allowance. The hosted header must be tested before public intake is opened.
 - **(b) Per-email limit, needs Eyram.** The 5 per email per day limit lets anyone learn whether an email has been submitted today (the sixth attempt is refused). It also lets someone lock a parent out for the day with five junk inquiries. This is inherent to a per-email counter. Eyram to accept or change.
 - **(c) Local CORS.** Locally the Supabase CLI gateway adds `Access-Control-Allow-Origin: *` and answers preflight itself. The handler's own Origin check still refuses foreign origins with 403. The hosted headers should be checked with curl after deploy.
-- **(d) D-9d phone rule (decided 2026-10-14, closed).** Spaces and dashes are removed, then the phone must be a plus sign followed by 8 to 15 digits; the cleaned form (plus sign and digits only) is stored. Applied in `submit_inquiry` (migration `20261020120000`, edited in place since it is not pushed), the form logic and its error messages, vitest and probe Q7 and the new Q10. The Edge Function has no phone check of its own.
+- **(d) D-9d phone rule (revised 2026-10-14, closed).** a plus sign and digits only, stored as sent: +233 and exactly 9 digits (the first not 0), for example +233590000000, or another country code (not starting with 0) and 8 to 15 digits in all, for example +442079460958; spaces, dashes, letters and extra digits are refused. The form puts +233 in front of digits typed without a plus sign and shows every number with no spaces; it shows an error at once for spaces, letters, dashes or other symbols, a leading 0 on a Ghana number, and too many digits. Foreign numbers are accepted. This replaces the earlier 2026-10-14 rule (a plus sign and 8 to 15 digits, spaces and dashes removed). Applied in migration `20261023100000_admissions_inquiry_phone_format.sql`, the form logic, vitest and probe Q10.
 - **Non-blocking review items, left as they are.** Rate-limit row cleanup runs on every hit (a scheduled cleanup later, D-12b). The closed flag is checked only in `submit_inquiry`, after the limits and Turnstile.
 
 **Read from TCS OS (2026-10-13, from the code, not tested):**
@@ -951,7 +951,7 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
   - inline errors next to each field, including server errors. `submit_inquiry` names the field in the error DETAIL, and the Edge Function passes it on only when it matches a strict path pattern;
   - asterisks on required fields;
   - a thank-you page that says the school will contact the parent and shows the INQ reference or references to keep. No confirmation email exists until slice 12;
-  - the phone hint "Start with a plus sign and your country code, then 8 to 15 digits, for example +233 XX XXX XXXX. Spaces and dashes are fine."
+  - the phone hint "Format: +233590000000. Country code and your number, no spaces." (revised 2026-10-14 with D-9d)
 
 **Anon surface gate (approved 2026-10-14).** `get_public_admissions_options` changes only the campus label string, and adds an `applications_open` key. Its signature is unchanged, and the anon-executable count stays at 170.
 
@@ -1055,7 +1055,7 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 **Still open:**
 
 - **D-9a.** Upload mechanism. Recommendation: a signed upload URL from the Edge Function, bound to a reservation. The alternative is an anon storage insert policy that checks the reservation, the onboarding style, with no service role.
-- **D-9d (decided 2026-10-14, closed).** A plus sign followed by 8 to 15 digits, after removing spaces and dashes; the cleaned form is stored. Built in slice 8; slice 9's application form and emergency contacts use the same rule.
+- **D-9d (revised 2026-10-14, closed).** a plus sign and digits only, stored as sent: +233 and exactly 9 digits (the first not 0), for example +233590000000, or another country code (not starting with 0) and 8 to 15 digits in all, for example +442079460958; spaces, dashes, letters and extra digits are refused. Built in slices 8 and 8b; slice 9's application form and emergency contacts use the same rule.
 - **D-9e.** Application-fee proof. TCS OS doesn't enforce it (`02-stack-and-schema.md:509-516`). Recommendation: keep it optional.
 
 
@@ -1463,7 +1463,7 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-9a | Upload mechanism | Signed upload URL from the Edge Function, bound to a reservation. |
 | D-9b | Anon re-submission overwriting existing data | **Decided 2026-10-13 (firmed):** a matched family never gains or changes guardians from an anonymous submission; differing details go in the staff-only snapshot. |
 | D-9c | Matched application in a stage other than `inquiry` | **Changed 2026-10-13:** never refuse on a match. Flag it for staff; the response is identical. The 2026-09-29 recommendation (refuse the same year and grade) is superseded. |
-| D-9d | Phone rule | **Decided 2026-10-14, changed from the recommendation:** a plus sign and 8 to 15 digits after removing spaces and dashes; store the cleaned form. |
+| D-9d | Phone rule | **Revised 2026-10-14:** a plus sign and digits only, stored as sent. +233 needs exactly 9 digits (first not 0); another country code needs 8 to 15 digits in all. No spaces, dashes or letters. Replaces the same day's rule that removed spaces and dashes before checking. |
 | D-9e | Application-fee proof | Optional. |
 | D-10a | Draft TTL | 30 days; confirm the live value. |
 | D-10b | Draft purge | 30 days after expiry. |

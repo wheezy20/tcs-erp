@@ -141,7 +141,7 @@ function inquiry(email: string, student: Record<string, unknown> = {}) {
         religion: "Christian",
         address: "1 Ring Road",
         town_city: "Accra",
-        phone: "+233000000000",
+        phone: "+233590000000",
         email,
       },
     ],

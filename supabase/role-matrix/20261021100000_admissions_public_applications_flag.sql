@@ -118,7 +118,7 @@ update public.admissions_settings set public_intake_open = true, public_applicat
 select set_config('tcs.p', jsonb_build_object(
   'referral_source', 'website',
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
-    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000000', 'email', 'p11@example.test')),
+    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000000', 'email', 'p11@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
     'current_school', 'Little Stars', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'),
     'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
@@ -135,7 +135,7 @@ update public.admissions_settings set public_intake_open = false, public_applica
 select set_config('tcs.p', jsonb_build_object(
   'referral_source', 'website',
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
-    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233000000000', 'email', 'p12@example.test')),
+    'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233590000000', 'email', 'p12@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
     'current_school', 'Little Stars', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'),
     'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),

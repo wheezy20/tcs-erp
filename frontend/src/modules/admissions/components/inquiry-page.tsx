@@ -21,6 +21,7 @@ import {
   MONTH_OPTIONS,
   OFFICE_MESSAGE,
   OTHER,
+  PHONE_EXAMPLE,
   PHONE_HINT,
   REFERRAL_OPTIONS,
   RELATIONSHIP_OPTIONS,
@@ -36,6 +37,7 @@ import {
   maskDateInput,
   needsCurrentSchool,
   parseDmy,
+  readPhoneInput,
   todayInAccra,
   validateInquiry,
   withCampus,
@@ -458,11 +460,17 @@ function InquiryForm({
                       id={id("phone")}
                       type="tel"
                       inputMode="tel"
-                      placeholder="+233 XX XXX XXXX"
+                      placeholder={PHONE_EXAMPLE}
                       maxLength={32}
                       aria-invalid={errors[k("phone")] ? true : undefined}
                       value={g.phone}
-                      onChange={(e) => setGuardian(i, { phone: e.target.value })}
+                      onChange={(e) => {
+                        // Puts +233 in front of digits typed without a plus; a
+                        // space, symbol or extra digit shows its error at once.
+                        const read = readPhoneInput(e.target.value);
+                        setGuardian(i, { phone: read.display });
+                        if (read.error) setErrors((x) => ({ ...x, [k("phone")]: read.error! }));
+                      }}
                     />
                   </Field>
                   {text("email", "Active email address", {

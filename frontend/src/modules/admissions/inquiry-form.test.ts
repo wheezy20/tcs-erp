@@ -6,7 +6,9 @@ import {
   PHONE_HINT,
   ageHint,
   buildInquiryPayload,
-  cleanPhone,
+  phoneError,
+  readPhoneInput,
+  storedPhone,
   currentGradeChoices,
   effectiveGuardians,
   maskDateInput,
@@ -54,7 +56,7 @@ function validDraft(): InquiryDraft {
         religion: "Christian",
         address: "1 Ring Road",
         townCity: "Accra",
-        phone: "+233000000000",
+        phone: "+233590000000",
         email: "ama@example.com",
       },
     ],
@@ -154,27 +156,53 @@ describe("validateInquiry", () => {
     }
   });
 
-  it("applies the phone rule: a plus sign and 8 to 15 digits after cleaning", () => {
-    const phoneError = (phone: string) => {
-      const d = validDraft();
-      d.guardians[0].phone = phone;
-      return validateInquiry(d, OPTIONS, TODAY)["guardians.0.phone"];
-    };
-    expect(phoneError("+1234567")).toBeTruthy(); // 7 digits
-    expect(phoneError("+12345678")).toBeUndefined(); // 8 digits
-    expect(phoneError("+123456789012345")).toBeUndefined(); // 15 digits
-    expect(phoneError("+1234567890123456")).toBeTruthy(); // 16 digits
-    expect(phoneError("+233 00-000 0000")).toBeUndefined(); // spaces and dashes
-    expect(phoneError("0000000000")).toBeTruthy(); // missing plus
-    expect(phoneError("+233000ABC000")).toBeTruthy(); // letters
+  it("puts +233 in front of digits typed without a plus, with no spaces", () => {
+    expect(readPhoneInput("5")).toEqual({ display: "+2335", error: null });
+    expect(readPhoneInput("590000000")).toEqual({ display: "+233590000000", error: null });
+    expect(readPhoneInput("+233590000000")).toEqual({ display: "+233590000000", error: null });
+    // Typing the prefix itself is fine, with nothing to complain about yet.
+    expect(readPhoneInput("+23")).toEqual({ display: "+23", error: null });
+    expect(readPhoneInput("")).toEqual({ display: "", error: null });
   });
 
-  it("cleans the phone before sending it", () => {
-    expect(cleanPhone(" +233 00-000 0000 ")).toBe("+233000000000");
+  it("accepts a foreign number as + and digits", () => {
+    expect(readPhoneInput("+442079460958")).toEqual({ display: "+442079460958", error: null });
+    expect(readPhoneInput("+12025550123")).toEqual({ display: "+12025550123", error: null });
+    expect(phoneError("+442079460958")).toBeNull();
+    expect(phoneError("+4420")).toMatch(/full number/);
     const d = validDraft();
-    d.guardians[0].phone = "+44 20-7946 0958";
+    d.guardians[0].phone = "+442079460958";
     const g = (buildInquiryPayload(d).guardians as Record<string, unknown>[])[0];
     expect(g.phone).toBe("+442079460958");
+  });
+
+  it("shows an error at once for spaces, symbols or too many digits, and keeps the text", () => {
+    const cases: [string, RegExp][] = [
+      ["+233 590000000", /No spaces/], // space
+      ["+44 2079460958", /No spaces/], // space in a foreign number
+      ["+2335900000001", /Too many digits/], // tenth digit
+      ["+233-59-000-0000", /digits only/], // dashes
+      ["+233590ABC000", /digits only/], // letters
+      ["+4412345678901234", /at most 15 digits/], // 16 digits
+      ["+0441234567", /doesn't start with 0/], // country code 0
+      ["0590000000", /Leave out the first 0/], // local format
+    ];
+    for (const [raw, message] of cases) {
+      const read = readPhoneInput(raw);
+      expect(read.error, raw).toMatch(message);
+      expect(read.display).toBe(raw);
+    }
+  });
+
+  it("needs all 9 digits before sending, and sends the number as shown", () => {
+    expect(phoneError("+23359000000")).toMatch(/all 9 digits/);
+    expect(phoneError("+233590000000")).toBeNull();
+    const d = validDraft();
+    d.guardians[0].phone = "+23359000000";
+    expect(validateInquiry(d, OPTIONS, TODAY)["guardians.0.phone"]).toMatch(/all 9 digits/);
+    expect(storedPhone("+233590000000")).toBe("+233590000000");
+    const g = (buildInquiryPayload(validDraft()).guardians as Record<string, unknown>[])[0];
+    expect(g.phone).toBe("+233590000000");
   });
 
   it("refuses a grade, year or campus not in the lists", () => {
@@ -534,7 +562,6 @@ describe("slice 8b: date of birth, age hint, current grade, address, field error
     for (const text of [PHONE_HINT, OFFICE_MESSAGE]) {
       expect(text).not.toMatch(/[\u2013\u2014]/);
     }
-    expect(PHONE_HINT).toMatch(/plus sign/);
-    expect(PHONE_HINT).toMatch(/8 to 15 digits/);
+    expect(PHONE_HINT).toBe("Format: +233590000000. Country code and your number, no spaces.");
   });
 });

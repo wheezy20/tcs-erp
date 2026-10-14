@@ -10,18 +10,76 @@
 export const MAX_GUARDIANS = 2;
 export const MAX_STUDENTS = 5;
 
-/** A plus sign then 8 to 15 digits, checked after spaces and dashes are
- * removed (D-9d, decided 2026-10-14). */
-export const PHONE_PATTERN = /^\+[0-9]{8,15}$/;
-
-/** Shown under the phone field and as its error. */
-export const PHONE_HINT =
-  "Start with a plus sign and your country code, then 8 to 15 digits, for example +233 XX XXX XXXX. Spaces and dashes are fine.";
-
-/** The phone as stored: spaces and dashes removed, so a plus sign and digits. */
-export function cleanPhone(phone: string): string {
-  return phone.replace(/[\s-]/g, "");
+/** A plus sign and digits only, as sent and stored (D-9d revised
+ * 2026-10-14): +233 and exactly 9 digits (the first not 0), or another
+ * country code (not starting with 0) and 8 to 15 digits in all.
+ * submit_inquiry checks the same. */
+export function isValidPhone(stored: string): boolean {
+  if (stored.startsWith("+233")) return /^\+233[1-9][0-9]{8}$/.test(stored);
+  return /^\+[1-9][0-9]{7,14}$/.test(stored);
 }
+export const PHONE_EXAMPLE = "+233590000000";
+
+/** Shown under the phone field. */
+export const PHONE_HINT = "Format: +233590000000. Country code and your number, no spaces.";
+
+/** What the parent typed or pasted into the phone box. Digits typed
+ * without a plus sign are a Ghana number and get +233 in front. Spaces,
+ * letters, dashes or any other symbol, a leading 0 on a Ghana number, a
+ * country code starting with 0 and too many digits are errors, and the
+ * text is left as typed so the parent can see it. */
+export function readPhoneInput(raw: string): { display: string; error: string | null } {
+  if (raw === "") return { display: "", error: null };
+  const plus = raw.startsWith("+");
+  const digits = plus ? raw.slice(1) : raw;
+  if (/\s/.test(raw)) {
+    return { display: raw, error: "No spaces. Type the number as +233590000000." };
+  }
+  if (!/^[0-9]*$/.test(digits)) {
+    return { display: raw, error: "Use digits only, with no letters, dashes or other symbols." };
+  }
+  // Still typing the +233 prefix (or a country code that starts like it).
+  if (plus && "233".startsWith(digits)) return { display: `+${digits}`, error: null };
+
+  if (plus && !digits.startsWith("233")) {
+    if (digits.startsWith("0")) {
+      return { display: raw, error: "A country code doesn't start with 0." };
+    }
+    if (digits.length > 15) {
+      return {
+        display: raw,
+        error: "Too many digits. A phone number has at most 15 digits after the +.",
+      };
+    }
+    return { display: `+${digits}`, error: null };
+  }
+
+  const national = plus ? digits.slice(3) : digits;
+  if (national.startsWith("0")) {
+    return { display: raw, error: "Leave out the first 0: for 0590000000, type +233590000000." };
+  }
+  if (national.length > 9) {
+    return { display: raw, error: "Too many digits. A Ghana number has 9 digits after +233." };
+  }
+  return { display: `+233${national}`, error: null };
+}
+
+/** The phone as sent and stored: exactly what the box shows. */
+export function storedPhone(display: string): string {
+  return display;
+}
+
+/** The error to show for a phone box, or null when it is complete. */
+export function phoneError(display: string): string | null {
+  const read = readPhoneInput(display);
+  if (read.error) return read.error;
+  const stored = storedPhone(read.display);
+  if (isValidPhone(stored)) return null;
+  return stored === "" || stored.startsWith("+233")
+    ? "Enter all 9 digits after +233, for example +233590000000."
+    : "Enter the full number: country code and number, 8 to 15 digits after the +.";
+}
+
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export const REFERRAL_OPTIONS = [
@@ -373,7 +431,8 @@ export function validateInquiry(
     }
     required(k("address"), g.address, "Address");
     required(k("townCity"), g.townCity, "Town or city");
-    if (!PHONE_PATTERN.test(cleanPhone(g.phone))) errors[k("phone")] = PHONE_HINT;
+    const phone = phoneError(g.phone);
+    if (phone) errors[k("phone")] = phone;
     const email = g.email.trim();
     if (!EMAIL_PATTERN.test(email) || email.length > 254) {
       errors[k("email")] = "Enter a valid email address";
@@ -427,7 +486,7 @@ export function buildInquiryPayload(draft: InquiryDraft): Record<string, unknown
       religion: g.religion,
       address: g.address.trim(),
       town_city: g.townCity.trim(),
-      phone: cleanPhone(g.phone),
+      phone: storedPhone(g.phone),
       email: g.email.trim(),
     })),
     students: draft.students.map((s) => {
