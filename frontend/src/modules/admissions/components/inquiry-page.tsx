@@ -26,8 +26,8 @@ import {
   emptyDraft,
   emptyGuardian,
   emptyStudent,
-  formAvailable,
   gradesForCampus,
+  inquiryView,
   todayInAccra,
   validateInquiry,
   withCampus,
@@ -45,23 +45,33 @@ import {
 
 const NO_CAMPUS = "__none__";
 const SITE_KEY = (import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined) ?? "";
+let missingKeyReported = false;
 
 export function InquiryPage() {
   const options = useLoad(getPublicAdmissionsOptions, [], "Could not load the form.");
   const [closedAfterSubmit, setClosedAfterSubmit] = useState(false);
   const [references, setReferences] = useState<string[] | null>(null);
 
-  if (options.loading && !options.data) {
+  const view = inquiryView({
+    loading: options.loading,
+    error: options.error,
+    options: options.data,
+    created: references !== null,
+    closedAfterSubmit,
+    siteKey: SITE_KEY,
+  });
+
+  if (view === "loading") {
     return <Shell>Loading…</Shell>;
   }
-  if (options.error || !options.data) {
+  if (view === "loadError" || !options.data) {
     return (
       <Notice title="The inquiry form couldn't load">
         Please try again later, or call the school office to make an inquiry.
       </Notice>
     );
   }
-  if (references) {
+  if (view === "created" && references) {
     return (
       <Notice title="Thank you, we've received your inquiry">
         <span className="block">
@@ -72,7 +82,7 @@ export function InquiryPage() {
       </Notice>
     );
   }
-  if (closedAfterSubmit || !formAvailable(options.data)) {
+  if (view === "closed") {
     return (
       <Notice title="Online inquiries are closed">
         We're not taking inquiries online at the moment. Please call the school office to make an
@@ -80,7 +90,15 @@ export function InquiryPage() {
       </Notice>
     );
   }
-  if (SITE_KEY === "") {
+  if (view === "unavailable") {
+    // Not a secret: says only that the public site key wasn't built in, so
+    // the cause shows up in the browser console instead of a silent page.
+    if (!missingKeyReported && typeof window !== "undefined") {
+      missingKeyReported = true;
+      console.error(
+        "Inquiry form unavailable: VITE_TURNSTILE_SITE_KEY was empty when this site was built.",
+      );
+    }
     return <Notice title="The inquiry form isn't available">{OFFICE_MESSAGE}</Notice>;
   }
   return (

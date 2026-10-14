@@ -16,9 +16,10 @@
 #      (gitignored; Vite never loads a file by that name on its own). It
 #      refuses anything that isn't https://<ref>.supabase.co, and any
 #      service_role / secret key. Also reads VITE_TURNSTILE_SITE_KEY (the
-#      public site key for the /inquiry form, admissions slice 8). Without
-#      it the build still deploys and /inquiry says to call the office; it
-#      refuses the local test site key from .env.local.
+#      public site key for the /inquiry form, admissions slice 8). It is
+#      required: without it /inquiry shows "The inquiry form isn't
+#      available". It refuses the local test site key from .env.local and
+#      Cloudflare's test keys, and checks the key is in the client bundle.
 #   2. Moves every .env file Vite would load (.env, .env.local,
 #      .env.production, .env.production.local) out of the way for the
 #      build, so the build can't read them, and puts them back afterwards.
@@ -83,7 +84,7 @@ read_value_from() {
 }
 
 check_dist() {
-  local url="$1" key="$2" local_key="$3" local_site_key="${4:-}"
+  local url="$1" key="$2" local_key="$3" local_site_key="${4:-}" site_key="${5:-}"
 
   [[ -d dist/client && -d dist/server ]] || fail "dist/client or dist/server is missing. Build first."
 
@@ -111,6 +112,9 @@ check_dist() {
     grep -rIqF "$url" dist/server || fail "the server bundle does not contain $url."
     grep -rIqF "$key" dist/client || fail "the client bundle does not contain the anon key from $DEPLOY_ENV."
     grep -rIqF "$key" dist/server || fail "the server bundle does not contain the anon key from $DEPLOY_ENV."
+  fi
+  if [[ -n "$site_key" ]]; then
+    grep -rIqF "$site_key" dist/client || fail "the client bundle does not contain VITE_TURNSTILE_SITE_KEY from $DEPLOY_ENV, so /inquiry would show \"The inquiry form isn't available\"."
   fi
 
   local other
@@ -161,7 +165,7 @@ esac
 # The Turnstile site key is public, but the local one is Cloudflare's
 # always-pass test key and must never reach the live site.
 if [[ -z "$SITE_KEY" ]]; then
-  echo "Note: VITE_TURNSTILE_SITE_KEY is not set in $DEPLOY_ENV. /inquiry will tell parents to call the office."
+  fail "VITE_TURNSTILE_SITE_KEY is empty or missing in $DEPLOY_ENV. Without it /inquiry shows \"The inquiry form isn't available\". Add the ERP widget's site key."
 elif [[ -n "$LOCAL_SITE_KEY" && "$SITE_KEY" == "$LOCAL_SITE_KEY" ]]; then
   fail "VITE_TURNSTILE_SITE_KEY in $DEPLOY_ENV is the local test key from .env.local. Use the ERP widget's real site key."
 elif [[ "$SITE_KEY" =~ ^[1-3]x0+ ]]; then
@@ -199,7 +203,7 @@ VITE_SUPABASE_URL="$URL" VITE_SUPABASE_ANON_KEY="$KEY" VITE_TURNSTILE_SITE_KEY="
 restore_env_files
 trap - EXIT INT TERM
 
-check_dist "$URL" "$KEY" "$LOCAL_KEY" "$LOCAL_SITE_KEY"
+check_dist "$URL" "$KEY" "$LOCAL_KEY" "$LOCAL_SITE_KEY" "$SITE_KEY"
 
 if [[ "$MODE" == build ]]; then
   echo "Build only: not deploying."

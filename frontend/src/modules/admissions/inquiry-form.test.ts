@@ -7,6 +7,7 @@ import {
   emptyDraft,
   formAvailable,
   gradesForCampus,
+  inquiryView,
   interpretSubmitResponse,
   parsePublicOptions,
   todayInAccra,
@@ -299,5 +300,77 @@ describe("interpretSubmitResponse", () => {
 describe("todayInAccra", () => {
   it("is the UTC date", () => {
     expect(todayInAccra(new Date("2026-10-14T23:30:00Z"))).toBe("2026-10-14");
+  });
+});
+
+describe("inquiryView with the live get_public_admissions_options response", () => {
+  // The exact shape the live site returned (2026-10-14) when /inquiry showed
+  // "The inquiry form isn't available": the parser accepts it, so only the
+  // build-time site key decides between the form and that screen.
+  const LIVE = {
+    grades: [
+      { id: "53265a8c-ce68-4e72-bd0a-d394c1d2c703", name: "Pre Nursery", position: 1 },
+      { id: "28b3e354-32e3-4f2b-b3f9-921fb1ba1a27", name: "Nursery 1", position: 2 },
+      { id: "ae62c3bd-0d03-4dee-a9bb-8f79c52145c7", name: "Grade 1", position: 6 },
+    ],
+    campuses: [
+      {
+        id: "00000000-0000-0000-0000-000000000002",
+        name: "Annex",
+        accepted_grade_ids: [
+          "53265a8c-ce68-4e72-bd0a-d394c1d2c703",
+          "28b3e354-32e3-4f2b-b3f9-921fb1ba1a27",
+        ],
+      },
+      {
+        id: "00000000-0000-0000-0000-000000000001",
+        name: "Main",
+        accepted_grade_ids: [
+          "53265a8c-ce68-4e72-bd0a-d394c1d2c703",
+          "28b3e354-32e3-4f2b-b3f9-921fb1ba1a27",
+          "ae62c3bd-0d03-4dee-a9bb-8f79c52145c7",
+        ],
+      },
+    ],
+    intake_open: true,
+    academic_years: ["2026/2027", "2027/2028"],
+  };
+  const base = { loading: false, error: null, created: false, closedAfterSubmit: false };
+
+  it("parses into an open form with every list filled", () => {
+    const o = parsePublicOptions(LIVE);
+    expect(o.intakeOpen).toBe(true);
+    expect(o.grades).toHaveLength(3);
+    expect(o.campuses.map((c) => c.acceptedGradeIds.length)).toEqual([2, 3]);
+    expect(o.academicYears).toEqual(["2026/2027", "2027/2028"]);
+    expect(formAvailable(o)).toBe(true);
+  });
+
+  it("shows the form when the site key is built in", () => {
+    const options = parsePublicOptions(LIVE);
+    expect(inquiryView({ ...base, options, siteKey: "0x4AAAAAAAexample" })).toBe("form");
+  });
+
+  it("shows the unavailable screen only when the site key is missing or blank", () => {
+    const options = parsePublicOptions(LIVE);
+    expect(inquiryView({ ...base, options, siteKey: "" })).toBe("unavailable");
+    expect(inquiryView({ ...base, options, siteKey: "  " })).toBe("unavailable");
+  });
+
+  it("orders the other screens before the site key check", () => {
+    const options = parsePublicOptions(LIVE);
+    const key = "0x4AAAAAAAexample";
+    expect(inquiryView({ ...base, loading: true, options: undefined, siteKey: key })).toBe(
+      "loading",
+    );
+    expect(inquiryView({ ...base, error: "x", options, siteKey: key })).toBe("loadError");
+    expect(inquiryView({ ...base, created: true, options, siteKey: "" })).toBe("created");
+    expect(
+      inquiryView({
+        ...base,
+        options: parsePublicOptions({ ...LIVE, intake_open: false }),
+        siteKey: key,
+      }),
+    ).toBe("closed");
   });
 });

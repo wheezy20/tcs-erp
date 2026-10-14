@@ -107,6 +107,27 @@ export function formAvailable(options: PublicOptions): boolean {
   return options.intakeOpen && options.grades.length > 0 && options.academicYears.length > 0;
 }
 
+/** Which screen /inquiry shows, in order. "unavailable" means the build
+ * has no Turnstile site key (VITE_TURNSTILE_SITE_KEY was empty when the
+ * site was built), so the form can't pass the security check. */
+export type InquiryView = "loading" | "loadError" | "created" | "closed" | "unavailable" | "form";
+
+export function inquiryView(state: {
+  loading: boolean;
+  error: string | null;
+  options: PublicOptions | undefined;
+  created: boolean;
+  closedAfterSubmit: boolean;
+  siteKey: string;
+}): InquiryView {
+  if (state.loading && !state.options) return "loading";
+  if (state.error || !state.options) return "loadError";
+  if (state.created) return "created";
+  if (state.closedAfterSubmit || !formAvailable(state.options)) return "closed";
+  if (state.siteKey.trim() === "") return "unavailable";
+  return "form";
+}
+
 /** Grades a child may pick: every active grade with no campus chosen, else
  * the ones that campus accepts. */
 export function gradesForCampus(options: PublicOptions, campusId: string): PublicGrade[] {
