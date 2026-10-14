@@ -873,6 +873,7 @@ depend on them holding true for every new table/function added.
   CONSTRAINTS.md and JOURNAL.md.
 - **Service-role-only RPCs refuse every other caller first (codified 2026-10-14, admissions slice 8).** A function that only the Edge Function may call starts with `_require_public_service_caller()`. It refuses a signed-in uid and the `anon` and `authenticated` roles, so a grant added by mistake still can't open it. Refusing only a signed-in uid (`auth.uid() is not null`) doesn't stop `anon`, because anon has no uid. `settle_expired_offers` (6b) still uses the older check; PORT-PLAN, slice 8, has the carry-forward.
 - **Public-path rate-limit keys are hashes only (codified 2026-10-14, slice 8).** The IP key is an HMAC made in the Edge Function, and the email key is a sha256 of the normalised email. A CHECK on `public_rate_limits.key_hash` refuses anything that isn't 64 lowercase hex or `global`, so a raw IP or email can't be stored.
+- **Public text is guarded like a public surface (codified 2026-10-14, admissions slice 8b).** A label or text that anonymous visitors see must not be editable through a broad staff policy. `branches.public_label` is shown on `/inquiry`, and `branches` has a broad `can_write()` update policy, so a guard trigger refuses any change to it by a signed-in user. Only a migration or a dedicated RPC may change such a value.
 - **Branches are campuses; the oldest is Main and holds every
   school-wide record (codified 2026-09-29, admissions slice 1).** TCS
   has two `branches` rows, Main and Annex. Payroll, expenses,

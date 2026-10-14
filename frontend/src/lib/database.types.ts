@@ -229,18 +229,21 @@ export type Database = {
         Row: {
           id: number
           offer_ttl_days: number
+          public_applications_open: boolean
           public_intake_open: boolean
           updated_at: string
         }
         Insert: {
           id?: number
           offer_ttl_days?: number
+          public_applications_open?: boolean
           public_intake_open?: boolean
           updated_at?: string
         }
         Update: {
           id?: number
           offer_ttl_days?: number
+          public_applications_open?: boolean
           public_intake_open?: boolean
           updated_at?: string
         }
@@ -957,18 +960,21 @@ export type Database = {
           default_low_stock_threshold: number
           id: string
           name: string
+          public_label: string | null
         }
         Insert: {
           created_at?: string
           default_low_stock_threshold?: number
           id?: string
           name: string
+          public_label?: string | null
         }
         Update: {
           created_at?: string
           default_low_stock_threshold?: number
           id?: string
           name?: string
+          public_label?: string | null
         }
         Relationships: []
       }
@@ -4424,6 +4430,7 @@ export type Database = {
           address: string
           country: string
           current_grade: string
+          current_grade_id: string | null
           current_school: string
           date_of_birth: string | null
           family_id: string
@@ -4433,6 +4440,7 @@ export type Database = {
           nationality: string
           postal_code: string
           previous_school_location: string
+          prior_schooling: string | null
           student_id: string | null
           town_city: string
         }
@@ -4440,6 +4448,7 @@ export type Database = {
           address?: string
           country?: string
           current_grade?: string
+          current_grade_id?: string | null
           current_school?: string
           date_of_birth?: string | null
           family_id: string
@@ -4449,6 +4458,7 @@ export type Database = {
           nationality?: string
           postal_code?: string
           previous_school_location?: string
+          prior_schooling?: string | null
           student_id?: string | null
           town_city?: string
         }
@@ -4456,6 +4466,7 @@ export type Database = {
           address?: string
           country?: string
           current_grade?: string
+          current_grade_id?: string | null
           current_school?: string
           date_of_birth?: string | null
           family_id?: string
@@ -4465,10 +4476,18 @@ export type Database = {
           nationality?: string
           postal_code?: string
           previous_school_location?: string
+          prior_schooling?: string | null
           student_id?: string | null
           town_city?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "students_current_grade_id_fkey"
+            columns: ["current_grade_id"]
+            isOneToOne: false
+            referencedRelation: "admissions_grades"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "students_family_id_fkey"
             columns: ["family_id"]
@@ -4709,6 +4728,7 @@ export type Database = {
       _admissions_grade_code: { Args: { p_grade: string }; Returns: string }
       _admissions_grade_id: { Args: { p_grade: string }; Returns: string }
       _admissions_reference_year: { Args: { p_at?: string }; Returns: number }
+      _admissions_seed_public_campus_labels: { Args: never; Returns: number }
       _admissions_sequence_text: { Args: { p_seq: number }; Returns: string }
       _employee_import_check: { Args: { p_rows: Json }; Returns: Json }
       _employee_import_date: {
@@ -4775,9 +4795,17 @@ export type Database = {
         Args: { p_bank_name: string; p_created_by?: string }
         Returns: string
       }
-      _public_invalid: { Args: { p_message: string }; Returns: undefined }
+      _public_invalid: {
+        Args: { p_field: string; p_message: string }
+        Returns: undefined
+      }
       _public_only_keys: {
-        Args: { p_allowed: string[]; p_obj: Json; p_what: string }
+        Args: {
+          p_allowed: string[]
+          p_field: string
+          p_obj: Json
+          p_what: string
+        }
         Returns: undefined
       }
       _public_rate_limit_hit: {
@@ -4790,6 +4818,7 @@ export type Database = {
       }
       _public_text: {
         Args: {
+          p_field: string
           p_key: string
           p_label: string
           p_max: number
@@ -6989,6 +7018,23 @@ export type Database = {
         Returns: {
           id: number
           offer_ttl_days: number
+          public_applications_open: boolean
+          public_intake_open: boolean
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "admissions_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_admissions_public_applications: {
+        Args: { p_open: boolean }
+        Returns: {
+          id: number
+          offer_ttl_days: number
+          public_applications_open: boolean
           public_intake_open: boolean
           updated_at: string
         }
@@ -7004,6 +7050,7 @@ export type Database = {
         Returns: {
           id: number
           offer_ttl_days: number
+          public_applications_open: boolean
           public_intake_open: boolean
           updated_at: string
         }

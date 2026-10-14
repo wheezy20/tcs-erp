@@ -7,6 +7,6 @@ import { InquiryPage } from "@/modules/admissions/components/inquiry-page";
 // lists /inquiry as auth-free. Every real check happens server-side in the
 // admissions-public Edge Function and submit_inquiry.
 export const Route = createFileRoute("/inquiry")({
-  head: () => ({ meta: [{ title: "Admissions inquiry · TCS" }] }),
+  head: () => ({ meta: [{ title: "Admissions enquiry · TCS" }] }),
   component: InquiryPage,
 });

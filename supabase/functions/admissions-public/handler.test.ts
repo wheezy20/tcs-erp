@@ -453,6 +453,44 @@ test("database refusals map to fixed responses", async () => {
   }
 });
 
+test("a validation error passes a well formed field path, and nothing else", async () => {
+  const run = async (details: string | null | undefined) => {
+    const h = harness({
+      submit: {
+        data: null,
+        error: { code: "TCS22", message: "Child 1: required", details },
+      },
+    });
+    return json(await handle(post(VALID), h.deps));
+  };
+  assert.deepEqual(await run("students.0.grade_id"), {
+    error: "Child 1: required",
+    field: "students.0.grade_id",
+  });
+  assert.deepEqual(await run("guardians.1.phone"), {
+    error: "Child 1: required",
+    field: "guardians.1.phone",
+  });
+  assert.deepEqual(await run("referral_source"), {
+    error: "Child 1: required",
+    field: "referral_source",
+  });
+  for (const bad of [
+    null,
+    undefined,
+    "",
+    "students.9.grade_id",
+    "Failing row contains (x@y.z)",
+    "students.0.Grade",
+  ]) {
+    assert.deepEqual(
+      await run(bad),
+      { error: "Child 1: required" },
+      String(bad),
+    );
+  }
+});
+
 test("an unexpected database error logs only its code, never the message", async () => {
   const h = harness({
     submit: {

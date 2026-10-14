@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { currentGradeLabel } from "@/modules/admissions/labels";
 
 // Reads for the application detail page. Every read goes through RLS (slices
 // 3a and 4), so an out-of-scope application returns nothing, exactly like a
@@ -132,7 +133,7 @@ export async function getStudentAndFamily(
   const { data: s, error } = await supabase
     .from("students")
     .select(
-      "id, family_id, full_name, date_of_birth, gender, nationality, address, town_city, postal_code, country, current_school, previous_school_location, current_grade, student_id",
+      "id, family_id, full_name, date_of_birth, gender, nationality, address, town_city, postal_code, country, current_school, previous_school_location, current_grade, prior_schooling, student_id, current_grade_ref:admissions_grades(name)",
     )
     .eq("id", studentId)
     .single();
@@ -150,7 +151,11 @@ export async function getStudentAndFamily(
     country: s.country,
     currentSchool: s.current_school,
     previousSchoolLocation: s.previous_school_location,
-    currentGrade: s.current_grade,
+    currentGrade: currentGradeLabel(
+      s.current_grade,
+      s.prior_schooling,
+      s.current_grade_ref?.name ?? null,
+    ),
     studentNumber: s.student_id,
   };
 

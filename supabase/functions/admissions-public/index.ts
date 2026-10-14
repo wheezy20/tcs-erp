@@ -44,7 +44,9 @@ Deno.serve(async (req) => {
       const { data, error } = await admin!.rpc(fn, args);
       return {
         data,
-        error: error ? { code: error.code, message: error.message } : null,
+        error: error
+          ? { code: error.code, message: error.message, details: error.details }
+          : null,
       };
     },
     log: (outcome) =>

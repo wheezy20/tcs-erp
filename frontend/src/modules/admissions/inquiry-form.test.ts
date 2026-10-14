@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  NOT_YET_IN_SCHOOL,
   OFFICE_MESSAGE,
+  PHONE_HINT,
+  ageHint,
   buildInquiryPayload,
   cleanPhone,
+  currentGradeChoices,
+  effectiveGuardians,
+  maskDateInput,
+  parseDmy,
+  serverFieldToKey,
   emptyDraft,
   formAvailable,
   gradesForCampus,
@@ -53,16 +61,16 @@ function validDraft(): InquiryDraft {
     students: [
       {
         fullName: "Kofi Mensah",
-        dateOfBirth: "2019-02-03",
-        currentSchool: "N/A",
-        currentGrade: "KG 2",
+        dateOfBirth: "03/02/2019",
+        currentGrade: "g-pn",
+        currentSchool: "Little Stars",
         gradeId: "g-1",
         academicYear: "2026/2027",
         campusId: "",
         month: "September",
-        monthOther: "",
       },
     ],
+    secondSameAddress: false,
   };
 }
 
@@ -187,20 +195,59 @@ describe("validateInquiry", () => {
   });
 
   it("refuses a future or malformed date of birth", () => {
-    for (const dob of ["2026-10-15", "03/02/2019", "", "1899-12-31"]) {
+    for (const dob of ["15/10/2026", "2019-02-03", "", "31/12/1899", "30/02/2019", "3/2/2019"]) {
       const d = validDraft();
       d.students[0].dateOfBirth = dob;
       expect(validateInquiry(d, OPTIONS, TODAY)["students.0.dateOfBirth"]).toBeTruthy();
     }
   });
 
-  it("needs the other text when Other is chosen", () => {
+  it("needs the other text when Other is chosen for how you heard", () => {
     const d = validDraft();
     d.referralSource = "other";
-    d.students[0].month = "other";
+    expect(validateInquiry(d, OPTIONS, TODAY).referralSourceOther).toBeTruthy();
+  });
+
+  it("takes religion and month only from their lists", () => {
+    for (const religion of ["Christian", "Muslim", "Traditional", "Other", "Prefer not to say"]) {
+      const d = validDraft();
+      d.guardians[0].religion = religion;
+      expect(validateInquiry(d, OPTIONS, TODAY)["guardians.0.religion"]).toBeUndefined();
+    }
+    const d = validDraft();
+    d.guardians[0].religion = "Catholic";
+    d.students[0].month = "April";
     const errors = validateInquiry(d, OPTIONS, TODAY);
-    expect(errors.referralSourceOther).toBeTruthy();
-    expect(errors["students.0.monthOther"]).toBeTruthy();
+    expect(errors["guardians.0.religion"]).toBeTruthy();
+    expect(errors["students.0.month"]).toBeTruthy();
+    d.students[0].month = "January";
+    expect(validateInquiry(d, OPTIONS, TODAY)["students.0.month"]).toBeUndefined();
+  });
+
+  it("needs a current grade from the list, and a current school unless not yet in school", () => {
+    const d = validDraft();
+    d.students[0].currentGrade = "KG 2";
+    expect(validateInquiry(d, OPTIONS, TODAY)["students.0.currentGrade"]).toBeTruthy();
+
+    d.students[0].currentGrade = NOT_YET_IN_SCHOOL;
+    d.students[0].currentSchool = "";
+    expect(validateInquiry(d, OPTIONS, TODAY)).toEqual({});
+
+    d.students[0].currentGrade = "g-pn";
+    expect(validateInquiry(d, OPTIONS, TODAY)["students.0.currentSchool"]).toBeTruthy();
+    d.students[0].currentSchool = "Happy Days Creche";
+    expect(validateInquiry(d, OPTIONS, TODAY)).toEqual({});
+
+    d.students[0].currentGrade = "creche_or_daycare";
+    expect(validateInquiry(d, OPTIONS, TODAY)["students.0.currentGrade"]).toBeTruthy();
+  });
+
+  it("checks guardian 2's address through Same address as above", () => {
+    const d = validDraft();
+    d.guardians.push({ ...d.guardians[0], address: "", townCity: "" });
+    expect(validateInquiry(d, OPTIONS, TODAY)["guardians.1.address"]).toBeTruthy();
+    d.secondSameAddress = true;
+    expect(validateInquiry(d, OPTIONS, TODAY)).toEqual({});
   });
 
   it("caps guardians at two and children at five", () => {
@@ -232,7 +279,7 @@ describe("buildInquiryPayload", () => {
     const s = (p.students as Record<string, unknown>[])[0];
     expect(Object.keys(s).sort()).toEqual([
       "academic_year",
-      "current_grade",
+      "current_grade_id",
       "current_school",
       "date_of_birth",
       "full_name",
@@ -240,21 +287,21 @@ describe("buildInquiryPayload", () => {
       "month_of_enrollment",
     ]);
     expect(s.grade_id).toBe("g-1");
+    expect(s.current_grade_id).toBe("g-pn");
+    expect(s.date_of_birth).toBe("2019-02-03");
     expect(s).not.toHaveProperty("year_group_applied_for");
   });
 
-  it("adds campus, other referral, other month and comments only when set", () => {
+  it("adds campus, other referral and comments only when set", () => {
     const d = validDraft();
     d.students[0].campusId = "c-main";
-    d.students[0].month = "other";
-    d.students[0].monthOther = " April ";
     d.referralSource = "other";
     d.referralSourceOther = " Radio ";
     d.comments = " Hello ";
     const p = buildInquiryPayload(d);
     const s = (p.students as Record<string, unknown>[])[0];
     expect(s.campus_id).toBe("c-main");
-    expect(s.month_of_enrollment).toBe("April");
+    expect(s.month_of_enrollment).toBe("September");
     expect(p.referral_source_other).toBe("Radio");
     expect(p.comments).toBe("Hello");
   });
@@ -372,5 +419,122 @@ describe("inquiryView with the live get_public_admissions_options response", () 
         siteKey: key,
       }),
     ).toBe("closed");
+  });
+});
+
+describe("slice 8b: date of birth, age hint, current grade, address, field errors", () => {
+  it("adds slashes as the parent types and keeps digits only", () => {
+    expect(maskDateInput("0")).toBe("0");
+    expect(maskDateInput("030")).toBe("03/0");
+    expect(maskDateInput("03022019")).toBe("03/02/2019");
+    expect(maskDateInput("03/02/20199")).toBe("03/02/2019");
+    expect(maskDateInput("ab03-02x2019")).toBe("03/02/2019");
+  });
+
+  it("converts a real dd/mm/yyyy date to ISO and refuses anything else", () => {
+    expect(parseDmy("03/02/2019")).toBe("2019-02-03");
+    expect(parseDmy("29/02/2024")).toBe("2024-02-29");
+    expect(parseDmy("29/02/2023")).toBeNull();
+    expect(parseDmy("31/04/2020")).toBeNull();
+    expect(parseDmy("2019-02-03")).toBeNull();
+    expect(parseDmy("3/2/2019")).toBeNull();
+  });
+
+  it("shows years and months under 5, whole years from 5, and nothing for a bad date", () => {
+    expect(ageHint("2024-05-14", TODAY)).toBe("Age today: 2 years 5 months (a guide only)");
+    expect(ageHint("2025-10-14", TODAY)).toBe("Age today: 1 year 0 months (a guide only)");
+    expect(ageHint("2026-05-20", TODAY)).toBe("Age today: 4 months (a guide only)");
+    expect(ageHint("2026-09-14", TODAY)).toBe("Age today: 1 month (a guide only)");
+    expect(ageHint("2021-10-15", TODAY)).toBe("Age today: 4 years 11 months (a guide only)");
+    expect(ageHint("2021-10-14", TODAY)).toBe("Age today: 5 years (a guide only)");
+    expect(ageHint("2016-02-29", TODAY)).toBe("Age today: 10 years (a guide only)");
+    expect(ageHint("2026-10-15", TODAY)).toBeNull();
+    expect(ageHint(null, TODAY)).toBeNull();
+  });
+
+  it("never sends an age", () => {
+    const text = JSON.stringify(buildInquiryPayload(validDraft()));
+    expect(text).not.toMatch(/age/i);
+  });
+
+  it("offers not yet in school, then the active grades, and no creche option", () => {
+    expect(currentGradeChoices(OPTIONS)).toEqual([
+      { value: NOT_YET_IN_SCHOOL, label: "N/A (not yet in school)" },
+      { value: "g-pn", label: "Pre Nursery" },
+      { value: "g-n1", label: "Nursery 1" },
+      { value: "g-1", label: "Grade 1" },
+    ]);
+  });
+
+  it("sends prior_schooling without a current school for a child not yet in school", () => {
+    const d = validDraft();
+    d.students[0].currentGrade = NOT_YET_IN_SCHOOL;
+    d.students[0].currentSchool = "typed before switching";
+    const s = (buildInquiryPayload(d).students as Record<string, unknown>[])[0];
+    expect(s.prior_schooling).toBe(NOT_YET_IN_SCHOOL);
+    expect(s).not.toHaveProperty("current_school");
+    expect(s).not.toHaveProperty("current_grade_id");
+  });
+
+  it("sends a Pre Nursery current grade id and the school for a child at a creche", () => {
+    const d = validDraft();
+    d.students[0].currentGrade = "g-pn";
+    d.students[0].currentSchool = "Happy Days Creche";
+    const s = (buildInquiryPayload(d).students as Record<string, unknown>[])[0];
+    expect(s.current_grade_id).toBe("g-pn");
+    expect(s.current_school).toBe("Happy Days Creche");
+    expect(s).not.toHaveProperty("prior_schooling");
+  });
+
+  it("copies guardian 1's address to guardian 2 when Same address as above is ticked", () => {
+    const d = validDraft();
+    d.guardians.push({ ...d.guardians[0], address: "old", townCity: "old" });
+    d.secondSameAddress = true;
+    expect(effectiveGuardians(d)[1].address).toBe("1 Ring Road");
+    const g = (buildInquiryPayload(d).guardians as Record<string, unknown>[])[1];
+    expect(g.address).toBe("1 Ring Road");
+    expect(g.town_city).toBe("Accra");
+  });
+
+  it("maps a server field path to the form's error key", () => {
+    expect(serverFieldToKey("guardians.0.town_city")).toBe("guardians.0.townCity");
+    expect(serverFieldToKey("guardians.1.phone")).toBe("guardians.1.phone");
+    expect(serverFieldToKey("students.2.current_grade_id")).toBe("students.2.currentGrade");
+    expect(serverFieldToKey("students.0.month_of_enrollment")).toBe("students.0.month");
+    expect(serverFieldToKey("referral_source_other")).toBe("referralSourceOther");
+    expect(serverFieldToKey("students")).toBeNull();
+    expect(serverFieldToKey(undefined)).toBeNull();
+  });
+
+  it("keeps the field on a 400 so the message shows next to it", () => {
+    expect(
+      interpretSubmitResponse(400, { error: "Child 1: required", field: "students.0.grade_id" }),
+    ).toEqual({ kind: "refused", message: "Child 1: required", field: "students.0.gradeId" });
+    expect(interpretSubmitResponse(400, { error: "bad", field: "nonsense" })).toEqual({
+      kind: "refused",
+      message: "bad",
+    });
+  });
+
+  it("reads applications_open separately from the inquiries switch", () => {
+    expect(parsePublicOptions({ ...RAW, applications_open: true }).applicationsOpen).toBe(true);
+    const closedInquiries = parsePublicOptions({
+      ...RAW,
+      intake_open: false,
+      applications_open: true,
+    });
+    expect(formAvailable(closedInquiries)).toBe(false);
+    const closedApplications = parsePublicOptions({ ...RAW, applications_open: false });
+    expect(formAvailable(closedApplications)).toBe(true);
+  });
+
+  it("says enquiry to parents and has no em or en dash in the phone hint or office message", () => {
+    expect(OFFICE_MESSAGE).toMatch(/enquiry/);
+    expect(OFFICE_MESSAGE).not.toMatch(/inquiry/);
+    for (const text of [PHONE_HINT, OFFICE_MESSAGE]) {
+      expect(text).not.toMatch(/[\u2013\u2014]/);
+    }
+    expect(PHONE_HINT).toMatch(/plus sign/);
+    expect(PHONE_HINT).toMatch(/8 to 15 digits/);
   });
 });

@@ -98,6 +98,10 @@ begin
     raise exception 'The oldest branch is not Main; school-wide records would resolve to the wrong campus';
   end if;
 
+  -- Public campus labels for the enquiry form (admissions slice 8b), by
+  -- name, for campuses created just above.
+  perform public._admissions_seed_public_campus_labels();
+
   -- Expense categories (branch-scoped). Same list as 20260819090000.
   insert into public.expense_categories (branch_id, name, position)
   values

@@ -20,6 +20,11 @@ select '00000000-0000-0000-0000-000000000002', g.id
 from public.admissions_grades g
 where lower(g.name) in ('pre nursery', 'nursery 1');
 
+-- Public campus labels for the enquiry form (admissions slice 8b). The
+-- migration labels campuses that already exist; locally they are inserted
+-- here, after the migrations, so the same helper runs again.
+select public._admissions_seed_public_campus_labels();
+
 -- Staff (Session 7). Real auth.users + auth.identities rows, in the same
 -- shape a genuine supabase.auth.signUp() produces (verified by doing one
 -- against the local instance and inspecting the result) — not a shortcut

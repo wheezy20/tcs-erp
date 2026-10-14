@@ -28,6 +28,19 @@ export function stageLabel(stage: string): string {
   return STAGE_LABELS[stage as Stage] ?? stage;
 }
 
+/** A student's current grade or class for staff screens (slice 8b): the
+ * public form stores a grade id or a prior schooling value; older rows
+ * keep free text. */
+export function currentGradeLabel(
+  legacyText: string,
+  priorSchooling: string | null,
+  gradeName: string | null,
+): string {
+  if (priorSchooling === "not_yet_in_school") return "Not yet in school";
+  if (gradeName) return gradeName;
+  return legacyText;
+}
+
 export const STAGE_TONE: Record<Stage, "default" | "secondary" | "outline" | "destructive"> = {
   inquiry: "outline",
   application: "outline",

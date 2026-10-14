@@ -29,8 +29,8 @@ begin
      or not has_function_privilege('service_role', 'public.submit_inquiry(jsonb)', 'execute') then
     raise exception 'submit_inquiry grants wrong';
   end if;
-  foreach f in array array['public._public_invalid(text)', 'public._public_only_keys(jsonb, text[], text)',
-                           'public._public_text(jsonb, text, text, integer, boolean)'] loop
+  foreach f in array array['public._public_invalid(text, text)', 'public._public_only_keys(jsonb, text[], text, text)',
+                           'public._public_text(jsonb, text, text, integer, boolean, text)'] loop
     if has_function_privilege('anon', f, 'execute') or has_function_privilege('authenticated', f, 'execute')
        or has_function_privilege('service_role', f, 'execute') then
       raise exception '% is executable by an API role', f;
@@ -57,7 +57,7 @@ select set_config('tcs.p', jsonb_build_object(
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
     'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233551794822', 'email', 'q2@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
-    'current_school', 'N/A', 'current_grade', 'KG 2', 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
+    'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
 )::text, true);
 -- as role:
@@ -80,7 +80,7 @@ select set_config('tcs.p', jsonb_build_object(
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
     'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233551794822', 'email', 'q4@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
-    'current_school', 'N/A', 'current_grade', 'KG 2', 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
+    'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
 )::text, true);
 -- as role:
@@ -99,11 +99,11 @@ select set_config('tcs.p', jsonb_build_object(
     jsonb_build_object('surname', 'Mensah', 'first_name', 'Kwame', 'relationship', 'father', 'religion', 'Christian',
       'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233551794823', 'email', 'kwame@example.test')),
   'students', jsonb_build_array(
-    jsonb_build_object('full_name', 'Esi Mensah', 'date_of_birth', '2022-05-06', 'current_school', 'N/A',
-      'current_grade', 'None', 'grade_id', (select id from public.admissions_grades where name = 'Nursery 1'),
+    jsonb_build_object('full_name', 'Esi Mensah', 'date_of_birth', '2022-05-06',
+      'prior_schooling', 'not_yet_in_school', 'grade_id', (select id from public.admissions_grades where name = 'Nursery 1'),
       'academic_year', '2027/2028', 'campus_id', '00000000-0000-0000-0000-000000000002', 'month_of_enrollment', 'January'),
     jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03', 'current_school', 'N/A',
-      'current_grade', 'KG 2', 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
+      'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
       'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
 )::text, true);
 -- as role:
@@ -158,7 +158,7 @@ select set_config('tcs.p', jsonb_build_object(
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
     'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233551794822', 'email', 'q6@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
-    'current_school', 'N/A', 'current_grade', 'KG 2', 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
+    'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
 )::text, true);
 -- as role:
@@ -190,7 +190,7 @@ select set_config('tcs.p', jsonb_build_object(
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
     'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233551794822', 'email', 'q7@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
-    'current_school', 'N/A', 'current_grade', 'KG 2', 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
+    'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
 )::text, true);
 -- as role:
@@ -241,7 +241,7 @@ begin
     jsonb_set(p, '{students,0,date_of_birth}', '"2019-02-30"'),
     jsonb_set(p, '{students,0,date_of_birth}', '"03/02/2019"'),
     jsonb_set(p, '{students,0,month_of_enrollment}', '""'),
-    jsonb_set(p, '{students,0,current_grade}', to_jsonb(repeat('x', 51))),
+    jsonb_set(p, '{students,0}', s || '{"current_grade": "KG 2"}'),
     jsonb_set(p, '{referral_source}', '"tv"'),
     jsonb_set(p, '{referral_source}', '"other"'),
     jsonb_set(p, '{comments}', to_jsonb(repeat('x', 10001))),
@@ -273,7 +273,7 @@ select set_config('tcs.p', jsonb_build_object(
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
     'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233551794822', 'email', 'limit@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
-    'current_school', 'N/A', 'current_grade', 'KG 2', 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
+    'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
 )::text, true);
 -- as role:
@@ -325,7 +325,7 @@ select set_config('tcs.p', jsonb_build_object(
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
     'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233551794822', 'email', 'twice@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
-    'current_school', 'N/A', 'current_grade', 'KG 2', 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
+    'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
 )::text, true);
 -- as role:
@@ -348,7 +348,7 @@ select set_config('tcs.p', jsonb_build_object(
   'guardians', jsonb_build_array(jsonb_build_object('surname', 'Mensah', 'first_name', 'Ama', 'relationship', 'mother',
     'religion', 'Christian', 'address', '1 Ring Road', 'town_city', 'Accra', 'phone', '+233551794822', 'email', 'phone@example.test')),
   'students', jsonb_build_array(jsonb_build_object('full_name', 'Kofi Mensah', 'date_of_birth', '2019-02-03',
-    'current_school', 'N/A', 'current_grade', 'KG 2', 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
+    'current_school', 'N/A', 'current_grade_id', (select id from public.admissions_grades where name = 'Kindergarten 2'), 'grade_id', (select id from public.admissions_grades where name = 'Grade 1'),
     'academic_year', '2026/2027', 'month_of_enrollment', 'September'))
 )::text, true);
 -- as role:

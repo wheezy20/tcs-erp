@@ -39,9 +39,9 @@ export const TURNSTILE_TIMEOUT_MS = 5000;
 
 export const MESSAGES = {
   office:
-    "We couldn't take your inquiry online just now. Please call the school office and we'll help you directly.",
+    "We couldn't take your enquiry online just now. Please call the school office and we'll help you directly.",
   closed:
-    "Online inquiries are closed at the moment. Please call the school office to make an inquiry.",
+    "Online enquiries are closed at the moment. Please call the school office to make an enquiry.",
   verify:
     "We couldn't complete the security check. Please try again, or call the school office if it keeps happening.",
   badRequest:
@@ -64,8 +64,23 @@ export type TurnstileOutcome = {
 
 export type RpcResult = {
   data: unknown;
-  error: { code?: string; message?: string } | null;
+  error: { code?: string; message?: string; details?: string | null } | null;
 };
+
+// The payload path submit_inquiry names in a TCS22 error's DETAIL (slice
+// 8b), e.g. "guardians.0.phone" or "students.1.grade_id". Passed to the
+// form only when it has exactly this shape, so nothing else from the
+// database can ride along in the response.
+const FIELD_PATH =
+  /^(referral_source|referral_source_other|comments|guardians|students|(guardians|students)\.[0-4](\.[a-z_]{1,40})?)$/;
+
+export function safeFieldPath(
+  details: string | null | undefined,
+): string | null {
+  return typeof details === "string" && FIELD_PATH.test(details)
+    ? details
+    : null;
+}
 
 export type Deps = {
   /** null when a secret is missing or malformed: every request is refused. */
@@ -379,13 +394,18 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   }
   if (result.error) {
     switch (result.error.code) {
-      case "TCS22":
+      case "TCS22": {
         deps.log("invalid");
+        const field = safeFieldPath(result.error.details);
         return respond(
           400,
-          { error: result.error.message ?? MESSAGES.badRequest },
+          {
+            error: result.error.message ?? MESSAGES.badRequest,
+            ...(field ? { field } : {}),
+          },
           origin,
         );
+      }
       case "TCS03":
         deps.log("closed");
         return respond(409, { error: MESSAGES.closed }, origin);

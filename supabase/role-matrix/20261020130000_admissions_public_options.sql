@@ -61,7 +61,7 @@ select 1;
 do $$ declare r jsonb := public.get_public_admissions_options();
 begin
   if (select array_agg(k order by k) from jsonb_object_keys(r) k)
-     is distinct from array['academic_years', 'campuses', 'grades', 'intake_open'] then
+     is distinct from array['academic_years', 'applications_open', 'campuses', 'grades', 'intake_open'] then
     raise exception 'top-level keys changed';
   end if;
   if exists (select 1 from jsonb_array_elements(r -> 'grades') g
@@ -91,11 +91,11 @@ begin
      or exists (select 1 from jsonb_array_elements(r -> 'grades') g where g ->> 'name' = 'Grade 9') then
     raise exception 'inactive grade listed';
   end if;
-  if (select c -> 'accepted_grade_ids' from jsonb_array_elements(r -> 'campuses') c where c ->> 'name' = 'Annex')
+  if (select c -> 'accepted_grade_ids' from jsonb_array_elements(r -> 'campuses') c where c ->> 'name' = 'Annex (CK Road)')
      is distinct from current_setting('tcs.annex')::jsonb then
     raise exception 'Annex grades wrong';
   end if;
-  if jsonb_array_length((select c -> 'accepted_grade_ids' from jsonb_array_elements(r -> 'campuses') c where c ->> 'name' = 'Main')) <> 13 then
+  if jsonb_array_length((select c -> 'accepted_grade_ids' from jsonb_array_elements(r -> 'campuses') c where c ->> 'name' = 'Main Campus (Somey Down)')) <> 13 then
     raise exception 'Main should accept every active grade';
   end if;
 end $$;

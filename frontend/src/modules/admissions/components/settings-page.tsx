@@ -50,7 +50,7 @@ import {
 } from "@/modules/admissions/data/reference";
 import {
   getOfferTtlDays,
-  getPublicIntakeOpen,
+  getPublicSwitches,
   listAllGrades,
   listCampusGradeRules,
   listCapacity,
@@ -141,67 +141,98 @@ function SectionMessage({ children, error }: { children: React.ReactNode; error?
 
 /* ---------------------------------------------------------------- public intake */
 
+/** Two independent switches (slice 8b). Public inquiries is
+ * admissions_settings.public_intake_open, the slice 8 switch; public
+ * applications has its column and Manager RPC but no form until slice 9,
+ * so it is shown and can't be changed here yet. Manager writes; Auditor
+ * reads. */
 function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
-  const intake = useLoad(getPublicIntakeOpen, [], "Could not load public intake.");
+  const switches = useLoad(getPublicSwitches, [], "Could not load the public switches.");
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const open = intake.data === true;
+  const inquiriesOpen = switches.data?.inquiriesOpen === true;
 
   async function change() {
     setBusy(true);
     try {
-      await setPublicIntakeOpen(!open);
-      toast.success(open ? "Public intake closed" : "Public intake opened");
-      await intake.reload();
+      await setPublicIntakeOpen(!inquiriesOpen);
+      toast.success(inquiriesOpen ? "Public inquiries closed" : "Public inquiries opened");
+      await switches.reload();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Could not change public intake."));
+      toast.error(getErrorMessage(err, "Could not change public inquiries."));
     } finally {
       setBusy(false);
       setConfirming(false);
     }
   }
 
+  const badge = (value: boolean | undefined) =>
+    value === undefined ? null : value ? (
+      <Badge>Open</Badge>
+    ) : (
+      <Badge variant="outline">Closed</Badge>
+    );
+
   return (
     <section className="card-surface overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-4 p-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold">Public intake</h2>
-            {intake.data === undefined && intake.loading ? null : intake.data === true ? (
-              <Badge>Open</Badge>
-            ) : intake.data === false ? (
-              <Badge variant="outline">Closed</Badge>
-            ) : (
-              <Badge variant="outline">Not set</Badge>
-            )}
+      <div className="border-b p-6">
+        <h2 className="text-sm font-semibold">Public intake</h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          Two separate switches. Closing one doesn't affect the other. Keep both closed while the
+          old admissions site is still taking enquiries, so there is only one intake.
+        </p>
+        {switches.error && <p className="mt-2 text-sm text-destructive">{switches.error}</p>}
+      </div>
+      <div className="divide-y">
+        <div className="flex flex-wrap items-start justify-between gap-4 p-6">
+          <div>
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-medium">Public inquiries</h3>
+              {badge(switches.data?.inquiriesOpen)}
+            </div>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Whether parents can send the public enquiry form at /inquiry. While closed, the form
+              shows a closed page and every submission is refused.
+            </p>
           </div>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Whether parents can send the public Inquiry form at /inquiry. While closed, the form
-            shows a closed page and every submission is refused. Keep it closed while the old
-            admissions site is still taking inquiries.
-          </p>
-          {intake.error && <p className="mt-2 text-sm text-destructive">{intake.error}</p>}
+          {canEdit && switches.data && (
+            <Button
+              variant={inquiriesOpen ? "outline" : "default"}
+              disabled={busy}
+              onClick={() => setConfirming(true)}
+            >
+              {inquiriesOpen ? "Close public inquiries" : "Open public inquiries"}
+            </Button>
+          )}
         </div>
-        {canEdit && typeof intake.data === "boolean" && (
-          <Button
-            variant={open ? "outline" : "default"}
-            disabled={busy}
-            onClick={() => setConfirming(true)}
-          >
-            {open ? "Close public intake" : "Open public intake"}
-          </Button>
-        )}
+        <div className="flex flex-wrap items-start justify-between gap-4 p-6">
+          <div>
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-medium">Public applications</h3>
+              {badge(switches.data?.applicationsOpen)}
+            </div>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              The public application form arrives in a later slice. This switch can't be changed
+              until then.
+            </p>
+          </div>
+          {canEdit && switches.data && (
+            <Button variant="outline" disabled>
+              Open public applications
+            </Button>
+          )}
+        </div>
       </div>
       <AlertDialog open={confirming} onOpenChange={(o) => !busy && setConfirming(o)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {open ? "Close public intake?" : "Open public intake?"}
+              {inquiriesOpen ? "Close public inquiries?" : "Open public inquiries?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {open
-                ? "The Inquiry form will show a closed page and refuse new submissions straight away."
-                : "Anyone with the link will be able to send an inquiry. Make sure the old admissions site is no longer taking inquiries, so there is only one intake."}
+              {inquiriesOpen
+                ? "The enquiry form will show a closed page and refuse new submissions straight away."
+                : "Anyone with the link will be able to send an enquiry. Make sure the old admissions site is no longer taking enquiries, so there is only one intake."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -213,7 +244,7 @@ function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
                 void change();
               }}
             >
-              {open ? "Close intake" : "Open intake"}
+              {inquiriesOpen ? "Close inquiries" : "Open inquiries"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

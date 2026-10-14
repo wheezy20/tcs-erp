@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14); their frontend deploys are not confirmed. Slice 8 is built locally and not committed (2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14); their frontend deploys are not confirmed. Slice 8 is built locally and not committed (2026-10-14). Slice 8b (public enquiry form polish and two intake switches) is built locally and not committed (2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -41,6 +41,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 7b2 | Admin screens: academic years, capacity, offer expiry, campus rules | committed (bed38c9), migrations applied on hosted (reported 2026-10-14); frontend deploy not confirmed | 7b1 |
 | 7c | Read-only Audit Log (`/audit-log`) and Accountant audit narrowing | committed (7a07d6a), migrations applied on hosted (reported 2026-10-14); frontend deploy not confirmed | 7b2 |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | built locally, not committed (2026-10-14) | 7b |
+| 8b | Public enquiry form polish and two intake switches | built locally, not committed (2026-10-14) | 8 |
 | 9 | Public Application form: direct submit, uploads, matching, rules | not started; split into 9a and 9b (2026-10-13) | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
 | 11 | Public offer response page | not started | 8, 6b |
@@ -925,6 +926,73 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
 
 **Size:** one Edge Function with one action wired up, two small tables, three RPCs, one public route. It's the first anon slice, and its gate review is part of the pass.
 
+## Slice 8b: public enquiry form polish and the two intake switches
+
+**Built 2026-10-14 (built locally, not committed).** Not applied on hosted, not deployed. It follows slice 8 and changes the public enquiry form and the intake switches. The two migrations are `20261021100000_admissions_public_applications_flag.sql` and `20261021110000_admissions_inquiry_form_polish.sql`.
+
+**Decisions (all made 2026-10-14):**
+
+- **Religion** is a fixed list: Christian, Muslim, Traditional, Other, Prefer not to say. It is enforced in `submit_inquiry`.
+- **Month of enrolment** is January, shown as "January (Limited Admissions)" (the TCS OS wording), or September. "Other" is dropped.
+- **Current grade or class** is a list: N/A (not yet in school), then the 14 active grades. A child not yet at school but in early care picks Pre Nursery (decided 2026-10-14, replacing an earlier extra option).
+  - It is stored as `students.current_grade_id` (an active grade) or `students.prior_schooling` (only `'not_yet_in_school'`), never both (check `students_current_grade_one_check`).
+  - The old free-text `students.current_grade` is kept for legacy rows and is written empty by public enquiries.
+  - Not yet in school: the current school field is hidden, not required, and refused if sent.
+  - Any grade, Pre Nursery included: the current school is required.
+  - A current grade above the grade applied into is not enforced.
+- **Public campus labels.** `branches.public_label` is nullable and falls back to `name`. Seeded as "Main Campus (Somey Down)" for a campus named Main or Treasures Christian School (the hosted name), and "Annex (CK Road)" for Annex.
+  - It is seeded by `_admissions_seed_public_campus_labels()`, which the migration calls. `seed.sql` and `seed.production.sql` call it after inserting campuses.
+  - A guard trigger stops any signed-in user from setting or changing a label. `branches` has a broad `can_write()` update policy and the label is public, so labels change only by migration. `branches.name` is unchanged, so HR and Finance see no change.
+- **Wording.** Parents see "enquiry" everywhere. The route `/inquiry`, INQ references and code keep "inquiry".
+- **Date of birth** is typed as dd/mm/yyyy, with a numeric keypad and automatic slashes, and is sent as ISO.
+- **Age hint** is display only, never sent or trusted: "Age today: 2 years 5 months (a guide only)" under 5, whole years from 5. It lives in `inquiry-form.ts` as `ageHint`, and a test checks that the payload has no age.
+- **Also added:**
+  - a "Same address as above" checkbox for guardian 2, which copies the address and town or city;
+  - inline errors next to each field, including server errors. `submit_inquiry` names the field in the error DETAIL, and the Edge Function passes it on only when it matches a strict path pattern;
+  - asterisks on required fields;
+  - a thank-you page that says the school will contact the parent and shows the INQ reference or references to keep. No confirmation email exists until slice 12;
+  - the phone hint "Start with a plus sign and your country code, then 8 to 15 digits, for example +233 55 179 4822. Spaces and dashes are fine."
+
+**Anon surface gate (approved 2026-10-14).** `get_public_admissions_options` changes only the campus label string, and adds an `applications_open` key. Its signature is unchanged, and the anon-executable count stays at 170.
+
+**Two independent public intake switches (approved 2026-10-14).**
+
+- **Naming.** Slice 8's `public_intake_open` and `set_admissions_public_intake` are applied on hosted and keep their names. They now mean public inquiries. A rename would have needed a coordinated column rename, function drop and frontend deploy for no change in behaviour, so only new objects were added.
+- **New:** `public_applications_open` (default false) and `set_admissions_public_applications(boolean)`. The setter is Manager only, and is audited as `admissions_settings_changed` with only the changed field.
+- `submit_inquiry` refuses only when public inquiries are closed. Slice 9's application submit must check only `public_applications_open`.
+- Admissions Settings shows both switches. The Applications switch is disabled, with a note that the form arrives in a later slice. The Auditor sees both read-only.
+
+**Built (detail):**
+
+- Migrations: the two listed above. In `20261021110000_admissions_inquiry_form_polish.sql`, the slice 8 helper functions (`_public_text`, `_public_only_keys` and `_public_invalid`) were dropped and recreated with a field argument, so the field name can reach the error DETAIL.
+- Seeds: `seed.sql` and `seed.production.sql` each call the label seeder after inserting campuses.
+- Edge Function `supabase/functions/admissions-public`: the enquiry wording in two messages, and field path passthrough (strict pattern, as above).
+- Frontend: the enquiry form (`inquiry-form.ts`, `inquiry-form.test.ts`), `components/inquiry-page.tsx`, `components/settings-page.tsx`, `data/application-detail.ts`, `data/settings.ts`, `labels.ts`, and `routes/inquiry.tsx`. `database.types.ts` was regenerated.
+- Probes: two new files in `supabase/role-matrix/`, `20261021100000_admissions_public_applications_flag.sql` (P1 to P15) and `20261021110000_admissions_inquiry_form_polish.sql` (L1 to L12). Fixtures were updated in two slice 8 probe files, `20261020120000_admissions_submit_inquiry.sql` and `20261020130000_admissions_public_options.sql`.
+
+**Not included:** emails (slice 12) and the application form (slice 9).
+
+**Verification (2026-10-14, local only):**
+
+- **Baseline** (HEAD 6842848, fresh reset): clean, anon-executable count 170.
+- **After the build** (test-runner, fresh reset):
+  - overload check clean; types identical; anon-executable count 170;
+  - lint 0 errors and 13 warnings; `tsc` and build clean;
+  - `npm test` 97 pass; `handler.test.ts` 27 of 27; `integration.test.ts` 7 of 7;
+  - all 42 role-matrix files green.
+- **Deliberate breaks: 16, all caught:** applications setter without the Manager check; setter granted to anon; `submit_inquiry` reading the applications switch; audit branch missing; options `applications_open` reading the wrong switch; religion check removed; month check removed; inactive current grade accepted; both current grade and prior schooling accepted; not yet in school with a school accepted; students constraint dropped; options returning the internal name; label guard dropped; label seeder matching only Main; field details passed unfiltered; age added to the payload.
+  - Dropped on purpose: the old `current_grade` key (covered by the unknown-key rule).
+- **Browser:** a local headless Chrome render of `/inquiry`, using Cloudflare's test keys, showed the enquiry wording, the new labels and the asterisks.
+- **Golden payroll suite:** skipped. Nothing payroll-related changed, and the audit action list is unchanged.
+
+**Code review (2026-10-14):** no blocking findings. Non-blocking, recorded as open follow-ups below.
+
+**Open follow-ups (not decided):**
+
+- **Campus name check before the push.** If a hosted campus name is neither Main, Treasures Christian School nor Annex, its label stays empty and the form shows the raw name. A read-only check of the hosted campus names is to be run before the push.
+- **Stale form after reopen.** A parent who loaded the old form before the close and submits after the reopen gets a generic "field the form does not send" message.
+- **Delete restrict.** `students.current_grade_id` is `on delete restrict`, so a grade referenced by a student can't be hard deleted. Grades are retired rather than deleted.
+
 ## Slice 9 — Public Application form: direct submit, uploads, matching, rules
 
 **Delivers:**
@@ -990,6 +1058,11 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 - **D-9d (decided 2026-10-14, closed).** A plus sign followed by 8 to 15 digits, after removing spaces and dashes; the cleaned form is stored. Built in slice 8; slice 9's application form and emergency contacts use the same rule.
 - **D-9e.** Application-fee proof. TCS OS doesn't enforce it (`02-stack-and-schema.md:509-516`). Recommendation: keep it optional.
 
+
+**Added 2026-10-14 (from slice 8b):**
+
+- Slice 9's submit must refuse only when `public_applications_open` is false. It must not check `public_intake_open` (the inquiries switch).
+- Slice 9's form should follow the slice 8b field rules: the religion list, current grade or prior schooling (never both; the not-yet-in-school rule), dd/mm/yyyy date of birth sent as ISO, and the phone rule.
 
 **Size:** two Edge Function actions, one table, two RPCs, one large public form. The split into 9a and 9b is decided (2026-10-13); see Decided above.
 
@@ -1233,6 +1306,8 @@ The unsubscribe probe is token-gated and idempotent: a second call keeps the fir
 **Anon surface:** adds only the Worker's legacy-host routing (redirects, the unsubscribe proxy, and the slice 13 lead paths if D-13a). **Confirmation gate.**
 
 **Decisions for Eyram:** D-15a through D-15f in the consolidated list.
+
+**Gate (2026-10-14):** admissions.tcsch.edu.gh does not move to the ERP until a confirmation email exists (slice 12) or Eyram accepts the gap in writing.
 
 **Size:** one Worker routing change and a written runbook. The migration script is Eyram-reviewed and Eyram-run.
 

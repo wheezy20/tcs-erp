@@ -1,8 +1,11 @@
-// Pure logic for the public Inquiry form (admissions slice 8). No Supabase,
-// no React. Every rule here is a convenience so a parent sees a problem
-// before sending; submit_inquiry checks all of it again and is the only
-// guarantee. The form never sends a grade, year or campus as free text:
-// only ids from get_public_admissions_options.
+// Pure logic for the public enquiry form (admissions slices 8 and 8b). No
+// Supabase, no React. Every rule here is a convenience so a parent sees a
+// problem before sending; submit_inquiry checks all of it again and is the
+// only guarantee. The form never sends a grade, year or campus as free
+// text: only ids from get_public_admissions_options.
+//
+// Parents see "enquiry"; code, the route (/inquiry) and INQ references
+// keep "inquiry".
 
 export const MAX_GUARDIANS = 2;
 export const MAX_STUDENTS = 5;
@@ -11,12 +14,15 @@ export const MAX_STUDENTS = 5;
  * removed (D-9d, decided 2026-10-14). */
 export const PHONE_PATTERN = /^\+[0-9]{8,15}$/;
 
+/** Shown under the phone field and as its error. */
+export const PHONE_HINT =
+  "Start with a plus sign and your country code, then 8 to 15 digits, for example +233 55 179 4822. Spaces and dashes are fine.";
+
 /** The phone as stored: spaces and dashes removed, so a plus sign and digits. */
 export function cleanPhone(phone: string): string {
   return phone.replace(/[\s-]/g, "");
 }
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const ISO_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
 export const REFERRAL_OPTIONS = [
   { value: "current_parent", label: "Current parent of TCS" },
@@ -36,12 +42,26 @@ export const RELATIONSHIP_OPTIONS = [
   { value: "other", label: "Other" },
 ] as const;
 
-/** TCS OS's month choices; "Other" opens a text box (month stays free text). */
-export const MONTH_OPTIONS = ["January", "September"] as const;
+/** Stored as the label text; submit_inquiry accepts only these. */
+export const RELIGION_OPTIONS = [
+  "Christian",
+  "Muslim",
+  "Traditional",
+  "Other",
+  "Prefer not to say",
+] as const;
+
+/** TCS OS's wording for January; the value sent is the month alone. */
+export const MONTH_OPTIONS = [
+  { value: "January", label: "January (Limited Admissions)" },
+  { value: "September", label: "September" },
+] as const;
+
+export const NOT_YET_IN_SCHOOL = "not_yet_in_school";
 export const OTHER = "other";
 
 export const OFFICE_MESSAGE =
-  "We couldn't take your inquiry online just now. Please call the school office and we'll help you directly.";
+  "We couldn't take your enquiry online just now. Please call the school office and we'll help you directly.";
 
 // ---------------------------------------------------------------- options
 
@@ -49,6 +69,7 @@ export type PublicGrade = { id: string; name: string; position: number };
 export type PublicCampus = { id: string; name: string; acceptedGradeIds: string[] };
 export type PublicOptions = {
   intakeOpen: boolean;
+  applicationsOpen: boolean;
   grades: PublicGrade[];
   campuses: PublicCampus[];
   academicYears: string[];
@@ -60,9 +81,15 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 /** get_public_admissions_options' jsonb, checked field by field. Anything
  * malformed reads as closed with empty lists, so the form never renders
- * choices it can't trust. */
+ * choices it can't trust. intake_open is the public inquiries switch. */
 export function parsePublicOptions(raw: unknown): PublicOptions {
-  const closed: PublicOptions = { intakeOpen: false, grades: [], campuses: [], academicYears: [] };
+  const closed: PublicOptions = {
+    intakeOpen: false,
+    applicationsOpen: false,
+    grades: [],
+    campuses: [],
+    academicYears: [],
+  };
   if (!isRecord(raw)) return closed;
   const grades = Array.isArray(raw.grades)
     ? raw.grades.filter(
@@ -96,13 +123,15 @@ export function parsePublicOptions(raw: unknown): PublicOptions {
     : [];
   return {
     intakeOpen: raw.intake_open === true,
+    applicationsOpen: raw.applications_open === true,
     grades: grades.map((g) => ({ id: g.id, name: g.name, position: g.position })),
     campuses,
     academicYears,
   };
 }
 
-/** Whether the form can be used: intake open and something to choose. */
+/** Whether the enquiry form can be used: public inquiries open and
+ * something to choose. The applications switch plays no part. */
 export function formAvailable(options: PublicOptions): boolean {
   return options.intakeOpen && options.grades.length > 0 && options.academicYears.length > 0;
 }
@@ -128,14 +157,76 @@ export function inquiryView(state: {
   return "form";
 }
 
-/** Grades a child may pick: every active grade with no campus chosen, else
- * the ones that campus accepts. */
+/** Grades a child may apply into: every active grade with no campus
+ * chosen, else the ones that campus accepts. */
 export function gradesForCampus(options: PublicOptions, campusId: string): PublicGrade[] {
   if (campusId === "") return options.grades;
   const campus = options.campuses.find((c) => c.id === campusId);
   if (!campus) return [];
   const accepted = new Set(campus.acceptedGradeIds);
   return options.grades.filter((g) => accepted.has(g.id));
+}
+
+/** Current grade or class choices: not yet in school, then the active
+ * grades. A child at a creche or daycare picks Pre Nursery. */
+export function currentGradeChoices(options: PublicOptions): { value: string; label: string }[] {
+  return [
+    { value: NOT_YET_IN_SCHOOL, label: "N/A (not yet in school)" },
+    ...options.grades.map((g) => ({ value: g.id, label: g.name })),
+  ];
+}
+
+// ---------------------------------------------------------------- date of birth
+
+/** Digits typed into the date of birth box, shown as dd/mm/yyyy with the
+ * slashes added automatically. */
+export function maskDateInput(raw: string): string {
+  const d = raw.replace(/[^0-9]/g, "").slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+
+/** dd/mm/yyyy as yyyy-mm-dd, or null when it isn't a real calendar date. */
+export function parseDmy(text: string): string | null {
+  const m = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(text.trim());
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  const day = Number(dd);
+  const month = Number(mm);
+  const year = Number(yyyy);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** DISPLAY ONLY. A rough age for the parent to sanity check what they
+ * typed: never sent, never stored, never trusted, and not a rule. The
+ * server validates the date of birth on its own. Years and months under 5,
+ * whole years from 5. Null for an invalid or future date. */
+export function ageHint(dobIso: string | null, todayIso: string): string | null {
+  if (!dobIso || dobIso > todayIso) return null;
+  const [by, bm, bd] = dobIso.split("-").map(Number);
+  const [ty, tm, td] = todayIso.split("-").map(Number);
+  let months = (ty - by) * 12 + (tm - bm);
+  if (td < bd) months -= 1;
+  if (months < 0) return null;
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const age =
+    years >= 5
+      ? plural(years, "year")
+      : years === 0
+        ? plural(rest, "month")
+        : `${plural(years, "year")} ${plural(rest, "month")}`;
+  return `Age today: ${age} (a guide only)`;
 }
 
 // ---------------------------------------------------------------- drafts
@@ -153,14 +244,13 @@ export type GuardianDraft = {
 
 export type StudentDraft = {
   fullName: string;
-  dateOfBirth: string; // yyyy-mm-dd from a date input
+  dateOfBirth: string; // dd/mm/yyyy as typed
+  currentGrade: string; // a grade id, NOT_YET_IN_SCHOOL, or ""
   currentSchool: string;
-  currentGrade: string;
   gradeId: string;
   academicYear: string;
   campusId: string; // "" when no preference
-  month: string; // a MONTH_OPTIONS value, OTHER, or ""
-  monthOther: string;
+  month: string; // a MONTH_OPTIONS value or ""
 };
 
 export type InquiryDraft = {
@@ -168,6 +258,8 @@ export type InquiryDraft = {
   referralSourceOther: string;
   comments: string;
   guardians: GuardianDraft[];
+  /** Guardian 2 uses guardian 1's address and town or city. */
+  secondSameAddress: boolean;
   students: StudentDraft[];
 };
 
@@ -188,13 +280,12 @@ export function emptyStudent(): StudentDraft {
   return {
     fullName: "",
     dateOfBirth: "",
-    currentSchool: "",
     currentGrade: "",
+    currentSchool: "",
     gradeId: "",
     academicYear: "",
     campusId: "",
     month: "",
-    monthOther: "",
   };
 }
 
@@ -204,6 +295,7 @@ export function emptyDraft(): InquiryDraft {
     referralSourceOther: "",
     comments: "",
     guardians: [emptyGuardian()],
+    secondSameAddress: false,
     students: [emptyStudent()],
   };
 }
@@ -216,6 +308,22 @@ export function withCampus(
 ): StudentDraft {
   const allowed = gradesForCampus(options, campusId).some((g) => g.id === student.gradeId);
   return { ...student, campusId, gradeId: allowed ? student.gradeId : "" };
+}
+
+/** The guardians as they will be sent: with "Same address as above"
+ * ticked, guardian 2 takes guardian 1's address and town or city. */
+export function effectiveGuardians(draft: InquiryDraft): GuardianDraft[] {
+  return draft.guardians.map((g, i) =>
+    i === 1 && draft.secondSameAddress
+      ? { ...g, address: draft.guardians[0].address, townCity: draft.guardians[0].townCity }
+      : g,
+  );
+}
+
+/** The current school field is hidden and not needed for a child not yet
+ * in school. */
+export function needsCurrentSchool(student: StudentDraft): boolean {
+  return student.currentGrade !== NOT_YET_IN_SCHOOL;
 }
 
 // ---------------------------------------------------------------- validation
@@ -249,23 +357,23 @@ export function validateInquiry(
     errors.comments = "Comments must be 10,000 characters or fewer";
   }
 
-  if (draft.guardians.length < 1 || draft.guardians.length > MAX_GUARDIANS) {
+  const guardians = effectiveGuardians(draft);
+  if (guardians.length < 1 || guardians.length > MAX_GUARDIANS) {
     errors.guardians = "Give one or two parents or guardians";
   }
-  draft.guardians.forEach((g, i) => {
+  guardians.forEach((g, i) => {
     const k = (f: string) => `guardians.${i}.${f}`;
     required(k("surname"), g.surname, "Surname");
     required(k("firstName"), g.firstName, "First name");
     if (!RELATIONSHIP_OPTIONS.some((o) => o.value === g.relationship)) {
       errors[k("relationship")] = "Choose a relationship";
     }
-    required(k("religion"), g.religion, "Religion");
+    if (!(RELIGION_OPTIONS as readonly string[]).includes(g.religion)) {
+      errors[k("religion")] = "Choose a religion";
+    }
     required(k("address"), g.address, "Address");
     required(k("townCity"), g.townCity, "Town or city");
-    if (!PHONE_PATTERN.test(cleanPhone(g.phone))) {
-      errors[k("phone")] =
-        "Enter + then the country code and number, 8 to 15 digits, e.g. +233551794822";
-    }
+    if (!PHONE_PATTERN.test(cleanPhone(g.phone))) errors[k("phone")] = PHONE_HINT;
     const email = g.email.trim();
     if (!EMAIL_PATTERN.test(email) || email.length > 254) {
       errors[k("email")] = "Enter a valid email address";
@@ -275,14 +383,18 @@ export function validateInquiry(
   if (draft.students.length < 1 || draft.students.length > MAX_STUDENTS) {
     errors.students = "Give between one and five children";
   }
+  const currentChoices = new Set(currentGradeChoices(options).map((c) => c.value));
   draft.students.forEach((s, i) => {
     const k = (f: string) => `students.${i}.${f}`;
     required(k("fullName"), s.fullName, "Full name");
-    if (!ISO_DATE.test(s.dateOfBirth) || s.dateOfBirth > todayIso || s.dateOfBirth < "1900-01-01") {
-      errors[k("dateOfBirth")] = "Enter a valid date of birth";
+    const dob = parseDmy(s.dateOfBirth);
+    if (!dob || dob > todayIso || dob < "1900-01-01") {
+      errors[k("dateOfBirth")] = "Enter the date of birth as dd/mm/yyyy";
     }
-    required(k("currentSchool"), s.currentSchool, "Current school");
-    required(k("currentGrade"), s.currentGrade, "Current grade or class", 50);
+    if (!currentChoices.has(s.currentGrade)) {
+      errors[k("currentGrade")] = "Choose the current grade or class";
+    }
+    if (needsCurrentSchool(s)) required(k("currentSchool"), s.currentSchool, "Current school");
     if (s.campusId !== "" && !options.campuses.some((c) => c.id === s.campusId)) {
       errors[k("campusId")] = "Choose a campus from the list";
     }
@@ -292,8 +404,7 @@ export function validateInquiry(
     if (!options.academicYears.includes(s.academicYear)) {
       errors[k("academicYear")] = "Choose an academic year";
     }
-    if (s.month === OTHER) required(k("monthOther"), s.monthOther, "Month of enrolment", 50);
-    else if (!(MONTH_OPTIONS as readonly string[]).includes(s.month)) {
+    if (!MONTH_OPTIONS.some((m) => m.value === s.month)) {
       errors[k("month")] = "Choose a month of enrolment";
     }
   });
@@ -304,15 +415,16 @@ export function validateInquiry(
 // ---------------------------------------------------------------- payload
 
 /** The exact shape submit_inquiry accepts: no other keys. A campus is sent
- * only when one was chosen. */
+ * only when one was chosen; the current school is left out for a child
+ * not yet in school; the date of birth goes as yyyy-mm-dd. No age. */
 export function buildInquiryPayload(draft: InquiryDraft): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     referral_source: draft.referralSource,
-    guardians: draft.guardians.map((g) => ({
+    guardians: effectiveGuardians(draft).map((g) => ({
       surname: g.surname.trim(),
       first_name: g.firstName.trim(),
       relationship: g.relationship,
-      religion: g.religion.trim(),
+      religion: g.religion,
       address: g.address.trim(),
       town_city: g.townCity.trim(),
       phone: cleanPhone(g.phone),
@@ -321,13 +433,17 @@ export function buildInquiryPayload(draft: InquiryDraft): Record<string, unknown
     students: draft.students.map((s) => {
       const student: Record<string, unknown> = {
         full_name: s.fullName.trim(),
-        date_of_birth: s.dateOfBirth,
-        current_school: s.currentSchool.trim(),
-        current_grade: s.currentGrade.trim(),
+        date_of_birth: parseDmy(s.dateOfBirth) ?? "",
         grade_id: s.gradeId,
         academic_year: s.academicYear,
-        month_of_enrollment: s.month === OTHER ? s.monthOther.trim() : s.month,
+        month_of_enrollment: s.month,
       };
+      if (s.currentGrade === NOT_YET_IN_SCHOOL) {
+        student.prior_schooling = s.currentGrade;
+      } else {
+        student.current_grade_id = s.currentGrade;
+      }
+      if (needsCurrentSchool(s)) student.current_school = s.currentSchool.trim();
       if (s.campusId !== "") student.campus_id = s.campusId;
       return student;
     }),
@@ -343,7 +459,35 @@ export function buildInquiryPayload(draft: InquiryDraft): Record<string, unknown
 export type SubmitOutcome =
   | { kind: "created"; references: string[] }
   | { kind: "closed"; message: string }
-  | { kind: "refused"; message: string };
+  | { kind: "refused"; message: string; field?: string };
+
+const SERVER_FIELD_KEYS: Record<string, string> = {
+  first_name: "firstName",
+  town_city: "townCity",
+  full_name: "fullName",
+  date_of_birth: "dateOfBirth",
+  current_school: "currentSchool",
+  current_grade_id: "currentGrade",
+  prior_schooling: "currentGrade",
+  grade_id: "gradeId",
+  academic_year: "academicYear",
+  campus_id: "campusId",
+  month_of_enrollment: "month",
+  referral_source: "referralSource",
+  referral_source_other: "referralSourceOther",
+};
+
+/** The server's field path (guardians.0.town_city) as this form's error key
+ * (guardians.0.townCity), or null when it names no single field. */
+export function serverFieldToKey(path: string | undefined): string | null {
+  if (!path) return null;
+  const m = /^(guardians|students)\.([0-4])\.([a-z_]+)$/.exec(path);
+  if (m) return `${m[1]}.${m[2]}.${SERVER_FIELD_KEYS[m[3]] ?? m[3]}`;
+  if (path === "referral_source" || path === "referral_source_other" || path === "comments") {
+    return SERVER_FIELD_KEYS[path] ?? path;
+  }
+  return null;
+}
 
 /** The Edge Function's answer as something the page can show. Anything
  * unexpected, including a network failure (status 0), tells the parent to
@@ -361,7 +505,12 @@ export function interpretSubmitResponse(status: number, body: unknown): SubmitOu
     return { kind: "refused", message: OFFICE_MESSAGE };
   }
   if (status === 409) return { kind: "closed", message };
-  if (status === 400 || status === 429 || status === 503 || status === 500) {
+  if (status === 400) {
+    const field =
+      isRecord(body) && typeof body.field === "string" ? serverFieldToKey(body.field) : null;
+    return field ? { kind: "refused", message, field } : { kind: "refused", message };
+  }
+  if (status === 429 || status === 503 || status === 500) {
     return { kind: "refused", message };
   }
   return { kind: "refused", message: OFFICE_MESSAGE };

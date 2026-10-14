@@ -4767,3 +4767,68 @@ Eyram closed two open decisions on 2026-10-14.
 **Applied to slice 8 (still uncommitted):** `20261020120000_admissions_submit_inquiry.sql` was edited in place, because it has not been pushed. It now cleans the phone, checks the new rule, stores the cleaned form, and has a new error message. The form logic (`inquiry-form.ts`, new `cleanPhone`) checks and sends the cleaned form with the same message, and the phone input allows 32 characters. The Edge Function has no phone check of its own, so it needed no change. Tests: vitest covers 7 digits refused, 8 and 15 accepted, 16 refused, spaces and dashes accepted and stripped, missing plus refused, letters refused, and the cleaned payload. Probe Q7 now uses the new refusals, and new probe Q10 covers each edge plus the stored form.
 
 **Verification:** fresh reset, `20261020120000_admissions_submit_inquiry.sql` probes Q1 to Q10 green, vitest 78 tests pass, `tsc` clean, overload check clean, types identical. Only those were run, as asked.
+
+## 2026-10-14: Admissions 8b, enquiry form polish and two intake switches
+
+Slice 8b was built on 2026-10-14. It is local only: the work is in the uncommitted working tree, and nothing is applied on hosted or deployed. It follows slice 8 and changes the public enquiry form and the intake switches (PORT-PLAN, slice 8b).
+
+**Built (uncommitted):**
+
+- **Migrations:**
+  - `20261021100000_admissions_public_applications_flag.sql`: the second intake switch, `public_applications_open` (default false), with `set_admissions_public_applications(boolean)`, Manager only.
+  - `20261021110000_admissions_inquiry_form_polish.sql`: `branches.public_label` and its guard, the current grade or prior schooling columns and constraint, the religion and month checks in `submit_inquiry`, and the field-named errors. The slice 8 helper functions (`_public_text`, `_public_only_keys`, `_public_invalid`) were dropped and recreated with a field argument.
+- **Seeds:** `seed.sql` and `seed.production.sql` each call `_admissions_seed_public_campus_labels()` after inserting campuses.
+- **Edge Function** `supabase/functions/admissions-public`: the enquiry wording in two messages, and the field name passed through to the response only when it matches a strict path pattern.
+- **Frontend:** the enquiry form (`inquiry-form.ts`, `inquiry-form.test.ts`), `components/inquiry-page.tsx`, `components/settings-page.tsx` (both switches), `data/application-detail.ts`, `data/settings.ts`, `labels.ts`, and `routes/inquiry.tsx`. `database.types.ts` was regenerated.
+- **Probes:** two new files in `supabase/role-matrix/`: `20261021100000_admissions_public_applications_flag.sql` (P1 to P15) and `20261021110000_admissions_inquiry_form_polish.sql` (L1 to L12). Fixtures were updated in two slice 8 probe files, `20261020120000_admissions_submit_inquiry.sql` and `20261020130000_admissions_public_options.sql`.
+
+**Decisions (all made 2026-10-14):**
+
+- **Religion:** Christian, Muslim, Traditional, Other, Prefer not to say, enforced in `submit_inquiry`.
+- **Month of enrolment:** January (shown as "January (Limited Admissions)", the TCS OS wording) or September. "Other" is dropped.
+- **Current grade or class:** N/A (not yet in school), then the 14 active grades (a child in early care picks Pre Nursery; changed later on 2026-10-14, see below). It is stored as `students.current_grade_id` or `students.prior_schooling`, never both (`students_current_grade_one_check`). The old free-text `students.current_grade` is kept for legacy rows and written empty by public enquiries. Not yet in school hides and refuses the current school field; any grade requires it. A current grade above the grade applied into is not enforced.
+- **Public campus labels:** `branches.public_label`, nullable, falling back to `name`. Seeded as "Main Campus (Somey Down)" for Main or Treasures Christian School (the hosted name), and "Annex (CK Road)" for Annex. A guard trigger stops any signed-in user from setting or changing a label. The reason is that `branches` has a broad `can_write()` update policy and the label is public, so labels change only by migration. `branches.name` is unchanged for HR and Finance.
+- **Wording:** parents see "enquiry" everywhere. The route `/inquiry`, INQ references and code keep "inquiry".
+- **Date of birth:** typed as dd/mm/yyyy with a numeric keypad and automatic slashes, sent as ISO.
+- **Age hint:** display only, never sent or trusted. It lives in `inquiry-form.ts` as `ageHint`, and a test checks that the payload has no age.
+- **Also added:** a "Same address as above" checkbox for guardian 2; inline errors next to each field, including server ones; asterisks on required fields; a thank-you page that says the school will contact the parent and shows the INQ reference or references to keep (no confirmation email exists until slice 12); and a phone hint that says to start with a plus sign and country code, then 8 to 15 digits, with spaces and dashes allowed.
+- **Anon surface gate (approved 2026-10-14):** `get_public_admissions_options` changes only the campus label string and adds an `applications_open` key. Same signature, so the anon-executable count stays at 170.
+- **Two independent intake switches (approved 2026-10-14):**
+  - Slice 8's `public_intake_open` and `set_admissions_public_intake` are applied on hosted and keep their names. They now mean public inquiries. The reason is that a rename would need a coordinated column rename, function drop and frontend deploy for no change in behaviour, so only new objects were added.
+  - `public_applications_open` is new. It is audited as `admissions_settings_changed` with only the changed field.
+  - `submit_inquiry` refuses only when public inquiries are closed. Slice 9's application submit must check only `public_applications_open`.
+  - Admissions Settings shows both switches. Applications is disabled with a note that the form arrives in a later slice. The Auditor sees both read-only.
+
+**Verification:**
+
+- **Baseline** (HEAD 6842848, fresh reset): clean, anon-executable count 170.
+- **After the build** (test-runner, fresh reset):
+  - overload check clean; types identical; anon-executable count 170;
+  - lint 0 errors and 13 warnings; `tsc` clean; build clean;
+  - `npm test` 97 pass; `handler.test.ts` 27 of 27; `integration.test.ts` 7 of 7;
+  - all 42 role-matrix files green.
+- **Deliberate breaks: 16, all caught:** applications setter without the Manager check; setter granted to anon; `submit_inquiry` reading the applications switch; audit branch missing; options `applications_open` reading the wrong switch; religion check removed; month check removed; inactive current grade accepted; both current grade and prior schooling accepted; not yet in school with a school accepted; students constraint dropped; options returning the internal name; label guard dropped; label seeder matching only Main; field details passed unfiltered; age added to the payload.
+  - Dropped on purpose: the old `current_grade` key (covered by the unknown-key rule).
+- **Browser:** a local headless Chrome render of `/inquiry`, using Cloudflare's test keys, showed the enquiry wording, the new labels and the asterisks.
+- **Golden payroll suite:** skipped. Nothing payroll-related changed, and the audit action list is unchanged.
+
+**Code review:** no blocking findings. Non-blocking, left open (PORT-PLAN, slice 8b, open follow-ups):
+
+- the campus name check before the push (a read-only check of the hosted campus names);
+- the stale-form message after a reopen;
+- `students.current_grade_id` is `on delete restrict`, so grades are retired, not deleted.
+
+**Outstanding for Eyram:**
+
+- Review the uncommitted slice 8b.
+- After the commit, the production steps, in this order: close public inquiries first, then the database push, the Edge Function deploy and the frontend deploy, then reopen. Eyram runs these steps. No commands are recorded here.
+- The cutover gate is in PORT-PLAN, slice 15: `admissions.tcsch.edu.gh` does not move to the ERP until a confirmation email exists (slice 12) or Eyram accepts the gap in writing.
+
+## 2026-10-14: Admissions 8b, extra early-care option removed; branches update probe
+
+Eyram removed the extra early-care option from the enquiry form's current grade or class list on 2026-10-14. The list is now N/A (not yet in school), then the 14 active grades. A child in early care picks Pre Nursery, and the current school stays required for any grade.
+
+- `students.prior_schooling` now allows only `'not_yet_in_school'`. `20261021110000_admissions_inquiry_form_polish.sql` was edited in place, because it has not been pushed. The edit covers the check constraint and `submit_inquiry`. The form list, the staff detail label, the vitest cases and the probes were updated to match.
+- The 8b deliberate-break set drops the early-care break. It was already listed as dropped, and that entry is removed.
+- New probe L13 in `supabase/role-matrix/20261021110000_admissions_inquiry_form_polish.sql`: a role allowed to edit branches (Manager, Attendant) can still change a branch's name and other columns after the label guard, and the label stays unchanged. L3 and L4 prove signed-in users can't set or change `public_label`.
+- Verification: on a fresh reset, the 8b polish probe file and the slice 8 submit_inquiry and options probe files are green. The inquiry vitest file passes, `tsc` is clean, the overload check is clean and the types are identical.

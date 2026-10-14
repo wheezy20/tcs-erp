@@ -130,6 +130,7 @@ let options: {
 
 function inquiry(email: string, student: Record<string, unknown> = {}) {
   const grade = options.grades.find((g) => g.name === "Grade 1")!;
+  const current = options.grades.find((g) => g.name === "Kindergarten 2")!;
   return {
     referral_source: "website",
     guardians: [
@@ -149,7 +150,7 @@ function inquiry(email: string, student: Record<string, unknown> = {}) {
         full_name: "Kofi Mensah",
         date_of_birth: "2019-02-03",
         current_school: "N/A",
-        current_grade: "KG 2",
+        current_grade_id: current.id,
         grade_id: grade.id,
         academic_year: options.academic_years[0],
         month_of_enrollment: "September",
@@ -224,7 +225,7 @@ test("free text for grade, year or campus is refused", async () => {
 });
 
 test("a campus that doesn't take the grade is refused with a contact-the-school message", async () => {
-  const annex = options.campuses.find((c) => c.name === "Annex")!;
+  const annex = options.campuses.find((c) => c.name === "Annex (CK Road)")!;
   const r = await send(inquiry("annex@example.test", { campus_id: annex.id }));
   assert.equal(r.status, 400);
   assert.match(String(r.body.error), /contact the school/);
