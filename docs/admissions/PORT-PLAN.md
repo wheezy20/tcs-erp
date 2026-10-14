@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14); their frontend deploys are not confirmed. Slice 8 is built locally and not committed (2026-10-14). Slice 8b (public enquiry form polish and two intake switches) is built locally and not committed (2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -40,8 +40,8 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 7b1 | Detail page actions: decision, offer, enrolment, grade correction | committed (f04a336) | 7a |
 | 7b2 | Admin screens: academic years, capacity, offer expiry, campus rules | committed (bed38c9), migrations applied on hosted (reported 2026-10-14); frontend deploy not confirmed | 7b1 |
 | 7c | Read-only Audit Log (`/audit-log`) and Accountant audit narrowing | committed (7a07d6a), migrations applied on hosted (reported 2026-10-14); frontend deploy not confirmed | 7b2 |
-| 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | built locally, not committed (2026-10-14) | 7b |
-| 8b | Public enquiry form polish and two intake switches | built locally, not committed (2026-10-14) | 8 |
+| 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | committed (c71b363, 6842848), migrations applied on hosted (reported by Eyram, 2026-10-14) | 7b |
+| 8b | Public enquiry form polish and two intake switches | committed (32eae11, c3943d8, 7d80735), migrations applied on hosted (reported by Eyram, 2026-10-14) | 8 |
 | 9 | Public Application form: direct submit, uploads, matching, rules | not started; split into 9a and 9b (2026-10-13) | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
 | 11 | Public offer response page | not started | 8, 6b |
@@ -909,8 +909,8 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
 **Still open:**
 
 - **D-8c (decided 2026-10-14, closed).** No de-duplication on inquiries: each inquiry creates a new family, guardians, students and applications, as built. Revisit with slice 9's matching.
-- **Forwarded IP (part of D-8d, open).** Whether the hosted Edge runtime's `x-forwarded-for` can be trusted. Until it is answered, per-IP limits are best effort. Turnstile and the global cap are the controls that cannot be spoofed.
-- **(a) Forwarded IP, launch gate.** Code review noted that with a client-controlled `x-forwarded-for`, each spoofed request makes a fresh rate-limit row and a siteverify call before Turnstile refuses it. It also lets someone burn another visitor's IP allowance. The hosted header must be tested before public intake is opened.
+- **Forwarded IP (part of D-8d, closed reported by Eyram, 2026-10-14).** The forwarded-IP test on hosted: 25 plain requests gave 20 refusals by Turnstile, then 429 from request 21; 25 requests with a spoofed X-Forwarded-For all gave 429. So the leftmost header cannot be spoofed on the hosted platform, and this open item is closed.
+- **(a) Forwarded IP, launch gate.** Code review noted that with a client-controlled `x-forwarded-for`, each spoofed request makes a fresh rate-limit row and a siteverify call before Turnstile refuses it. It also lets someone burn another visitor's IP allowance. The hosted header must be tested before public intake is opened. **Closed (reported by Eyram, 2026-10-14):** see the Forwarded IP item above.
 - **(b) Per-email limit, needs Eyram.** The 5 per email per day limit lets anyone learn whether an email has been submitted today (the sixth attempt is refused). It also lets someone lock a parent out for the day with five junk inquiries. This is inherent to a per-email counter. Eyram to accept or change.
 - **(c) Local CORS.** Locally the Supabase CLI gateway adds `Access-Control-Allow-Origin: *` and answers preflight itself. The handler's own Origin check still refuses foreign origins with 403. The hosted headers should be checked with curl after deploy.
 - **(d) D-9d phone rule (revised 2026-10-14, closed).** a plus sign and digits only, stored as sent: +233 and exactly 9 digits (the first not 0), for example +233590000000, or another country code (not starting with 0) and 8 to 15 digits in all, for example +442079460958; spaces, dashes, letters and extra digits are refused. The form puts +233 in front of digits typed without a plus sign and shows every number with no spaces; it shows an error at once for spaces, letters, dashes or other symbols, a leading 0 on a Ghana number, and too many digits. Foreign numbers are accepted. This replaces the earlier 2026-10-14 rule (a plus sign and 8 to 15 digits, spaces and dashes removed). Applied in migration `20261023100000_admissions_inquiry_phone_format.sql`, the form logic, vitest and probe Q10.
@@ -951,7 +951,7 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
   - inline errors next to each field, including server errors. `submit_inquiry` names the field in the error DETAIL, and the Edge Function passes it on only when it matches a strict path pattern;
   - asterisks on required fields;
   - a thank-you page that says the school will contact the parent and shows the INQ reference or references to keep. No confirmation email exists until slice 12;
-  - the phone hint "Format: +233590000000. Country code and your number, no spaces." (revised 2026-10-14 with D-9d)
+  - the phone hint "For example 0590000000 or +233590000000. From outside Ghana, start with + and the country code." (revised 2026-10-14; client side only, the box removes spaces, dashes, dots and brackets, and turns 0 and 9 digits, or 233 and 9 digits without a plus, into +233 and the 9 digits, shown when the parent leaves the box)
 
 **Anon surface gate (approved 2026-10-14).** `get_public_admissions_options` changes only the campus label string, and adds an `applications_open` key. Its signature is unchanged, and the anon-executable count stays at 170.
 
@@ -986,6 +986,17 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
 - **Golden payroll suite:** skipped. Nothing payroll-related changed, and the audit action list is unchanged.
 
 **Code review (2026-10-14):** no blocking findings. Non-blocking, recorded as open follow-ups below.
+
+**Reported by Eyram, 2026-10-14:**
+
+- The slice 8b migrations `20261021100000`, `20261021110000`, `20261022100000` and `20261023100000` show on both sides of the hosted migration list, so they are applied on hosted. The slice 8 migrations `20261020100000` to `20261020130000` were already applied (reported by Eyram, 2026-10-14).
+- The `admissions-public` Edge Function is at version 2 on hosted, last updated 2026-10-14 08:12 UTC (reported by Eyram, 2026-10-14).
+- The hosted public options return the campus labels "Annex (CK Road)" and "Main Campus (Somey Down)" (reported by Eyram, 2026-10-14).
+- The forwarded-IP test on hosted: 25 plain requests gave 20 refusals by Turnstile, then 429 from request 21; 25 requests with a spoofed X-Forwarded-For all gave 429. The leftmost header cannot be spoofed on the hosted platform, and that open item is closed (reported by Eyram, 2026-10-14).
+- The live end-to-end test passed on 2026-10-14: a real Turnstile solve, an INQ reference on the thank-you page, the staff detail reading "Not yet in school", the Accountant unable to see it, and audit rows for the switch. Public inquiries were closed again afterwards (reported by Eyram, 2026-10-14).
+- The 7b2 and 7c frontends are live: Eyram checked Admissions Settings and the Audit Log on the live site (reported by Eyram, 2026-10-14).
+
+**Go-live cleanup (before real intake begins):** one test inquiry labelled "ZZ Test Do Not Process" exists on hosted (reported by Eyram, 2026-10-14). It must be removed by a small reviewed migration before real intake begins.
 
 **Open follow-ups (not decided):**
 

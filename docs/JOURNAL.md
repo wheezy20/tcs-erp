@@ -4865,3 +4865,38 @@ Eyram changed the enquiry form's phone rule on 2026-10-14. It replaces the earli
   - Two deliberate breaks, both caught by Q10: the server check loosened to the old 8 to 15 digit rule, and the old space and dash stripping put back.
   - 42 inquiry vitest tests, 27 handler tests and 7 integration tests pass.
   - `tsc` clean, lint 0 errors (13 warnings, baseline), overload check clean, types identical.
+
+## 2026-10-14: Hosted state of slices 7b2, 7c, 8 and 8b, as reported
+
+Each fact below is reported by Eyram, 2026-10-14. Nothing else is recorded here as applied or verified.
+
+- **Migrations:** the slice 8b migrations `20261021100000`, `20261021110000`, `20261022100000` and `20261023100000` show on both sides of the hosted migration list, so they are applied on hosted. The slice 8 migrations `20261020100000` to `20261020130000` were already applied.
+- **Edge Function:** `admissions-public` is at version 2 on hosted, last updated 2026-10-14 08:12 UTC.
+- **Campus labels:** the hosted public options return "Annex (CK Road)" and "Main Campus (Somey Down)".
+- **Forwarded IP:** 25 plain requests gave 20 refusals by Turnstile, then 429 from request 21. 25 requests with a spoofed X-Forwarded-For all gave 429. So the leftmost header cannot be spoofed on the hosted platform, and the forwarded-IP open item (D-8d) is closed.
+- **Live end-to-end test passed on 2026-10-14:**
+  - a real Turnstile solve;
+  - an INQ reference on the thank-you page;
+  - the staff detail reading "Not yet in school";
+  - the Accountant unable to see it;
+  - audit rows for the switch.
+
+  Public inquiries were closed again afterwards.
+- **Frontends:** the 7b2 and 7c frontends are live. Eyram checked Admissions Settings and the Audit Log on the live site.
+- **Go-live cleanup:** one test inquiry labelled "ZZ Test Do Not Process" exists on hosted. It must be removed by a small reviewed migration before real intake begins. Recorded in PORT-PLAN, slice 8b.
+
+The confirmation email cutover gate (PORT-PLAN, slice 15) is unchanged.
+
+## 2026-10-14: Enquiry phone box made forgiving (client only)
+
+The phone box is now forgiving on the client only. The database rule (D-9d, migration `20261023100000`) and the Edge Function are unchanged, and there is no migration.
+
+- **Removed silently:** spaces, dashes, dots and brackets.
+- **Ghana local numbers:** a number with a leading 0 and exactly 9 more digits, typed without a plus, becomes +233 and those 9 digits. While a local number is still being typed there is no error; on submit an incomplete one asks for the full number.
+- **233 without the plus:** 233 and exactly 9 digits (the first not 0) also becomes +233 and those 9 digits. While a number starting 233 is still short of 12 digits there is no error yet. 233 with 8 or 10 digits is not converted and is refused with the foreign tip.
+- **When the box changes:** the box keeps what the parent types and shows the converted number when they leave it. Before, it reformatted on every keystroke, which would have turned typed 233 digits into +2332 at once. Errors for symbols and extra digits still show while typing.
+- **Left to the strict rule:**
+  - A leading 0 with more than 10 digits (for example a foreign number in its national format) is refused with a tip to start with + and the country code; it is not guessed.
+  - Digits without a plus that are too many for a Ghana number (for example 447946095800) are refused with the same tip, so they are never quietly turned into a +233 number.
+- **New hint:** "For example 0590000000 or +233590000000. From outside Ghana, start with + and the country code."
+- **Verification:** the inquiry vitest file passes (49 tests) and `tsc` is clean. Nothing else was run, as asked.

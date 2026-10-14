@@ -7,6 +7,7 @@ import {
   ageHint,
   buildInquiryPayload,
   phoneError,
+  phoneTypingError,
   readPhoneInput,
   storedPhone,
   currentGradeChoices,
@@ -176,16 +177,95 @@ describe("validateInquiry", () => {
     expect(g.phone).toBe("+442079460958");
   });
 
-  it("shows an error at once for spaces, symbols or too many digits, and keeps the text", () => {
+  it("silently removes spaces, dashes, dots and brackets", () => {
+    expect(readPhoneInput("+233 59 000 0000")).toEqual({ display: "+233590000000", error: null });
+    expect(readPhoneInput("+233-59-000-0000")).toEqual({ display: "+233590000000", error: null });
+    expect(readPhoneInput("+233.59.000.0000")).toEqual({ display: "+233590000000", error: null });
+    expect(readPhoneInput("(+233) 59 000 0000")).toEqual({ display: "+233590000000", error: null });
+    expect(readPhoneInput("+44 (20) 7946-0958")).toEqual({ display: "+442079460958", error: null });
+    expect(readPhoneInput("   ")).toEqual({ display: "", error: null });
+  });
+
+  it("converts a Ghana local number to +233 and shows the converted value", () => {
+    expect(readPhoneInput("0590000000")).toEqual({ display: "+233590000000", error: null });
+    expect(readPhoneInput("059 000 0000")).toEqual({ display: "+233590000000", error: null });
+    expect(readPhoneInput("059-000-0000")).toEqual({ display: "+233590000000", error: null });
+    expect(phoneError("0590000000")).toBeNull();
+    const d = validDraft();
+    d.guardians[0].phone = readPhoneInput("059 000 0000").display;
+    const g = (buildInquiryPayload(d).guardians as Record<string, unknown>[])[0];
+    expect(g.phone).toBe("+233590000000");
+  });
+
+  it("waits while a local number is still being typed, then asks for the rest", () => {
+    expect(readPhoneInput("0")).toEqual({ display: "0", error: null });
+    expect(readPhoneInput("059 000")).toEqual({ display: "059000", error: null });
+    expect(phoneError("059000")).toMatch(/full number/);
+  });
+
+  it("does not guess: a leading 0 with too many digits is refused with the foreign tip", () => {
+    const read = readPhoneInput("020 7946 0958"); // a UK number in national format
+    expect(read.error).toMatch(/Too many digits/);
+    expect(read.error).toMatch(/start with \+ and the country code/);
+    expect(read.display).toBe("020 7946 0958");
+  });
+
+  it("tells a parent with too many digits that a foreign number needs the plus sign", () => {
+    // A UK number typed without the plus is not quietly made into a +233 number.
+    const read = readPhoneInput("447946095800");
+    expect(read.error).toMatch(/Too many digits for a Ghana number/);
+    expect(read.error).toMatch(/start with \+ and the country code/);
+  });
+
+  it("converts 233 and exactly 9 digits typed without a plus, and nothing else", () => {
+    expect(readPhoneInput("233590000000")).toEqual({ display: "+233590000000", error: null });
+    expect(readPhoneInput("233 59 000 0000")).toEqual({ display: "+233590000000", error: null });
+    expect(storedPhone("233590000000")).toBe("+233590000000");
+    expect(phoneError("233590000000")).toBeNull();
+    // 233 and 8 or 10 digits: not converted, refused with the foreign tip.
+    for (const raw of ["23359000000", "2335900000000"]) {
+      const read = readPhoneInput(raw);
+      expect(read.display, raw).toBe(raw);
+      expect(read.error, raw).toMatch(/start with \+ and the country code/);
+    }
+    // 233 followed by a 0 is not a Ghana number in this form either.
+    expect(readPhoneInput("233059000000").error).toMatch(/start with \+ and the country code/);
+    // A UK number without the plus is still refused, not made into +233.
+    expect(readPhoneInput("447946095800").error).toMatch(/start with \+ and the country code/);
+  });
+
+  it("normalises at submit time even if the box was never left (no blur)", () => {
+    const cases: [string, string][] = [
+      ["0590000000", "+233590000000"],
+      ["233590000000", "+233590000000"],
+      ["+44 20 7946 0958", "+442079460958"],
+    ];
+    for (const [typed, sent] of cases) {
+      const d = validDraft();
+      d.guardians[0].phone = typed; // raw, exactly as typed
+      expect(validateInquiry(d, OPTIONS, TODAY)["guardians.0.phone"], typed).toBeUndefined();
+      const g = (buildInquiryPayload(d).guardians as Record<string, unknown>[])[0];
+      expect(g.phone, typed).toBe(sent);
+    }
+  });
+
+  it("lets 233 be typed through without a premature error, then judges it", () => {
+    for (const partial of ["2", "23", "233", "2335", "23359000000"]) {
+      expect(phoneTypingError(partial), partial).toBeNull();
+    }
+    expect(phoneTypingError("2335900000000")).toMatch(/start with \+ and the country code/);
+    expect(phoneTypingError("447946095800")).toMatch(/start with \+ and the country code/);
+    expect(phoneTypingError("+233590ABC")).toMatch(/digits only/);
+  });
+
+  it("still refuses letters, other symbols, a country code of 0 and too many digits", () => {
     const cases: [string, RegExp][] = [
-      ["+233 590000000", /No spaces/], // space
-      ["+44 2079460958", /No spaces/], // space in a foreign number
-      ["+2335900000001", /Too many digits/], // tenth digit
-      ["+233-59-000-0000", /digits only/], // dashes
-      ["+233590ABC000", /digits only/], // letters
-      ["+4412345678901234", /at most 15 digits/], // 16 digits
-      ["+0441234567", /doesn't start with 0/], // country code 0
-      ["0590000000", /Leave out the first 0/], // local format
+      ["+233590ABC000", /digits only/],
+      ["+233/59/000/0000", /digits only/],
+      ["+2335900000001", /Too many digits/],
+      ["+4412345678901234", /at most 15 digits/],
+      ["+0441234567", /doesn't start with 0/],
+      ["+2330590000000", /Leave out the 0 after \+233/],
     ];
     for (const [raw, message] of cases) {
       const read = readPhoneInput(raw);
@@ -562,6 +642,9 @@ describe("slice 8b: date of birth, age hint, current grade, address, field error
     for (const text of [PHONE_HINT, OFFICE_MESSAGE]) {
       expect(text).not.toMatch(/[\u2013\u2014]/);
     }
-    expect(PHONE_HINT).toBe("Format: +233590000000. Country code and your number, no spaces.");
+    expect(PHONE_HINT).toBe(
+      "For example 0590000000 or +233590000000. From outside Ghana, start with + and the country code.",
+    );
+    expect(PHONE_HINT).not.toMatch(/no spaces/i);
   });
 });

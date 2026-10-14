@@ -37,6 +37,7 @@ import {
   maskDateInput,
   needsCurrentSchool,
   parseDmy,
+  phoneTypingError,
   readPhoneInput,
   todayInAccra,
   validateInquiry,
@@ -465,11 +466,20 @@ function InquiryForm({
                       aria-invalid={errors[k("phone")] ? true : undefined}
                       value={g.phone}
                       onChange={(e) => {
-                        // Puts +233 in front of digits typed without a plus; a
-                        // space, symbol or extra digit shows its error at once.
-                        const read = readPhoneInput(e.target.value);
-                        setGuardian(i, { phone: read.display });
-                        if (read.error) setErrors((x) => ({ ...x, [k("phone")]: read.error! }));
+                        // Keeps what they type; a symbol or extra digit shows its
+                        // error at once (not while 233... is still being typed).
+                        const raw = e.target.value;
+                        setGuardian(i, { phone: raw });
+                        const error = phoneTypingError(raw);
+                        if (error) setErrors((x) => ({ ...x, [k("phone")]: error }));
+                      }}
+                      onBlur={() => {
+                        // On leaving the box, show the number in its fixed form:
+                        // separators gone, 0... or 233... turned into +233...
+                        const read = readPhoneInput(g.phone);
+                        if (!read.error && read.display !== g.phone) {
+                          setGuardian(i, { phone: read.display });
+                        }
                       }}
                     />
                   </Field>

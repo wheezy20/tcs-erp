@@ -21,23 +21,51 @@ export function isValidPhone(stored: string): boolean {
 export const PHONE_EXAMPLE = "+233590000000";
 
 /** Shown under the phone field. */
-export const PHONE_HINT = "Format: +233590000000. Country code and your number, no spaces.";
+export const PHONE_HINT =
+  "For example 0590000000 or +233590000000. From outside Ghana, start with + and the country code.";
 
-/** What the parent typed or pasted into the phone box. Digits typed
- * without a plus sign are a Ghana number and get +233 in front. Spaces,
- * letters, dashes or any other symbol, a leading 0 on a Ghana number, a
- * country code starting with 0 and too many digits are errors, and the
- * text is left as typed so the parent can see it. */
+const FOREIGN_TIP = "From outside Ghana, start with + and the country code.";
+
+/** What the parent typed or pasted into the phone box. This is forgiving
+ * on the client only; submit_inquiry's strict rule is unchanged.
+ *   1. Spaces, dashes, dots and brackets are removed silently.
+ *   2. A Ghana local number (0 and exactly 9 more digits, no plus) becomes
+ *      +233 and those 9 digits, and so does 233 and exactly 9 digits (the
+ *      first not 0) with no plus. The box shows the converted number when
+ *      the parent leaves it.
+ *   3. While a local number is still being typed (0 and up to 8 more
+ *      digits), there is no error yet.
+ *   4. Everything else goes to the strict rule: digits without a plus are
+ *      a Ghana number and get +233 in front; a plus needs a country code
+ *      that doesn't start with 0; letters, other symbols and too many
+ *      digits are errors, and the text is left as typed.
+ * Not guessed: a number with a leading 0 that isn't exactly 10 digits
+ * (for example a foreign number in its national format) is refused with a
+ * tip to use + and the country code. */
 export function readPhoneInput(raw: string): { display: string; error: string | null } {
-  if (raw === "") return { display: "", error: null };
-  const plus = raw.startsWith("+");
-  const digits = plus ? raw.slice(1) : raw;
-  if (/\s/.test(raw)) {
-    return { display: raw, error: "No spaces. Type the number as +233590000000." };
-  }
+  const cleaned = raw.replace(/[\s\-.()]/g, "");
+  if (cleaned === "") return { display: "", error: null };
+  const plus = cleaned.startsWith("+");
+  const digits = plus ? cleaned.slice(1) : cleaned;
   if (!/^[0-9]*$/.test(digits)) {
-    return { display: raw, error: "Use digits only, with no letters, dashes or other symbols." };
+    return { display: raw, error: "Use digits only, with no letters or other symbols." };
   }
+
+  // Ghana's country code typed without the plus: 233 and exactly 9 digits,
+  // the first not 0. Any other length stays on the strict rule below.
+  if (!plus && /^233[1-9][0-9]{8}$/.test(digits)) {
+    return { display: `+${digits}`, error: null };
+  }
+
+  if (!plus && digits.startsWith("0")) {
+    if (digits.length === 10) return { display: `+233${digits.slice(1)}`, error: null };
+    if (digits.length < 10) return { display: digits, error: null };
+    return {
+      display: raw,
+      error: `Too many digits for a Ghana number starting with 0 (10 digits, for example 0590000000). ${FOREIGN_TIP}`,
+    };
+  }
+
   // Still typing the +233 prefix (or a country code that starts like it).
   if (plus && "233".startsWith(digits)) return { display: `+${digits}`, error: null };
 
@@ -56,17 +84,33 @@ export function readPhoneInput(raw: string): { display: string; error: string | 
 
   const national = plus ? digits.slice(3) : digits;
   if (national.startsWith("0")) {
-    return { display: raw, error: "Leave out the first 0: for 0590000000, type +233590000000." };
+    return { display: raw, error: "Leave out the 0 after +233: for example +233590000000." };
   }
   if (national.length > 9) {
-    return { display: raw, error: "Too many digits. A Ghana number has 9 digits after +233." };
+    return {
+      display: raw,
+      error: `Too many digits for a Ghana number (9 after +233). ${FOREIGN_TIP}`,
+    };
   }
   return { display: `+233${national}`, error: null };
 }
 
 /** The phone as sent and stored: exactly what the box shows. */
-export function storedPhone(display: string): string {
-  return display;
+/** The phone as sent and stored: what the parent typed, read into its
+ * fixed form (or left as typed when it has an error, which validation
+ * reports before anything is sent). */
+export function storedPhone(value: string): string {
+  const read = readPhoneInput(value);
+  return read.error ? value : read.display;
+}
+
+/** The error to show while the parent is still typing: the same as
+ * readPhoneInput's, except while a number that starts with 233 (no plus)
+ * is still short of its 12 digits, so 233590000000 can be typed through. */
+export function phoneTypingError(raw: string): string | null {
+  const cleaned = raw.replace(/[\s\-.()]/g, "");
+  if (/^(2|23|233[0-9]{0,8})$/.test(cleaned)) return null;
+  return readPhoneInput(raw).error;
 }
 
 /** The error to show for a phone box, or null when it is complete. */
@@ -75,6 +119,9 @@ export function phoneError(display: string): string | null {
   if (read.error) return read.error;
   const stored = storedPhone(read.display);
   if (isValidPhone(stored)) return null;
+  if (stored.startsWith("0")) {
+    return "Enter the full number, for example 0590000000 or +233590000000.";
+  }
   return stored === "" || stored.startsWith("+233")
     ? "Enter all 9 digits after +233, for example +233590000000."
     : "Enter the full number: country code and number, 8 to 15 digits after the +.";
