@@ -15,7 +15,10 @@
 #   1. Reads the hosted project's URL and anon key from frontend/.env.deploy
 #      (gitignored; Vite never loads a file by that name on its own). It
 #      refuses anything that isn't https://<ref>.supabase.co, and any
-#      service_role / secret key.
+#      service_role / secret key. Also reads VITE_TURNSTILE_SITE_KEY (the
+#      public site key for the /inquiry form, admissions slice 8). Without
+#      it the build still deploys and /inquiry says to call the office; it
+#      refuses the local test site key from .env.local.
 #   2. Moves every .env file Vite would load (.env, .env.local,
 #      .env.production, .env.production.local) out of the way for the
 #      build, so the build can't read them, and puts them back afterwards.
@@ -80,7 +83,7 @@ read_value_from() {
 }
 
 check_dist() {
-  local url="$1" key="$2" local_key="$3"
+  local url="$1" key="$2" local_key="$3" local_site_key="${4:-}"
 
   [[ -d dist/client && -d dist/server ]] || fail "dist/client or dist/server is missing. Build first."
 
@@ -96,6 +99,11 @@ check_dist() {
   if [[ -n "$local_key" ]] && grep -rIqF "$local_key" dist/client dist/server; then
     grep -rIlF "$local_key" dist/client dist/server | head -5 >&2 || true
     fail "the build contains the anon key from .env.local (the local key). Never deploy it."
+  fi
+
+  if [[ -n "$local_site_key" ]] && grep -rIqF "$local_site_key" dist/client dist/server; then
+    grep -rIlF "$local_site_key" dist/client dist/server | head -5 >&2 || true
+    fail "the build contains the Turnstile site key from .env.local (the local test key). Never deploy it."
   fi
 
   if [[ -n "$url" ]]; then
@@ -117,7 +125,8 @@ check_dist() {
 }
 
 if [[ "$MODE" == check ]]; then
-  check_dist "" "" "$(read_value_from .env.local VITE_SUPABASE_ANON_KEY)"
+  check_dist "" "" "$(read_value_from .env.local VITE_SUPABASE_ANON_KEY)" \
+    "$(read_value_from .env.local VITE_TURNSTILE_SITE_KEY)"
   exit 0
 fi
 
@@ -130,6 +139,8 @@ fi
 URL=$(read_value_from "$DEPLOY_ENV" VITE_SUPABASE_URL)
 KEY=$(read_value_from "$DEPLOY_ENV" VITE_SUPABASE_ANON_KEY)
 LOCAL_KEY=$(read_value_from .env.local VITE_SUPABASE_ANON_KEY)
+SITE_KEY=$(read_value_from "$DEPLOY_ENV" VITE_TURNSTILE_SITE_KEY)
+LOCAL_SITE_KEY=$(read_value_from .env.local VITE_TURNSTILE_SITE_KEY)
 
 [[ "$URL" =~ ^https://[a-z0-9]{20}\.supabase\.co$ ]] \
   || fail "VITE_SUPABASE_URL in $DEPLOY_ENV must be https://<20-character project ref>.supabase.co (got '$URL')."
@@ -146,6 +157,17 @@ case "$KEY" in
     ;;
   *) fail "VITE_SUPABASE_ANON_KEY doesn't look like a Supabase anon or publishable key." ;;
 esac
+
+# The Turnstile site key is public, but the local one is Cloudflare's
+# always-pass test key and must never reach the live site.
+if [[ -z "$SITE_KEY" ]]; then
+  echo "Note: VITE_TURNSTILE_SITE_KEY is not set in $DEPLOY_ENV. /inquiry will tell parents to call the office."
+elif [[ -n "$LOCAL_SITE_KEY" && "$SITE_KEY" == "$LOCAL_SITE_KEY" ]]; then
+  fail "VITE_TURNSTILE_SITE_KEY in $DEPLOY_ENV is the local test key from .env.local. Use the ERP widget's real site key."
+elif [[ "$SITE_KEY" =~ ^[1-3]x0+ ]]; then
+  # Cloudflare's published test site keys start 1x, 2x or 3x followed by zeros.
+  fail "VITE_TURNSTILE_SITE_KEY in $DEPLOY_ENV is one of Cloudflare's test keys. Use the ERP widget's real site key."
+fi
 
 node_major=$(node -p 'process.versions.node.split(".")[0]')
 (( node_major >= 22 )) || fail "Node >= 22 is required (found $(node -v))."
@@ -171,12 +193,13 @@ done
 
 echo "Building for $URL (local .env files set aside for the build)..."
 rm -rf dist
-VITE_SUPABASE_URL="$URL" VITE_SUPABASE_ANON_KEY="$KEY" npx vite build --mode production
+VITE_SUPABASE_URL="$URL" VITE_SUPABASE_ANON_KEY="$KEY" VITE_TURNSTILE_SITE_KEY="$SITE_KEY" \
+  npx vite build --mode production
 
 restore_env_files
 trap - EXIT INT TERM
 
-check_dist "$URL" "$KEY" "$LOCAL_KEY"
+check_dist "$URL" "$KEY" "$LOCAL_KEY" "$LOCAL_SITE_KEY"
 
 if [[ "$MODE" == build ]]; then
   echo "Build only: not deploying."

@@ -58,6 +58,18 @@ export async function getOfferTtlDays(): Promise<number | null> {
   return data?.offer_ttl_days ?? null;
 }
 
+/** Whether the public Inquiry form accepts submissions (slice 8). Starts
+ * closed; only a Manager changes it. */
+export async function getPublicIntakeOpen(): Promise<boolean | null> {
+  const { data, error } = await supabase
+    .from("admissions_settings")
+    .select("public_intake_open")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.public_intake_open ?? null;
+}
+
 export type CampusGradeRule = { branchId: string; gradeId: string };
 
 /** Campus grade rules: a campus with rows accepts only those grades; a

@@ -229,16 +229,19 @@ export type Database = {
         Row: {
           id: number
           offer_ttl_days: number
+          public_intake_open: boolean
           updated_at: string
         }
         Insert: {
           id?: number
           offer_ttl_days?: number
+          public_intake_open?: boolean
           updated_at?: string
         }
         Update: {
           id?: number
           offer_ttl_days?: number
+          public_intake_open?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -3385,6 +3388,27 @@ export type Database = {
           },
         ]
       }
+      public_rate_limits: {
+        Row: {
+          bucket: string
+          count: number
+          key_hash: string
+          window_start: string
+        }
+        Insert: {
+          bucket: string
+          count?: number
+          key_hash: string
+          window_start: string
+        }
+        Update: {
+          bucket?: string
+          count?: number
+          key_hash?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       purchase_order_lines: {
         Row: {
           id: string
@@ -4751,6 +4775,29 @@ export type Database = {
         Args: { p_bank_name: string; p_created_by?: string }
         Returns: string
       }
+      _public_invalid: { Args: { p_message: string }; Returns: undefined }
+      _public_only_keys: {
+        Args: { p_allowed: string[]; p_obj: Json; p_what: string }
+        Returns: undefined
+      }
+      _public_rate_limit_hit: {
+        Args: { p_bucket: string; p_key_hash: string }
+        Returns: boolean
+      }
+      _public_rate_limit_rule: {
+        Args: { p_bucket: string }
+        Returns: Record<string, unknown>
+      }
+      _public_text: {
+        Args: {
+          p_key: string
+          p_label: string
+          p_max: number
+          p_obj: Json
+          p_required: boolean
+        }
+        Returns: string
+      }
       _require_admissions_decider: {
         Args: never
         Returns: {
@@ -4814,6 +4861,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _require_public_service_caller: { Args: never; Returns: undefined }
       _settle_offer_expiry: {
         Args: { p_application_id: string }
         Returns: boolean
@@ -5116,6 +5164,10 @@ export type Database = {
           p_notes: string
         }
         Returns: Json
+      }
+      check_public_rate_limit: {
+        Args: { p_bucket: string; p_key_hash?: string }
+        Returns: boolean
       }
       clear_statement_line: {
         Args: { p_line_id: string; p_note?: string }
@@ -5901,6 +5953,7 @@ export type Database = {
           valid: boolean
         }[]
       }
+      get_public_admissions_options: { Args: never; Returns: Json }
       get_session_timeout_minutes: { Args: never; Returns: number }
       has_admissions_capability: {
         Args: { p_capability: string }
@@ -6936,6 +6989,22 @@ export type Database = {
         Returns: {
           id: number
           offer_ttl_days: number
+          public_intake_open: boolean
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "admissions_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_admissions_public_intake: {
+        Args: { p_open: boolean }
+        Returns: {
+          id: number
+          offer_ttl_days: number
+          public_intake_open: boolean
           updated_at: string
         }
         SetofOptions: {
@@ -7167,6 +7236,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      submit_inquiry: { Args: { p_payload: Json }; Returns: string[] }
       submit_onboarding_form: {
         Args: {
           p_account_no?: string

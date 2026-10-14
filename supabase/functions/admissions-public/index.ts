@@ -1,0 +1,53 @@
+// admissions-public entry point (admissions slice 8). All logic is in
+// handler.ts; this file only wires the real pieces:
+//
+//   - secrets, read once per request from the function's environment:
+//       TURNSTILE_SECRET_KEY        Cloudflare Turnstile secret for the ERP widget
+//       IP_HASH_KEY                 HMAC key for per-IP rate limit keys (32+ chars)
+//       ADMISSIONS_ALLOWED_ORIGINS  comma-separated exact origins
+//     Set with `supabase secrets set` on hosted; locally from the gitignored
+//     supabase/functions/.env. None of them is logged or returned.
+//   - SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, injected by Supabase into
+//     every Edge Function. The service role key stays here; the browser
+//     calls this function with no key of its own beyond the public one.
+//   - fetch for Turnstile's siteverify, with a timeout.
+//
+// verify_jwt = false (supabase/config.toml): visitors aren't signed in.
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+import {
+  handle,
+  loadConfig,
+  makeTurnstileVerifier,
+  type RpcResult,
+} from "./handler.ts";
+
+const verifyTurnstile = makeTurnstileVerifier(fetch);
+
+Deno.serve(async (req) => {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const config =
+    supabaseUrl && serviceRoleKey ? loadConfig((n) => Deno.env.get(n)) : null;
+
+  const admin =
+    config && supabaseUrl && serviceRoleKey
+      ? createClient(supabaseUrl, serviceRoleKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+      : null;
+
+  return handle(req, {
+    config: admin ? config : null,
+    verifyTurnstile,
+    rpc: async (fn, args): Promise<RpcResult> => {
+      const { data, error } = await admin!.rpc(fn, args);
+      return {
+        data,
+        error: error ? { code: error.code, message: error.message } : null,
+      };
+    },
+    log: (outcome) =>
+      console.log(JSON.stringify({ fn: "admissions-public", outcome })),
+  });
+});

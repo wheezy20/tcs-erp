@@ -1,5 +1,5 @@
 -- Role matrix for 20261015100000_admissions_decisions_capacity, STRUCTURE file (admissions slice 6a,
--- docs/admissions/PORT-PLAN.md): function grants and settings, the exact 169
+-- docs/admissions/PORT-PLAN.md): function grants and settings, the exact 170
 -- anon-executable count, all 33 slice 6a audit actions still present (the
 -- newest slice's structure file pins the exact list), the five-value offer response check, trigger
 -- names, select-only table grants, direct writes denied, and the two SQL
@@ -83,11 +83,11 @@ begin
   end if;
 end $$;
 
--- probe: S5 anon can still execute exactly 169 public functions
+-- probe: S5 anon can still execute exactly 170 public functions
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')) <> 169 then
+      where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')) <> 170 then
     raise exception 'anon-executable count changed';
   end if;
 end $$;

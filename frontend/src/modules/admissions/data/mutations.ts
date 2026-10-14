@@ -206,3 +206,8 @@ export async function setOfferTtlDays(days: number): Promise<void> {
   const { error } = await supabase.rpc("set_admissions_offer_ttl_days", { p_days: days });
   if (error) throw error;
 }
+
+export async function setPublicIntakeOpen(open: boolean): Promise<void> {
+  const { error } = await supabase.rpc("set_admissions_public_intake", { p_open: open });
+  if (error) throw error;
+}

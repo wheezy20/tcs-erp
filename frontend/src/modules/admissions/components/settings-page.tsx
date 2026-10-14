@@ -39,6 +39,7 @@ import {
   deleteCapacity,
   setAcademicYearActive,
   setOfferTtlDays,
+  setPublicIntakeOpen,
   updateCapacity,
 } from "@/modules/admissions/data/mutations";
 import {
@@ -49,6 +50,7 @@ import {
 } from "@/modules/admissions/data/reference";
 import {
   getOfferTtlDays,
+  getPublicIntakeOpen,
   listAllGrades,
   listCampusGradeRules,
   listCapacity,
@@ -79,7 +81,7 @@ export function AdmissionsSettingsPage() {
     return (
       <RoleBlockedPanel
         title="Admissions settings"
-        description="Academic years, capacity, offer expiry and campus grade rules."
+        description="Public intake, academic years, capacity, offer expiry and campus grade rules."
         what="Admissions settings"
         openTo="Managers and Auditors"
       />
@@ -97,10 +99,13 @@ function SettingsContent({ canEdit }: { canEdit: boolean }) {
     <>
       <PageHeader
         title="Admissions settings"
-        description="Academic years, capacity, offer expiry and campus grade rules."
+        description="Public intake, academic years, capacity, offer expiry and campus grade rules."
         actions={canEdit ? undefined : <Badge variant="outline">Read-only</Badge>}
       />
       <div className="grid gap-6 lg:grid-cols-2">
+        <div className="lg:col-span-2">
+          <PublicIntakeSection canEdit={canEdit} />
+        </div>
         <AcademicYearsSection canEdit={canEdit} years={years} />
         <OfferExpirySection canEdit={canEdit} />
         <div className="lg:col-span-2">
@@ -131,6 +136,89 @@ function SectionMessage({ children, error }: { children: React.ReactNode; error?
     >
       {children}
     </p>
+  );
+}
+
+/* ---------------------------------------------------------------- public intake */
+
+function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
+  const intake = useLoad(getPublicIntakeOpen, [], "Could not load public intake.");
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const open = intake.data === true;
+
+  async function change() {
+    setBusy(true);
+    try {
+      await setPublicIntakeOpen(!open);
+      toast.success(open ? "Public intake closed" : "Public intake opened");
+      await intake.reload();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not change public intake."));
+    } finally {
+      setBusy(false);
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <section className="card-surface overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-4 p-6">
+        <div>
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold">Public intake</h2>
+            {intake.data === undefined && intake.loading ? null : intake.data === true ? (
+              <Badge>Open</Badge>
+            ) : intake.data === false ? (
+              <Badge variant="outline">Closed</Badge>
+            ) : (
+              <Badge variant="outline">Not set</Badge>
+            )}
+          </div>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Whether parents can send the public Inquiry form at /inquiry. While closed, the form
+            shows a closed page and every submission is refused. Keep it closed while the old
+            admissions site is still taking inquiries.
+          </p>
+          {intake.error && <p className="mt-2 text-sm text-destructive">{intake.error}</p>}
+        </div>
+        {canEdit && typeof intake.data === "boolean" && (
+          <Button
+            variant={open ? "outline" : "default"}
+            disabled={busy}
+            onClick={() => setConfirming(true)}
+          >
+            {open ? "Close public intake" : "Open public intake"}
+          </Button>
+        )}
+      </div>
+      <AlertDialog open={confirming} onOpenChange={(o) => !busy && setConfirming(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {open ? "Close public intake?" : "Open public intake?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {open
+                ? "The Inquiry form will show a closed page and refuse new submissions straight away."
+                : "Anyone with the link will be able to send an inquiry. Make sure the old admissions site is no longer taking inquiries, so there is only one intake."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault();
+                void change();
+              }}
+            >
+              {open ? "Close intake" : "Open intake"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
   );
 }
 

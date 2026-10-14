@@ -1,6 +1,6 @@
 -- Role matrix for 20261018100000_admissions_grade_correction, STRUCTURE
 -- file (admissions slice 7b1, docs/admissions/PORT-PLAN.md): grants and
--- settings of the two new functions, the exact 169 anon-executable count,
+-- settings of the two new functions, the exact 170 anon-executable count,
 -- the exact 37-value audit list (this file owns the exact list from slice
 -- 7b1 on), the grade audit trigger, the offers column grant, the band and
 -- code equivalence the screens rely on, and the grade correction's lock by
@@ -67,11 +67,11 @@ do $$ begin
   raise exception 'not refused';
 exception when check_violation then null; end $$;
 
--- probe: S3 anon can still execute exactly 169 public functions
+-- probe: S3 anon can still execute exactly 170 public functions
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')) <> 169 then
+      where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')) <> 170 then
     raise exception 'anon-executable count changed';
   end if;
 end $$;

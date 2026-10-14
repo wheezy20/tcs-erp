@@ -116,13 +116,13 @@ end $$;
 -- as role:
 select 1;
 
--- probe: S7 anon-executable function count in public stays 169
+-- probe: S7 anon-executable function count in public is 170 (slice 8 adds get_public_admissions_options)
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ declare v integer;
 begin
   select count(*) into v from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
-  if v <> 169 then raise exception 'anon-executable count is %', v; end if;
+  if v <> 170 then raise exception 'anon-executable count is %', v; end if;
 end $$;
 -- as role:
 select 1;

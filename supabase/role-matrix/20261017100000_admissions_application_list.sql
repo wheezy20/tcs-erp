@@ -308,11 +308,11 @@ end $$;
 -- as role:
 select 1;
 
--- probe: L12 anon can still execute exactly 169 public functions
+-- probe: L12 anon can still execute exactly 170 public functions
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')) <> 169 then
+      where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')) <> 170 then
     raise exception 'anon-executable function count changed';
   end if;
 end $$;

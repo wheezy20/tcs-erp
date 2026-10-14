@@ -4701,3 +4701,69 @@ Eyram answered the slice 8 and 9 planning questions on 2026-10-13. Nothing in sl
 - TCS OS's DRF throttle has `NUM_PROXIES` unset, so it keys on the whole `X-Forwarded-For` string, whose front the client controls. With no `CACHES` setting, counters are per Cloud Run instance. So TCS OS's rate limits are probably ineffective, and its Turnstile check is its only real control.
 
 These findings were read from code and not tested against a running TCS OS.
+
+## 2026-10-14: Admissions 8, public request path and Inquiry form
+
+Slice 8 was built on 2026-10-14. It is local only: the work is in the uncommitted working tree, and nothing is applied on hosted or deployed. It is the first slice with an anon surface, so the build went through the slice loop with a confirmation gate on the anon surface (PORT-PLAN, slice 8).
+
+**Why:** public parents need an Inquiry form, and the form needs a bot check and rate limits that a client can't bypass. D-8a puts the Turnstile check in an Edge Function, `admissions-public`, and the submit RPCs are service-role-only, so the service role key never reaches the browser. D-8d sets the limits and D-8e the origin allow-list. The database never stores a raw IP or email: the keys are hashes, and a CHECK enforces it.
+
+**Built (uncommitted):**
+
+- **Migrations:**
+  - `20261020100000_admissions_public_intake_flag.sql`: the intake flag, with a Manager-only setter.
+  - `20261020110000_public_rate_limits.sql`: `public_rate_limits`, `_public_rate_limit_rule`, `check_public_rate_limit`, and the `_require_public_service_caller()` guard.
+  - `20261020120000_admissions_submit_inquiry.sql`: `submit_inquiry`, service-role-only.
+  - `20261020130000_admissions_public_options.sql`: `get_public_admissions_options()`, the one anon-executable function.
+- **Edge Function** `supabase/functions/admissions-public`: `handler.ts`, `index.ts`, `handler.test.ts` and `integration.test.ts`. `verify_jwt = false` in `supabase/config.toml`.
+- **Frontend:** the `/inquiry` route (`routes/inquiry.tsx`), `__root.tsx` and `routeTree.gen.ts` for the auth-free allow-list, and module files in `frontend/src/modules/admissions/`: `components/inquiry-page.tsx`, `components/turnstile-widget.tsx`, `data/public-intake.ts`, `inquiry-form.ts` and `inquiry-form.test.ts`. The Admissions Settings page gained a Public intake card (Manager toggle with a confirm step; Auditor read-only).
+- **Deploy script:** `frontend/scripts/deploy-production.sh` (see the verification notes below).
+- **Probes:** four new probe files, one for each migration, in `supabase/role-matrix/`. Seven existing probe files moved from 169 to 170 (the anon-executable count pinned in each). The plan text said six; the build moved seven, and this entry records seven.
+- **Generated:** `frontend/src/lib/database.types.ts` regenerated.
+
+**How it differs from the plan text:** PORT-PLAN, "Built 2026-10-14", has the full list. In short: `submit_inquiry` takes only the payload, so the database never sees an IP; the buckets are `submit_ip`, `submit_global` and `inquiry_email` (the plan's `submit`, `draft` and `lead` buckets are not built); and Turnstile also checks the hostname and the action.
+
+**Anon surface:** anon-executable count 169 to 170. The one new function is `get_public_admissions_options()`, SECURITY DEFINER and read-only.
+
+**Open decisions at the start:** D-8c (de-duplication) and the forwarded-IP question did not block the build. D-8c stays open, and the build keeps no de-duplication, for parity. The forwarded-IP question was built as "the leftmost `x-forwarded-for` as best effort". Per-IP limits are best effort until the hosted header is tested (PORT-PLAN, slice 8, Still open (a)).
+
+**Verification:**
+
+- **Baseline before the first edit** (HEAD 7a07d6a, fresh reset): reset and dev staff ok, overload check clean, types identical, anon-executable count 169.
+- **After the build** (test-runner, fresh reset):
+  - Overload check clean.
+  - Types regen identical after one regen. The first run found one missing line, for `_require_public_service_caller`; the types were regenerated.
+  - Anon-executable count 170.
+  - Lint 0 errors and 13 warnings (same as baseline). `tsc` clean. `npm test` 77 pass. Build ok.
+  - No service role or secret string in `dist/client` or `frontend/src`. No tracked file holds the local secret values.
+  - `handler.test.ts` 25 of 25 at the test-runner pass (26 after a review fix, below).
+  - `integration.test.ts` 7 of 7 against the local database, with a fake Turnstile verifier. No Cloudflare call was made.
+  - All 40 role-matrix files green on a fresh reset.
+- **Probe fixes:** I9 ordered by a column that `audit_log` doesn't have. The test-runner fixed it in the probe. R11 never reached the table CHECK, so it now inserts as postgres in setup. It was then shown to catch a dropped CHECK.
+- **Deliberate breaks: 20, all caught:** anon grant on `submit_inquiry`; guard removed plus grant; intake check removed; free-text key allowed; inactive grade accepted; campus rule removed; email limit removed; IP limit 20 to 21; counter never refuses; raw IP storable; select on `public_rate_limits` granted to anon; rate-limit guard removed plus grant; options returning inactive grades; intake RPC without the Manager check; audit branch removed; global counted before Turnstile; raw IP sent as the key; Turnstile fail open; hostname check removed; token in a response.
+  - Dropped on purpose: a retired-year break (the same rule as the inactive-grade break), and a frontend payload break (vitest covers it, and the server refuses unknown keys).
+- **Golden payroll suite:** skipped. Nothing payroll-related changed, and no audit action list changed (`admissions_settings_changed` has existed since 6b).
+- **Code review:** no blocking findings.
+  - Fixed after review: the unknown-key message no longer echoes the key's name; a body stream that errors mid-read now gives a clean 400 (new handler test, which takes `handler.test.ts` to 26); the deploy script also refuses Cloudflare test site keys.
+  - Deferred, non-blocking: rate-limit row cleanup runs on every hit (a scheduled cleanup later, D-12b); the closed flag is checked only in `submit_inquiry`, after the limits and Turnstile.
+  - For Eyram: forwarded IP trust (a launch gate before intake opens); the per-email limit's enumeration and lockout effect (PORT-PLAN, slice 8, Still open (b)); and sign-off on the new server-side service_role use in the Edge Function.
+- **Not done:**
+  - A browser walk-through of `/inquiry`. Turnstile's test keys may not satisfy the hostname and action checks, and a real POST would call Cloudflare.
+  - The deploy script was not run. The PreToolUse hook blocks every mode of it.
+
+**Outstanding for Eyram:** review of the uncommitted slice. After the commit, Eyram's production steps: the database push, the Edge Function deploy, the Edge Function secrets, and `frontend/scripts/deploy-production.sh`. The exact commands are Eyram's to run, from the gate in CLAUDE.md. The decisions still open are D-8c and D-9d, and the three items under PORT-PLAN, slice 8, Still open (a) to (b).
+
+## 2026-10-14: 7b2 and 7c status correction
+
+Eyram reported on 2026-10-14 that the 7b2 (bed38c9) and 7c (7a07d6a) migrations are both applied on hosted. Their frontend deploys are not confirmed. Earlier lines in this journal saying their production steps were still outstanding (the 7b2 entry and the 7c entry's "Outstanding for Eyram") are superseded by this entry. The slice 8 report's remark that the next database push would also carry 7b2 and 7c was wrong. PORT-PLAN.md's status line, status table and the 7b and 7c sections are updated to match. Slice 8 is unchanged: built locally, not committed, nothing applied on hosted.
+
+## 2026-10-14: D-8c and D-9d decided
+
+Eyram closed two open decisions on 2026-10-14.
+
+- **D-8c (closed):** no de-duplication on inquiries. Each inquiry creates a new family, guardians, students and applications, which is how slice 8 was built. Revisit with slice 9's matching.
+- **D-9d (closed, changed from the parity recommendation):** spaces and dashes are removed, then the phone must be a plus sign followed by 8 to 15 digits. The cleaned form (plus sign and digits only) is stored.
+
+**Applied to slice 8 (still uncommitted):** `20261020120000_admissions_submit_inquiry.sql` was edited in place, because it has not been pushed. It now cleans the phone, checks the new rule, stores the cleaned form, and has a new error message. The form logic (`inquiry-form.ts`, new `cleanPhone`) checks and sends the cleaned form with the same message, and the phone input allows 32 characters. The Edge Function has no phone check of its own, so it needed no change. Tests: vitest covers 7 digits refused, 8 and 15 accepted, 16 refused, spaces and dashes accepted and stripped, missing plus refused, letters refused, and the cleaned payload. Probe Q7 now uses the new refusals, and new probe Q10 covers each edge plus the stored form.
+
+**Verification:** fresh reset, `20261020120000_admissions_submit_inquiry.sql` probes Q1 to Q10 green, vitest 78 tests pass, `tsc` clean, overload check clean, types identical. Only those were run, as asked.

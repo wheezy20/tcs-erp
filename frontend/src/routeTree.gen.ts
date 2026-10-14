@@ -16,6 +16,7 @@ import { Route as AdmissionsRouteRouteImport } from './routes/admissions/route'
 import { Route as BankingRouteImport } from './routes/banking'
 import { Route as EmployeesRouteImport } from './routes/employees'
 import { Route as EndOfDayRouteImport } from './routes/end-of-day'
+import { Route as InquiryRouteImport } from './routes/inquiry'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PayrollRouteImport } from './routes/payroll'
@@ -111,6 +112,11 @@ const EmployeesRoute = EmployeesRouteImport.update({
 const EndOfDayRoute = EndOfDayRouteImport.update({
   id: '/end-of-day',
   path: '/end-of-day',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InquiryRoute = InquiryRouteImport.update({
+  id: '/inquiry',
+  path: '/inquiry',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventoryRoute = InventoryRouteImport.update({
@@ -433,6 +439,7 @@ export interface FileRoutesByFullPath {
   '/banking': typeof BankingRouteWithChildren
   '/employees': typeof EmployeesRouteWithChildren
   '/end-of-day': typeof EndOfDayRouteWithChildren
+  '/inquiry': typeof InquiryRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
   '/payroll': typeof PayrollRouteWithChildren
@@ -498,6 +505,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accept-invite': typeof AcceptInviteRoute
+  '/inquiry': typeof InquiryRoute
   '/login': typeof LoginRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -563,6 +571,7 @@ export interface FileRoutesById {
   '/banking': typeof BankingRouteWithChildren
   '/employees': typeof EmployeesRouteWithChildren
   '/end-of-day': typeof EndOfDayRouteWithChildren
+  '/inquiry': typeof InquiryRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
   '/payroll': typeof PayrollRouteWithChildren
@@ -635,6 +644,7 @@ export interface FileRouteTypes {
     | '/banking'
     | '/employees'
     | '/end-of-day'
+    | '/inquiry'
     | '/inventory'
     | '/login'
     | '/payroll'
@@ -700,6 +710,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/accept-invite'
+    | '/inquiry'
     | '/login'
     | '/reports'
     | '/settings'
@@ -764,6 +775,7 @@ export interface FileRouteTypes {
     | '/banking'
     | '/employees'
     | '/end-of-day'
+    | '/inquiry'
     | '/inventory'
     | '/login'
     | '/payroll'
@@ -835,6 +847,7 @@ export interface RootRouteChildren {
   BankingRoute: typeof BankingRouteWithChildren
   EmployeesRoute: typeof EmployeesRouteWithChildren
   EndOfDayRoute: typeof EndOfDayRouteWithChildren
+  InquiryRoute: typeof InquiryRoute
   InventoryRoute: typeof InventoryRouteWithChildren
   LoginRoute: typeof LoginRoute
   PayrollRoute: typeof PayrollRouteWithChildren
@@ -907,6 +920,13 @@ declare module '@tanstack/react-router' {
       path: '/end-of-day'
       fullPath: '/end-of-day'
       preLoaderRoute: typeof EndOfDayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inquiry': {
+      id: '/inquiry'
+      path: '/inquiry'
+      fullPath: '/inquiry'
+      preLoaderRoute: typeof InquiryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventory': {
@@ -1529,6 +1549,7 @@ const rootRouteChildren: RootRouteChildren = {
   BankingRoute: BankingRouteWithChildren,
   EmployeesRoute: EmployeesRouteWithChildren,
   EndOfDayRoute: EndOfDayRouteWithChildren,
+  InquiryRoute: InquiryRoute,
   InventoryRoute: InventoryRouteWithChildren,
   LoginRoute: LoginRoute,
   PayrollRoute: PayrollRouteWithChildren,
