@@ -18,6 +18,7 @@ import {
   Contact,
   IdCard,
   GraduationCap,
+  ScrollText,
   Settings,
   ChevronLeft,
   ChevronDown,
@@ -28,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { canViewFinancials, isAdmissionsOfficer, useAuth } from "@/data/auth-store";
 import { canViewAdmissions, canViewAdmissionsSettings } from "@/modules/admissions/permissions";
+import { canViewAuditLog } from "@/modules/audit/permissions";
 
 type NavItem = { title: string; url: string; icon: LucideIcon };
 
@@ -68,6 +70,11 @@ export const navSections: { key: string; label: string; dormant?: boolean; items
       { title: "Applications", url: "/admissions", icon: GraduationCap },
       { title: "Admissions Settings", url: "/admissions/settings", icon: Settings },
     ],
+  },
+  {
+    key: "oversight",
+    label: "Oversight",
+    items: [{ title: "Audit Log", url: "/audit-log", icon: ScrollText }],
   },
   {
     key: "stores",
@@ -112,6 +119,10 @@ const ADMISSIONS_GATED_URLS = new Set(["/admissions"]);
 // blocks every other role, RLS the data).
 const ADMISSIONS_SETTINGS_URLS = new Set(["/admissions/settings"]);
 
+// Manager, Accountant and Auditor (routes/audit-log/index.tsx guards the
+// page; audit_log_select hides admissions rows from the Accountant).
+const AUDIT_LOG_URLS = new Set(["/audit-log"]);
+
 export function AppSidebar({
   collapsed,
   onToggle,
@@ -126,6 +137,7 @@ export function AppSidebar({
   const canViewGated = canViewFinancials(currentStaff?.role);
   const canViewAdmissionsSection = canViewAdmissions(currentStaff?.role);
   const canViewAdmissionsSettingsItem = canViewAdmissionsSettings(currentStaff?.role);
+  const canViewAuditLogItem = canViewAuditLog(currentStaff?.role);
   // Read-only roles for the operational POS screens: routes/pos.tsx blocks
   // both from Checkout/Returns, so the nav link points them at Sales
   // history instead of the Checkout screen they'd land on and bounce off.
@@ -145,6 +157,7 @@ export function AppSidebar({
       .filter((item) => !FINANCE_GATED_URLS.has(item.url) || canViewGated)
       .filter((item) => !ADMISSIONS_GATED_URLS.has(item.url) || canViewAdmissionsSection)
       .filter((item) => !ADMISSIONS_SETTINGS_URLS.has(item.url) || canViewAdmissionsSettingsItem)
+      .filter((item) => !AUDIT_LOG_URLS.has(item.url) || canViewAuditLogItem)
       .map((item) =>
         item.url === "/pos" && posReadOnly ? { ...item, url: "/pos/history" } : item,
       );

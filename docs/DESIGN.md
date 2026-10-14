@@ -753,17 +753,27 @@ depend on them holding true for every new table/function added.
   are granted to authenticated and service_role; out of scope and not found give
   identical "not found" errors in every RPC; can_decide and can_view_health play
   no part in write authorization; Auditor never writes. Stage audit rows carry the
-  application reference and are readable by Manager, Accountant and Auditor.
-  Document status audit rows carry document type and application reference, readable
-  the same way. Service-role or postgres changes write no audit row.
+  application reference and are readable by Manager and Auditor (the Accountant is
+  excluded, see the audit read rule below). Document status audit rows carry document
+  type and application reference, readable the same way. Service-role or postgres changes write no audit row.
   Admissions audit payloads carry references, codes and statuses, never names,
   notes, contact details or health data. **The one exception** is
   `application_grade_corrected` (slice 7b1): its `before` holds the old
   `year_group_applied_for` exactly as the applicant typed it, truncated to 50
   characters, because a correction is meaningless without the value it
   replaced. It is applicant-typed free text in a grade field, readable by
-  Manager, Accountant and Auditor like every audit row. No other payload may
-  carry applicant free text without the same explicit decision.
+  Manager and Auditor only (the Accountant is excluded, see the audit read rule
+  below). No other payload may carry applicant free text without the same explicit
+  decision.
+- **Audit read rule and action prefixes (slice 7c, `20261019100000`).** Every
+  admissions audit action starts with `application_` or `admissions_`, and no other
+  action may. `audit_log_select` relies on that prefix rule. Manager and Auditor read
+  every row. The Accountant reads every row except those two prefixes (D-1b: the
+  Accountant has no admissions rows). The 7c probe file
+  `20261019100000_audit_log_admissions_read.sql` (S1) classifies all 37 actions, so a
+  new action fails it until it is classified. `isAdmissionsAction` in
+  `frontend/src/modules/audit/labels.ts` must stay in step with the SQL prefixes.
+  This narrows the 2026-10-05 decision O-8 (see PORT-PLAN.md, slice 2).
 - **Admissions data tables: select-only with RLS through SECURITY DEFINER
   visibility helpers (admissions slices 3a, 3b, 4 and 5, `20261011100000`,
   `20261012100000`, `20261013100000`, `20261014100000`).** Tables like `families`,
@@ -847,6 +857,14 @@ depend on them holding true for every new table/function added.
   `pro_forma_invoice_lines` still carry anon table privileges
   (TRUNCATE included). These are known leftovers that RLS blocks, not
   retrofitted.
+  Measured 2026-10-13 (slice 7c): `audit_log` no longer holds TRUNCATE for `anon`,
+  `authenticated` or `service_role` (`20261019110000`). Measured after that revoke,
+  83 of 86 public tables still hold TRUNCATE for at least one API role (Supabase
+  default privileges): 13 for `anon`, 64 for `authenticated`, and the rest for
+  `service_role` only. This is measured, not changed, and is left for a later
+  decision. Finance, payroll, sales, staff and number-counter tables are among them;
+  the full list is in JOURNAL.md, 2026-10-13. Admissions tables hold TRUNCATE for
+  `service_role` only.
   History: the 2026-09-29 measurement found 15 tables. The 15th,
   `deposit_number_counters`, had RLS **off**, so `anon` and every staff
   role (Auditor included) could insert/update/delete it directly,

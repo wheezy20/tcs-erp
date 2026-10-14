@@ -1018,7 +1018,8 @@ do $$ begin
 end $$;
 
 -- probe: E6 read capability audit rows
--- expect: Manager,Accountant,Auditor
+-- expect: Manager,Auditor
+-- The Accountant lost this read in slice 7c (20261019100000, D-1b).
 insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data) values
   ('9e020000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p2-inactive-officer@tcs.test', '{"name":"P2 Inactive Officer","role":"Admissions Officer"}'),
   ('9e020000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p2-accountant@tcs.test', '{"name":"P2 Accountant","role":"Accountant"}'),

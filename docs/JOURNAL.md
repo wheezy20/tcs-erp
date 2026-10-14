@@ -4616,3 +4616,88 @@ The earlier lines "D-6g stays open" (6b and 7b1 entries) are superseded by this 
 **Staff IDs (new, HR, not admissions).** Format `ST26-01002`: ST means staff, 26 is the year, then a dash, then a two digit class code (01 admin, 02 teaching, 03 non teaching), then a three digit roll number (002 in the example). **Open:** whether the roll restarts per year, per class, both or neither. Not built. A read-only check found no staff number or ID generated anywhere today: `employees` and `staff` have uuid keys only, the employee import template has no ID column, and the onboarding item "Staff Email & ID Issued" is derived from a linked login and a school email. Recorded in PLANNING, Phase 1.
 
 No code changed and no probes run.
+
+---
+
+## 2026-10-13: Admissions 7c, read-only Audit Log and Accountant audit narrowing
+
+Slice 7c was built on 2026-10-13. It is local only: the work is in the uncommitted working tree, and nothing is applied on hosted or deployed. It was built before slice 8.
+
+**Why:** the audit log was readable by Manager, Accountant and Auditor alike, and every row was readable. So the Accountant could read admissions decision outcomes by APP reference, offer changes, and who holds the child-health gate. The role matrix (PORT-PLAN, "Roles and capabilities") gives the Accountant no admissions rows, and D-1b says the same for audit reads. Separately, `audit_log` had TRUNCATE granted to `anon`, `authenticated` and `service_role` through Supabase's default privileges. A probe showed that every role, anon included, could truncate `audit_log` inside a rolled-back transaction.
+
+**Built (uncommitted):**
+
+- **Migration `20261019100000_audit_log_admissions_read.sql`:** policy only. `audit_log_select` now lets Manager and Auditor read every row. The Accountant reads every row except actions starting `application_` or `admissions_` (9 of the 37 actions). Before this, Manager, Accountant and Auditor all read every row.
+- **Migration `20261019110000_audit_log_revoke_truncate.sql`:** revokes TRUNCATE on `public.audit_log` from `anon`, `authenticated` and `service_role`. PostgREST has no truncate verb. The revoke removes TRUNCATE from those three roles. Before writing it, the session checked that no seed, probe, script, golden case or Edge Function truncates `audit_log`.
+- **Frontend:** `/audit-log`, Manager, Accountant and Auditor only.
+  - `routes/audit-log/index.tsx` is a thin route with a role guard. Module code is in `frontend/src/modules/audit/`: `labels.ts`, `permissions.ts`, `filters.ts`, `data/audit-log.ts`, `hooks/use-load.ts` and `components/audit-log-page.tsx`.
+  - `hooks/use-load.ts` is a documented copy of the admissions hook, because modules must not import each other.
+  - Filters: action, and a From and To date range. Both days are included, in UTC (which is Africa/Accra). 50 rows per page, newest first.
+  - Actor names come from `list_staff_names()`. Changed fields are shown before and after.
+  - The Accountant sees a note that admissions entries are not shown, and the action filter offers no admissions actions to the Accountant.
+  - New sidebar section "Oversight" with "Audit Log".
+- **Probes:**
+  - New `supabase/role-matrix/20261019100000_audit_log_admissions_read.sql` (S1 to S3, R1 to R5, W1 to W3). S1 classifies all 37 actions, so a new action fails the probe until it is classified.
+  - New `supabase/role-matrix/20261019110000_audit_log_revoke_truncate.sql` (T1, T2).
+  - One deliberate edit to an existing probe: `20261005100000_admissions_grades_and_capabilities.sql`, E6 `expect` changed from Manager, Accountant, Auditor to Manager, Auditor. This is the same narrowing, seen from the grades side.
+
+**A consequence to note:** O-8 (2026-10-05) accepted that the Accountant reads capability changes through the existing `audit_log` policy. Under 7c that no longer holds, because `admissions_capabilities_changed` starts with `admissions_`. Eyram should confirm this, since O-8 was a recorded decision. The 7c change was built as enforcement of D-1b. No separate decision for it is recorded in this journal.
+
+**Verification:**
+
+- **Baseline before the first edit** (HEAD 29ea1f3, fresh reset): overload check clean, types identical, anon-executable count 169.
+- **After the build** (test-runner, fresh reset):
+  - Overload check clean. Types regen identical. Anon-executable count 169, unchanged.
+  - Lint 0 errors and 13 warnings (same as baseline). `tsc` clean. `npm test` 57 tests pass (18 new). Build ok.
+  - No service role string in `frontend/src` or the client bundle. Nothing staged.
+  - Both new probe files green.
+  - The 15 earlier probe files that touch `audit_log` were run before and after the change. Output is identical except for the intended E6 change.
+- **Golden payroll suite:** run at the end of 7c, after both migrations, on a fresh reset. All cases pass. It was not run before the first edit; Eyram asked for it once at the end.
+- **Deliberate breaks, all caught:** 8 for the policy, and 1 for TRUNCATE.
+  - Policy: the old policy (Accountant reads all); only the `application_` prefix hidden; the Accountant branch dropped; Auditor moved to the restricted branch; INSERT granted to `authenticated`; an unclassified 38th action; a UI filter offering admissions actions to the Accountant (unit test); the officer allowed to open the page (unit test).
+  - TRUNCATE: truncate before the revoke (T1, T2).
+- **Limitation:** the whole-catalog function fingerprint taken at baseline used an unordered aggregate, so before and after could not be compared. The migrations contain only one policy drop and create, and one revoke.
+- **code-reviewer:** no blocking findings. Notes: the policy relies on the prefix naming rule, which S1 pins. `isAdmissionsAction` in `labels.ts` must stay in step with the SQL prefixes.
+- **Not done:** a browser walk-through of `/audit-log`.
+
+**Measured and not changed (for a later sweep decision):** after the revoke, 83 of 86 public tables still hold TRUNCATE for at least one API role (Supabase default privileges): 13 for `anon`, 64 for `authenticated`, and the rest for `service_role` only. Nothing in 7c changes these grants.
+
+- **anon holds TRUNCATE on 13 tables:** `contract_templates`, `employee_documents`, `employee_generated_documents`, `employee_onboarding_submissions`, `employee_onboarding_tasks`, `employee_onboarding_tokens`, `held_sales`, `notifications`, `onboarding_checklist_items`, `pro_forma_invoices`, `pro_forma_invoice_lines`, `pro_forma_invoice_number_counters`, `qualifications`.
+- **Financial and audit-style records that still hold TRUNCATE:** `accounts`, `bank_accounts`, `bank_deposits`, `bank_reconciliations`, `bank_statement_lines`, `customer_deposits`, `day_closes`, `expenses`, `expense_category_accounts`, `invoices`, `invoice_lines`, `invoice_payments`, `journal_entries`, `journal_lines`, `payroll_runs`, `payroll_run_exclusions`, `payslips`, `payslip_allowances`, `employee_pay_config`, `staff_advances`, `staff_advance_repayments`, `staff_advance_change_requests`, `sales`, `sale_lines`, `sale_payments`, `sale_returns`, `supplier_payments`, `stock_movements`, purchase order and receipt tables, pro forma invoice tables, `manager_overrides`, `statutory_rates`, `paye_bands`, `overtime_tax_rates`, `staff`, and the number counters (invoice, journal entry, sale, purchase order, pro forma, deposit).
+- **Admissions tables** hold TRUNCATE for `service_role` only.
+- `deposit_number_counters` still holds TRUNCATE for `authenticated` and `service_role`.
+
+**Outstanding for Eyram:**
+
+- Review and commit 7c.
+- Production steps, after commit: `npx supabase db push`, then `frontend/scripts/deploy-production.sh`. Eyram runs both.
+- 7b2's production steps are still outstanding and go with the same push and deploy.
+
+**O-8 update:** O-8 was confirmed superseded on 2026-10-13, because D-1b is now enforced by 7c; PORT-PLAN.md records it (slice 2 decisions and the slice 7c section).
+
+## 2026-10-13: Slice 8 and 9 planning decisions and the TCS OS read
+
+Eyram answered the slice 8 and 9 planning questions on 2026-10-13. Nothing in slices 8 or 9 is built. These decisions are recorded in `docs/admissions/PORT-PLAN.md`, in the slice 8 and 9 sections and the consolidated table.
+
+**Decided 2026-10-13:**
+
+- **D-8a:** the bot check runs in the Supabase Edge Function `admissions-public`. The submit RPCs are service-role-only: `submit_inquiry` and `check_public_rate_limit` are revoked from `public`, `anon` and `authenticated`, and granted to `service_role`. The service role key never reaches the browser, Cloudflare, or any `VITE_` variable.
+- **Anon surface:** `get_public_admissions_options()` is anon, SECURITY DEFINER and read-only. It takes the anon-executable count from 169 to 170. A probe names the added function, and the six probe files that pin 169 move to 170 in slice 8.
+- **D-8b:** a new ERP Turnstile widget with its own keys. The marketing site's widgets are decided in slice 13.
+- **D-8d:** rate limits are 20 per hour per IP hash, a global cap of 200 per hour, and 5 per guardian email per day. The IP hash is an HMAC made in the Edge Function, so the database never stores a raw IP. The numbers are kept in one place so they can be tuned after the first real month. The fixed refusal tells the visitor to call the school office, so a false positive (for example, parents sharing a mobile carrier address) has a way out. The draft and lead bucket numbers are not covered by this decision.
+- **D-8e:** the origin allow-list is read from configuration, not hardcoded. It holds the workers.dev host and `app.tcsch.edu.gh` for now, plus localhost in local development only. Eyram confirms the final production host before cutover.
+- **Public forms (slices 8 and 9):** free-text academic years and free-text grades are refused. Only the active lists are accepted. Where a grade isn't offered, the form says to contact the school.
+- **D-9b (firmed):** a matched family never gains or changes guardians from an anonymous submission. Differing details go in the staff-only snapshot. The rationale: refusing a same-year, same-grade match would confirm that a record exists (enumeration). TCS OS's Application response returns `family_id`, application id and `student_id`.
+- **D-9c (changed):** never refuse on a match. Flag it for staff, and give an identical response. The 2026-09-29 recommendation (refuse the same year and grade) is superseded.
+- **Slice 9 split:** pre-split into 9a (upload path, submit RPC, minimal form) and 9b (the full 6-section form).
+- **Slice 9 magic-byte check:** at submit, PDF, JPEG and PNG files are checked by their first bytes, because staff open files from strangers.
+
+**Still open:** D-8c (inquiry de-duplication; the plan keeps none, for parity), D-9a (upload mechanism), D-9d (phone rule) and D-9e (application-fee proof). Also open: whether the hosted Edge runtime's `x-forwarded-for` can be trusted. Until that is answered, per-IP limits are best effort. Turnstile and the global cap are the controls that cannot be spoofed.
+
+**Read from TCS OS (2026-10-13, from the code, not tested):**
+
+- TCS OS's Turnstile check verifies `success` only (no hostname or action check), and fails closed on a network error.
+- Draft saves and upload-url are not Turnstile-gated.
+- TCS OS's DRF throttle has `NUM_PROXIES` unset, so it keys on the whole `X-Forwarded-For` string, whose front the client controls. With no `CACHES` setting, counters are per Cloud Run instance. So TCS OS's rate limits are probably ineffective, and its Turnstile check is its only real control.
+
+These findings were read from code and not tested against a running TCS OS.

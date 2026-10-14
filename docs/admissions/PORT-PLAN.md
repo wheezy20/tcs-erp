@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is built locally and uncommitted (2026-10-13). Slice 8 and 9 planning decisions are recorded 2026-10-13. The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -39,8 +39,9 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 7a | Staff pipeline UI: list, detail, notes, documents, health panel | applied on hosted, frontend deployed (2026-10-12) | 6b |
 | 7b1 | Detail page actions: decision, offer, enrolment, grade correction | committed (f04a336) | 7a |
 | 7b2 | Admin screens: academic years, capacity, offer expiry, campus rules | committed (bed38c9) | 7b1 |
-| 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | not started | 7b |
-| 9 | Public Application form: direct submit, uploads, matching, rules | not started | 8 |
+| 7c | Read-only Audit Log (`/audit-log`) and Accountant audit narrowing | built locally, not committed (2026-10-13) | 7b2 |
+| 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | not started (planning decisions recorded 2026-10-13) | 7b |
+| 9 | Public Application form: direct submit, uploads, matching, rules | not started; split into 9a and 9b (2026-10-13) | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
 | 11 | Public offer response page | not started | 8, 6b |
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | not started | 8 (and 6, 9, 10 for the emails it sends) |
@@ -437,7 +438,7 @@ Built and confirmed as recommended:
 - **O-5.** Unknown capability name raises in `has_admissions_capability()`.
 - **O-6.** `can_view_health` is not offered in the UI to Attendant and Accountant unless revoking an existing grant; the DB stays permissive.
 - **O-7.** All-empty row deletes the row; empty rows are forbidden by check.
-- **O-8.** An Accountant reading capability changes via the existing `audit_log` policy is accepted.
+- **O-8.** An Accountant reading capability changes via the existing `audit_log` policy is accepted. **Superseded 2026-10-13:** D-1b is now enforced on audit reads by slice 7c, so the Accountant no longer reads `admissions_capabilities_changed` rows.
 - **O-9.** No guard prevents a Manager from revoking their own `can_decide`.
 
 Also confirmed (2026-09-29, built in slice 2):
@@ -804,7 +805,36 @@ Slice 7a built 2026-10-12. Migrations applied on hosted and the frontend deploye
 
 **Not included:** accepted versus capacity counts (deferred), email (slice 12).
 
-**Proposed, not decided:** a read-only Audit log screen (Manager, Accountant, Auditor; filters by action and date) as its own slice after 7b (working name 7c).
+**Built as slice 7c** (2026-10-13, built locally, not committed): see "Slice 7c" below.
+
+## Slice 7c: Read-only Audit Log and Accountant audit narrowing
+
+**Status:** built locally on 2026-10-13. Uncommitted working tree. Nothing applied on hosted and nothing deployed. Eyram's review and commit come next.
+
+**Delivers:**
+
+- **Migration `20261019100000_audit_log_admissions_read.sql`** (policy only). `audit_log_select` now lets Manager and Auditor read every row. The Accountant reads every row except actions starting `application_` or `admissions_` (9 of the 37 actions). Before this, Manager, Accountant and Auditor all read every row, so the Accountant could read admissions decision outcomes by APP reference, offer changes, and who holds the health gate.
+- **Migration `20261019110000_audit_log_revoke_truncate.sql`:** revokes TRUNCATE on `public.audit_log` from `anon`, `authenticated` and `service_role`. Before it, all three held TRUNCATE through Supabase's default privileges. A probe showed that every role, anon included, could truncate `audit_log` in a rolled-back transaction.
+- **Frontend `/audit-log`:** a thin route (`routes/audit-log/index.tsx`) with a role guard. Module code is in `frontend/src/modules/audit/`. Manager, Accountant and Auditor only.
+  - Filters: action, and a From and To date range (both days included, UTC, which is Africa/Accra).
+  - 50 rows per page, newest first. Actor names come from `list_staff_names()`. Changed fields are shown before and after.
+  - The Accountant sees a note that admissions entries are not shown, and the action filter offers no admissions actions to the Accountant.
+  - New sidebar section "Oversight" with "Audit Log".
+- **Probes:**
+  - `supabase/role-matrix/20261019100000_audit_log_admissions_read.sql` (S1 to S3, R1 to R5, W1 to W3). S1 classifies all 37 actions, so a new action fails it until it is classified.
+  - `supabase/role-matrix/20261019110000_audit_log_revoke_truncate.sql` (T1, T2).
+  - One deliberate edit to an existing probe: `20261005100000_admissions_grades_and_capabilities.sql`, E6 `expect` changed from Manager, Accountant, Auditor to Manager, Auditor.
+
+**Decisions and gates:**
+
+- The Accountant narrowing enforces D-1b on audit reads and the role matrix in "Roles and capabilities" (the Accountant has no admissions rows). It is not a separately recorded decision.
+- **O-8 superseded 2026-10-13:** O-8 (2026-10-05) accepted that the Accountant reads capability changes through the existing `audit_log` policy. Under 7c the Accountant no longer reads them, because `admissions_capabilities_changed` starts with `admissions_`. O-8 is superseded because D-1b is now enforced by 7c.
+
+**Verification (2026-10-13):** overload check clean, types regen identical, anon-executable count 169 (unchanged), lint 0 errors and 13 warnings (same as baseline), `tsc` clean, `npm test` 57 tests passing (18 new), build ok, no service role string in the bundle. Both new probe files are green. The 15 earlier probe files that touch `audit_log` give identical output except for E6. Deliberate breaks (8 for the policy, 1 for TRUNCATE) were all caught. The golden payroll suite ran at the end of 7c on a fresh reset and all cases pass; it was not run before the first edit. Full detail is in JOURNAL.md, 2026-10-13. Code-reviewer found no blocking findings. The browser walk-through of `/audit-log` is not done.
+
+**Measured, not changed (for a later sweep decision):** after the revoke, 83 of 86 public tables still hold TRUNCATE for at least one API role (anon 13, authenticated 64, the rest service_role only). The list is in JOURNAL.md, 2026-10-13.
+
+**Outstanding:** Eyram's review and commit. Then Eyram's production steps: `npx supabase db push`, then `frontend/scripts/deploy-production.sh`. 7b2's production steps are still outstanding and go with the same pair.
 
 ## Slice 8 — Public request path and the public Inquiry form
 
@@ -853,13 +883,25 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
 
 **Anon surface:** HTTP `admissions-public` (Turnstile, IP rate limit, origin allow-list) and DB `get_public_admissions_options()` (read-only, non-sensitive). **Confirmation gate.**
 
-**Decisions for Eyram:**
+**Decided 2026-10-13:**
 
-- **D-8a.** Bot-check placement: Edge Function (recommended) versus Worker server function. See "Bot check and email placement".
-- **D-8b.** Turnstile keys. Recommendation: a new Turnstile widget for the ERP host names, or the existing "TCS OS" widget with ERP hosts added. Keys go in Supabase secrets (secret) and the Cloudflare build env (site key). Eyram runs this.
+- **D-8a (decided).** The bot check runs in the Edge Function `admissions-public`. The submit RPCs are service-role-only: `submit_inquiry` and `check_public_rate_limit` are revoked from `public`, `anon` and `authenticated`, and granted to `service_role`. The service role key never reaches the browser, Cloudflare, or any `VITE_` variable.
+- **Anon surface (decided).** `get_public_admissions_options()` is the one new anon-executable function, so the anon-executable count goes from 169 to 170. A probe names the added function. The six probe files that pin 169 move to 170 in this slice.
+- **D-8b (decided).** A new ERP Turnstile widget with its own keys. The marketing site's widgets are decided in slice 13 (D-13b).
+- **D-8d (decided).** Rate limits: 20 per hour per IP hash, a global cap of 200 per hour, and 5 per guardian email per day. The IP hash is an HMAC made in the Edge Function, so the database never stores a raw IP. The numbers are kept in one place so they can be tuned after the first real month. The fixed refusal tells the visitor to call the school office, so a false positive (for example, parents sharing a mobile carrier address) has a way out. The draft (120) and lead (60) bucket numbers are not covered by this decision.
+- **D-8e (decided).** The origin allow-list is read from configuration, not hardcoded: the workers.dev host and `app.tcsch.edu.gh` for now, plus localhost in local development only. Eyram confirms the final production host before cutover (D-15e).
+- **Public forms (decided, applies to slices 8 and 9).** Free-text academic years and free-text grades are refused; only the active lists are accepted. Where a grade isn't offered, the form says to contact the school.
+
+**Still open:**
+
 - **D-8c.** Keep "inquiries never de-duplicate"? Recommendation: keep TCS OS parity for now.
-- **D-8d.** Rate-limit numbers and IP source. Recommendation: TCS OS's numbers; confirm which forwarded-IP header the hosted Edge runtime supplies before trusting it.
-- **D-8e.** CORS allow-list for the function. Recommendation: the ERP origin(s), `admissions.tcsch.edu.gh`, plus the marketing origins for slice 13.
+- **Forwarded IP (part of D-8d, open).** Whether the hosted Edge runtime's `x-forwarded-for` can be trusted. Until it is answered, per-IP limits are best effort. Turnstile and the global cap are the controls that cannot be spoofed.
+
+**Read from TCS OS (2026-10-13, from the code, not tested):**
+
+- TCS OS's Turnstile check verifies `success` only (no hostname or action check), and fails closed on a network error.
+- Draft saves and upload-url are not Turnstile-gated.
+- TCS OS's DRF throttle has `NUM_PROXIES` unset, so it keys on the whole `X-Forwarded-For` string, whose front the client controls. With no `CACHES` setting, counters are per Cloud Run instance. So its rate limits are probably ineffective, and Turnstile is its only real control.
 
 **Carry-forwards from slice 5:** service_role writes bypass RPC stage rules and write no audit row; intake transactions should stay short and number in consistent order (counter locks held to commit).
 
@@ -888,7 +930,7 @@ Separately, as `service_role` in rolled-back psql: a valid payload creates the r
   1. a guardian email match (case-insensitive) finds the family, otherwise a new one is created;
   2. the student match is name (case-insensitive) plus DOB within that family;
   3. an application match is (academic year, grade) for that student.
-- Per D-9b the recommendation is that an anon submission **never overwrites** existing guardian or student fields or health info, and **only advances** a matched application from `inquiry`. Any other matched stage gets a new application row, or is refused (D-9c). Submitted details are stored on the new application as a submission snapshot for staff to review.
+- Per D-9b (firmed 2026-10-13), an anon submission **never overwrites** existing guardian, student or health data, and a matched family never gains or changes guardians. Differing details go in the staff-only submission snapshot. The recommendation that an anon submission only advances a matched application from `inquiry` stands. Per D-9c (changed 2026-10-13), a match is never refused: it is flagged for staff, and the response is identical. What happens to the new application row on a match outside `inquiry` is not covered by that decision.
 - It writes emergency contact and health info, and sets the stage to `application`, which assigns the APP reference through slice 5.
 - Public route `/apply` with the 6-section free-navigation form (`02-stack-and-schema.md:562-604`). Turnstile renders lazily on the Declaration step.
 - pg_cron cleanup of unconsumed reservations and orphaned `pending/` objects after 24 h (needs `pg_cron`; D-12b).
@@ -916,15 +958,22 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 
 **Anon surface:** HTTP actions `upload_url` and `application` (Turnstile on `application`, IP limit on both). The signed upload URL is single-object and short-lived. **Confirmation gate.**
 
-**Decisions for Eyram:**
+**Decided 2026-10-13:**
+
+- **D-9b (firmed).** A matched family never gains or changes guardians from an anonymous submission. Differing details go in the staff-only snapshot. Rationale: refusing a same-year, same-grade match would confirm that a record exists (enumeration). TCS OS's Application response returns `family_id`, application id and `student_id`.
+- **D-9c (changed).** Never refuse on a match. Flag it for staff, and give an identical response. The 2026-09-29 recommendation (refuse the same year and grade) is superseded.
+- **Magic-byte check (decided).** At submit, PDF, JPEG and PNG files are checked by their leading bytes, because staff open files from strangers.
+- **Split (decided).** Slice 9 is pre-split into 9a (upload path, submit RPC, minimal form) and 9b (the full 6-section form).
+- **Public forms (decided, see slice 8).** Free-text academic years and grades are refused; only the active lists are accepted.
+
+**Still open:**
 
 - **D-9a.** Upload mechanism. Recommendation: a signed upload URL from the Edge Function, bound to a reservation. The alternative is an anon storage insert policy that checks the reservation, the onboarding style, with no service role.
-- **D-9b.** Should anon re-submission overwrite existing guardian, student and health data? Recommendation: no; snapshot the submission and flag differences.
-- **D-9c.** A matched application in any stage other than `inquiry`: create a new row, or refuse with "contact the school"? Recommendation: create a new row for a different year or grade; refuse for the same year and grade.
 - **D-9d.** Keep the phone rule `+CCC` plus exactly 9 digits (Ghana-shaped)? Recommendation: keep it for parity.
 - **D-9e.** Application-fee proof. TCS OS doesn't enforce it (`02-stack-and-schema.md:509-516`). Recommendation: keep it optional.
 
-**Size:** two Edge Function actions, one table, two RPCs, one large public form. If the form overruns, the fallback split is 9a (upload path plus RPC with a minimal form) and 9b (the full 6-section UX).
+
+**Size:** two Edge Function actions, one table, two RPCs, one large public form. The split into 9a and 9b is decided (2026-10-13); see Decided above.
 
 ## Slice 10 — Application drafts: save and resume tokens
 
@@ -1313,14 +1362,14 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-6p | Split slice 6 | **Decided 2026-10-12, as recommended:** 6a (decisions, capacity) and 6b (offers, enrolment). |
 | D-6q | Staff read of `application_offers.token_hash` | **Decided 2026-10-12:** leave the table-level select grant as it is, no revoke. The hash is the SHA-256 of 32 random bytes and can't be reversed; the offer page compares hashes, so the hash alone gives no access; `application_offer_status` hides it; and a column-level grant would make `select *` on the table fail. Slice 7a carries this forward: the UI selects explicit columns and never selects `token_hash`. **Reversed 2026-10-12 for slice 7b1:** a column-level grant without `token_hash` (`20261018100000`). |
 | D-7a | Staff route prefix | `/admissions`. Public routes keep TCS OS's bare paths. |
-| D-8a | Bot-check placement | Supabase Edge Function; submit RPCs service-role-only. |
-| D-8b | Turnstile keys | New widget for the ERP hosts (or add hosts to the existing widget). Secret in Supabase secrets, site key in the Cloudflare build env. Eyram runs this. |
+| D-8a | Bot-check placement | **Decided 2026-10-13:** Supabase Edge Function `admissions-public`; submit RPCs service-role-only. The service role key never reaches the browser, Cloudflare, or any `VITE_` variable. |
+| D-8b | Turnstile keys | **Decided 2026-10-13:** a new ERP Turnstile widget with its own keys. The marketing-site widgets are decided in slice 13. |
 | D-8c | Inquiry de-duplication | Keep none, for parity. |
-| D-8d | Rate-limiting approach | Turnstile, a per-IP DB counter through the Edge Function, and per-token caps. TCS OS's numbers (20, 120 and 60 per hour). |
-| D-8e | CORS allow-list | ERP origin(s), `admissions.tcsch.edu.gh`, marketing origins. |
+| D-8d | Rate-limiting approach | **Decided 2026-10-13:** 20 per hour per IP hash (HMAC made in the Edge Function; no raw IP stored), a global cap of 200 per hour, and 5 per guardian email per day. Numbers kept in one place. The draft (120) and lead (60) numbers are not covered. |
+| D-8e | CORS allow-list | **Decided 2026-10-13:** read from configuration: the workers.dev host and `app.tcsch.edu.gh` for now, plus localhost in local development only. Eyram confirms the final production host before cutover (D-15e). |
 | D-9a | Upload mechanism | Signed upload URL from the Edge Function, bound to a reservation. |
-| D-9b | Anon re-submission overwriting existing data | No: snapshot and flag. |
-| D-9c | Matched application in a stage other than `inquiry` | New row for a different year or grade; refuse the same year and grade. |
+| D-9b | Anon re-submission overwriting existing data | **Decided 2026-10-13 (firmed):** a matched family never gains or changes guardians from an anonymous submission; differing details go in the staff-only snapshot. |
+| D-9c | Matched application in a stage other than `inquiry` | **Changed 2026-10-13:** never refuse on a match. Flag it for staff; the response is identical. The 2026-09-29 recommendation (refuse the same year and grade) is superseded. |
 | D-9d | Phone rule | Keep `+CCC` plus 9 digits. |
 | D-9e | Application-fee proof | Optional. |
 | D-10a | Draft TTL | 30 days; confirm the live value. |

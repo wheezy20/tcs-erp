@@ -35,6 +35,7 @@ import { Route as AccountingTrialBalanceRouteImport } from './routes/accounting.
 import { Route as AdmissionsIndexRouteImport } from './routes/admissions/index'
 import { Route as AdmissionsApplicationIdRouteImport } from './routes/admissions/$applicationId'
 import { Route as AdmissionsSettingsRouteImport } from './routes/admissions/settings'
+import { Route as AuditLogIndexRouteImport } from './routes/audit-log/index'
 import { Route as BankingIndexRouteImport } from './routes/banking.index'
 import { Route as BankingHistoryRouteImport } from './routes/banking.history'
 import { Route as BankingReconcileRouteImport } from './routes/banking.reconcile'
@@ -207,6 +208,11 @@ const AdmissionsSettingsRoute = AdmissionsSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => AdmissionsRouteRoute,
+} as any)
+const AuditLogIndexRoute = AuditLogIndexRouteImport.update({
+  id: '/audit-log/',
+  path: '/audit-log/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const BankingIndexRoute = BankingIndexRouteImport.update({
   id: '/',
@@ -468,6 +474,7 @@ export interface FileRoutesByFullPath {
   '/staff/$staffId': typeof StaffStaffIdRoute
   '/accounting/': typeof AccountingIndexRoute
   '/admissions/': typeof AdmissionsIndexRoute
+  '/audit-log/': typeof AuditLogIndexRoute
   '/banking/': typeof BankingIndexRoute
   '/customer-deposits/': typeof CustomerDepositsIndexRoute
   '/customers/': typeof CustomersIndexRoute
@@ -526,6 +533,7 @@ export interface FileRoutesByTo {
   '/staff/$staffId': typeof StaffStaffIdRoute
   '/accounting': typeof AccountingIndexRoute
   '/admissions': typeof AdmissionsIndexRoute
+  '/audit-log': typeof AuditLogIndexRoute
   '/banking': typeof BankingIndexRoute
   '/customer-deposits': typeof CustomerDepositsIndexRoute
   '/customers': typeof CustomersIndexRoute
@@ -596,6 +604,7 @@ export interface FileRoutesById {
   '/staff/$staffId': typeof StaffStaffIdRoute
   '/accounting/': typeof AccountingIndexRoute
   '/admissions/': typeof AdmissionsIndexRoute
+  '/audit-log/': typeof AuditLogIndexRoute
   '/banking/': typeof BankingIndexRoute
   '/customer-deposits/': typeof CustomerDepositsIndexRoute
   '/customers/': typeof CustomersIndexRoute
@@ -667,6 +676,7 @@ export interface FileRouteTypes {
     | '/staff/$staffId'
     | '/accounting/'
     | '/admissions/'
+    | '/audit-log/'
     | '/banking/'
     | '/customer-deposits/'
     | '/customers/'
@@ -725,6 +735,7 @@ export interface FileRouteTypes {
     | '/staff/$staffId'
     | '/accounting'
     | '/admissions'
+    | '/audit-log'
     | '/banking'
     | '/customer-deposits'
     | '/customers'
@@ -794,6 +805,7 @@ export interface FileRouteTypes {
     | '/staff/$staffId'
     | '/accounting/'
     | '/admissions/'
+    | '/audit-log/'
     | '/banking/'
     | '/customer-deposits/'
     | '/customers/'
@@ -839,6 +851,7 @@ export interface RootRouteChildren {
   PayslipsPayslipIdRoute: typeof PayslipsPayslipIdRoute
   ProFormaProFormaIdRoute: typeof ProFormaProFormaIdRoute
   ProFormaNewRoute: typeof ProFormaNewRoute
+  AuditLogIndexRoute: typeof AuditLogIndexRoute
   CustomerDepositsIndexRoute: typeof CustomerDepositsIndexRoute
   CustomersIndexRoute: typeof CustomersIndexRoute
   ExpensesIndexRoute: typeof ExpensesIndexRoute
@@ -1028,6 +1041,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admissions/settings'
       preLoaderRoute: typeof AdmissionsSettingsRouteImport
       parentRoute: typeof AdmissionsRouteRoute
+    }
+    '/audit-log/': {
+      id: '/audit-log/'
+      path: '/audit-log'
+      fullPath: '/audit-log/'
+      preLoaderRoute: typeof AuditLogIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/banking/': {
       id: '/banking/'
@@ -1525,6 +1545,7 @@ const rootRouteChildren: RootRouteChildren = {
   PayslipsPayslipIdRoute: PayslipsPayslipIdRoute,
   ProFormaProFormaIdRoute: ProFormaProFormaIdRoute,
   ProFormaNewRoute: ProFormaNewRoute,
+  AuditLogIndexRoute: AuditLogIndexRoute,
   CustomerDepositsIndexRoute: CustomerDepositsIndexRoute,
   CustomersIndexRoute: CustomersIndexRoute,
   ExpensesIndexRoute: ExpensesIndexRoute,

@@ -418,6 +418,19 @@ documented in DESIGN.md.
 - **This ERP is the target system; TCS OS is being retired into it**
   (reversed 2026-09-29; the old plan was to merge this ERP into TCS OS).
   See the "TCS OS retirement & admissions port" section below.
+- **Known gap: TRUNCATE left on 83 tables (recorded 2026-10-13,
+  pending a wider sweep decision).** Supabase's default privileges give
+  the API roles TRUNCATE on new public tables, and RLS doesn't cover
+  TRUNCATE. After slice 7c revoked it on `audit_log`
+  (`20261019110000`), 83 of 86 public tables still hold it for at least
+  one API role: 13 for `anon`, 64 for `authenticated`, the rest for
+  `service_role` only. Finance, payroll, sales, staff and number-counter
+  tables are among them. PostgREST has no truncate verb, so the Data API
+  can't reach it, but a direct SQL connection as one of those roles
+  could empty a table. Not changed yet; a wider sweep is Eyram's
+  decision. The measurement is in DESIGN.md (the anon surface
+  convention, "Measured 2026-10-13"), and the full table list is in
+  JOURNAL.md, 2026-10-13.
 
 ## HR expansion beyond payroll (as of 20260919)
 
