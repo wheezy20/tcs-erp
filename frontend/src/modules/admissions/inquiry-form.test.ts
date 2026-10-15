@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  RELATIONSHIP_OPTIONS,
+  REFERRAL_OPTIONS,
   NOT_YET_IN_SCHOOL,
   OFFICE_MESSAGE,
   PHONE_HINT,
@@ -24,6 +26,7 @@ import {
   todayInAccra,
   validateInquiry,
   withCampus,
+  withChildCount,
   type InquiryDraft,
   type PublicOptions,
 } from "@/modules/admissions/inquiry-form";
@@ -646,5 +649,36 @@ describe("slice 8b: date of birth, age hint, current grade, address, field error
       "For example 0590000000 or +233590000000. From outside Ghana, start with + and the country code.",
     );
     expect(PHONE_HINT).not.toMatch(/no spaces/i);
+  });
+});
+
+describe("withChildCount (the 1 to 5 select)", () => {
+  it("adds empty children at the end and drops from the end, keeping the rest", () => {
+    const d = validDraft();
+    const three = withChildCount(d, 3);
+    expect(three.students).toHaveLength(3);
+    expect(three.students[0]).toBe(d.students[0]);
+    expect(three.students[2].fullName).toBe("");
+    const named = {
+      ...three,
+      students: three.students.map((s, i) => ({ ...s, fullName: `C${i}` })),
+    };
+    expect(withChildCount(named, 2).students.map((s) => s.fullName)).toEqual(["C0", "C1"]);
+    expect(withChildCount(named, 3)).toBe(named);
+  });
+  it("clamps to 1 to 5", () => {
+    expect(withChildCount(validDraft(), 0).students).toHaveLength(1);
+    expect(withChildCount(validDraft(), 9).students).toHaveLength(5);
+    expect(withChildCount(validDraft(), Number.NaN).students).toHaveLength(1);
+  });
+});
+
+describe("TCS OS option labels (decision Q15)", () => {
+  it("uses the TCS OS wording; stored values unchanged", () => {
+    expect(REFERRAL_OPTIONS.find((o) => o.value === "friend_colleague")?.label).toBe(
+      "Friend/Colleague",
+    );
+    expect(REFERRAL_OPTIONS.find((o) => o.value === "social_media")?.label).toBe("Social Media");
+    expect(RELATIONSHIP_OPTIONS.find((o) => o.value === "guardian")?.label).toBe("Legal Guardian");
   });
 });

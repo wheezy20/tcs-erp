@@ -52,6 +52,12 @@ Things that shape how this gets built, not just what gets built.
       and inquiries are test data; nothing is hand-migrated. admissions.tcsch.edu.gh
       is attached to this ERP. TCS OS is shut down only after cutover is
       confirmed.
+- [ ] Published privacy policy (decided 2026-10-15, slice 9b). It must exist
+      before real admissions intake opens and before admissions.tcsch.edu.gh
+      moves to the ERP. The application declaration is ported without a link
+      until then; once the policy is published, one link goes into the
+      declaration copy constant. Recorded in PORT-PLAN, "Go-live gates still
+      open". Not yet written (reported by Eyram, 2026-10-15).
 - [x] **`deposit_number_counters` has RLS off** (`20260901100000`), and
       Supabase's default privileges give `anon` full table privileges on
       it. So anyone holding the public anon key, and every staff role

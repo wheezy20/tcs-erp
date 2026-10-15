@@ -135,15 +135,15 @@ export const REFERRAL_OPTIONS = [
   { value: "parent_referral", label: "Parent referral" },
   { value: "staff_referral", label: "Staff referral" },
   { value: "website", label: "Website" },
-  { value: "friend_colleague", label: "Friend or colleague" },
-  { value: "social_media", label: "Social media" },
+  { value: "friend_colleague", label: "Friend/Colleague" },
+  { value: "social_media", label: "Social Media" },
   { value: "other", label: "Other" },
 ] as const;
 
 export const RELATIONSHIP_OPTIONS = [
   { value: "father", label: "Father" },
   { value: "mother", label: "Mother" },
-  { value: "guardian", label: "Legal guardian" },
+  { value: "guardian", label: "Legal Guardian" },
   { value: "other", label: "Other" },
 ] as const;
 
@@ -420,6 +420,24 @@ export function emptyDraft(): InquiryDraft {
     secondSameAddress: false,
     students: [emptyStudent()],
   };
+}
+
+/** The "How many children are you seeking to enrol?" choice (TCS OS
+ * inquiry.html, slice 9b): a count of 1 to MAX_STUDENTS. Growing adds empty
+ * children at the end; shrinking drops children from the end, as TCS OS
+ * does, and keeps the ones before untouched. Anything outside the range is
+ * clamped. */
+export function withChildCount(draft: InquiryDraft, count: number): InquiryDraft {
+  const n = Math.min(MAX_STUDENTS, Math.max(1, Math.trunc(Number.isFinite(count) ? count : 1)));
+  if (n === draft.students.length) return draft;
+  const students =
+    n < draft.students.length
+      ? draft.students.slice(0, n)
+      : [
+          ...draft.students,
+          ...Array.from({ length: n - draft.students.length }, () => emptyStudent()),
+        ];
+  return { ...draft, students };
 }
 
 /** Changing a child's campus drops a grade that campus doesn't take. */

@@ -1052,3 +1052,5 @@ true 48×48 favicon and a dark-mode logomark variant are still outstanding.
   change too, and that's the value that actually matters for what a
   fresh browser profile sees. Both are kept in sync to the same brand hex
   so there's no flash-of-wrong-color between first paint and hydration.
+
+- **Fonts are self-hosted (slice 9b C1, 2026-10-15).** Fonts come from `@fontsource` packages bundled by Vite, so no page makes a runtime request to a third-party font host. Inter is the app font (400, 500, 600 and 700, the weights the staff app always used). The public admissions pages use Cinzel and DM Sans under a `.tcs-public` scope, and their stylesheet is linked only from those routes, so the staff app never loads that look. Every `@font-face` rule uses `font-display: swap`. The licence lines are in `frontend/public/fonts-licences.txt`.

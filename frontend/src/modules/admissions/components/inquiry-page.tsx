@@ -1,11 +1,14 @@
-import { useState, type FormEvent } from "react";
+import { Fragment, useState, type FormEvent, type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Choice, Field, Notice, Shell } from "@/modules/admissions/components/public-form-parts";
+import {
+  BlockHeading,
+  NativeSelect,
+  PField,
+  PublicNotice,
+  PublicPage,
+  Row,
+  Section,
+} from "@/modules/admissions/components/public-page-parts";
 import { TurnstileWidget } from "@/modules/admissions/components/turnstile-widget";
 import { getPublicAdmissionsOptions, submitInquiry } from "@/modules/admissions/data/public-intake";
 import { useLoad } from "@/modules/admissions/hooks/use-load";
@@ -25,7 +28,6 @@ import {
   currentGradeChoices,
   emptyDraft,
   emptyGuardian,
-  emptyStudent,
   gradesForCampus,
   inquiryView,
   maskDateInput,
@@ -36,18 +38,29 @@ import {
   todayInAccra,
   validateInquiry,
   withCampus,
+  withChildCount,
   type FieldErrors,
   type GuardianDraft,
   type InquiryDraft,
   type PublicOptions,
   type StudentDraft,
 } from "@/modules/admissions/inquiry-form";
+import { ENQUIRY_COPY as COPY, joinNames } from "@/modules/admissions/public-copy";
 
-// /inquiry: the public enquiry form (admissions slices 8 and 8b). No
-// sign-in and no AppShell (__root.tsx lists it as auth-free). The page
-// offers only what get_public_admissions_options returns; every rule is
-// enforced again by the Edge Function and submit_inquiry. Parents see
-// "enquiry"; the route and INQ references keep "inquiry".
+// /inquiry: the public enquiry form (admissions slices 8 and 8b), with the
+// TCS OS look and wording from slice 9b (C1): Cinzel and DM Sans, the TCS
+// palette, one card with four numbered sections, as in TCS OS
+// backend/templates/public/inquiry.html. No sign-in and no AppShell
+// (__root.tsx lists it as auth-free). The page offers only what
+// get_public_admissions_options returns; every rule is enforced again by
+// the Edge Function and submit_inquiry. Parents see "enquiry"; the route
+// and INQ references keep "inquiry".
+//
+// Kept from the ERP on purpose (slice 8b rules, D-9d): the religion list,
+// grade, year and month lists without a free-text "Other", the current
+// school asked only for a child already in school (so it follows the
+// current grade), the optional campus, and the forgiving phone box with
+// its hint.
 
 const NO_CAMPUS = "__none__";
 const SITE_KEY = (import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined) ?? "";
@@ -56,39 +69,35 @@ let missingKeyReported = false;
 export function InquiryPage() {
   const options = useLoad(getPublicAdmissionsOptions, [], "Could not load the form.");
   const [closedAfterSubmit, setClosedAfterSubmit] = useState(false);
-  const [references, setReferences] = useState<string[] | null>(null);
+  const [created, setCreated] = useState<{ references: string[]; names: string } | null>(null);
 
   const view = inquiryView({
     loading: options.loading,
     error: options.error,
     options: options.data,
-    created: references !== null,
+    created: created !== null,
     closedAfterSubmit,
     siteKey: SITE_KEY,
   });
 
+  let body: ReactNode;
   if (view === "loading") {
-    return <Shell>Loading…</Shell>;
-  }
-  if (view === "loadError" || !options.data) {
-    return (
-      <Notice title="The enquiry form couldn't load">
-        Please try again later, or call the school office to make an enquiry.
-      </Notice>
+    body = <p className="tcs-subtitle">Loading…</p>;
+  } else if (view === "loadError" || !options.data) {
+    body = (
+      <PublicNotice title={COPY.loadErrorTitle}>
+        <p>{COPY.loadErrorBody}</p>
+      </PublicNotice>
     );
-  }
-  if (view === "created" && references) {
-    return <ThankYou references={references} />;
-  }
-  if (view === "closed") {
-    return (
-      <Notice title="Online enquiries are closed">
-        We're not taking enquiries online at the moment. Please call the school office to make an
-        enquiry.
-      </Notice>
+  } else if (view === "created" && created) {
+    body = <ThankYou references={created.references} names={created.names} />;
+  } else if (view === "closed") {
+    body = (
+      <PublicNotice title={COPY.closedTitle}>
+        <p>{COPY.closedBody}</p>
+      </PublicNotice>
     );
-  }
-  if (view === "unavailable") {
+  } else if (view === "unavailable") {
     // Not a secret: says only that the public site key wasn't built in, so
     // the cause shows up in the browser console instead of a silent page.
     if (!missingKeyReported && typeof window !== "undefined") {
@@ -97,46 +106,55 @@ export function InquiryPage() {
         "Inquiry form unavailable: VITE_TURNSTILE_SITE_KEY was empty when this site was built.",
       );
     }
-    return <Notice title="The enquiry form isn't available">{OFFICE_MESSAGE}</Notice>;
+    body = (
+      <PublicNotice title={COPY.unavailableTitle}>
+        <p>{OFFICE_MESSAGE}</p>
+      </PublicNotice>
+    );
+  } else {
+    body = (
+      <InquiryForm
+        options={options.data}
+        onCreated={(references, names) => setCreated({ references, names })}
+        onClosed={() => setClosedAfterSubmit(true)}
+      />
+    );
   }
+
   return (
-    <InquiryForm
-      options={options.data}
-      onCreated={setReferences}
-      onClosed={() => setClosedAfterSubmit(true)}
-    />
+    <PublicPage>
+      <h1>{COPY.title}</h1>
+      <p className="tcs-subtitle">
+        {COPY.subtitle}
+        {view === "form" && <span className="tcs-subtitle-note">{COPY.requiredNote}</span>}
+      </p>
+      {body}
+    </PublicPage>
   );
 }
 
 /** No confirmation email exists until slice 12, so this page is the
- * parent's only record of the reference. */
-function ThankYou({ references }: { references: string[] }) {
+ * parent's only record of the reference. The names are the ones the
+ * parent typed, not anything the server sent back. */
+function ThankYou({ references, names }: { references: string[]; names: string }) {
   const many = references.length > 1;
   return (
-    <div className="mx-auto max-w-xl px-4 py-16 text-center">
-      <img src="/tcs-logomark.png" alt="" className="mx-auto mb-6 h-12 w-12" />
-      <h1 className="text-lg font-semibold">Thank you, we've received your enquiry</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        The school will contact you about the next steps.
-      </p>
-      <div className="mx-auto mt-6 max-w-sm rounded-lg border p-4">
-        <p className="text-sm text-muted-foreground">
-          {many ? "Your reference numbers" : "Your reference number"}
-        </p>
-        <ul className="mt-2 space-y-1">
-          {references.map((r) => (
-            <li key={r} className="font-mono text-lg font-semibold tabular-nums">
-              {r}
-            </li>
-          ))}
-        </ul>
+    <>
+      <div className="tcs-message tcs-success" role="status">
+        {COPY.thankYouFor(names)}
       </div>
-      <p className="mt-4 text-sm text-muted-foreground">
-        Please keep {many ? "these numbers" : "this number"}. You won't receive a confirmation
-        email, so write {many ? "them" : "it"} down or take a screenshot, and quote{" "}
-        {many ? "them" : "it"} when you contact the school.
-      </p>
-    </div>
+      <PublicNotice title={COPY.thankYouTitle}>
+        <div className="tcs-reference-box">
+          <p>{many ? COPY.referenceMany : COPY.referenceOne}</p>
+          {references.map((r) => (
+            <p key={r} className="tcs-reference">
+              {r}
+            </p>
+          ))}
+        </div>
+        <p>{COPY.keepReference(many)}</p>
+      </PublicNotice>
+    </>
   );
 }
 
@@ -146,7 +164,7 @@ function InquiryForm({
   onClosed,
 }: {
   options: PublicOptions;
-  onCreated: (refs: string[]) => void;
+  onCreated: (refs: string[], names: string) => void;
   onClosed: () => void;
 }) {
   const [draft, setDraft] = useState<InquiryDraft>(emptyDraft);
@@ -177,12 +195,14 @@ function InquiryForm({
     setDraft((d) => ({ ...d, students: d.students.map((s, j) => (j === i ? next(s) : s)) }));
   };
 
-  function scrollToFirstError() {
+  // The first field in red, else the message box at the top (TCS OS shows
+  // its messages above the form).
+  function scrollToProblem() {
     requestAnimationFrame(() => {
-      document.querySelector("[aria-invalid='true']")?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
+      const target =
+        document.querySelector("[aria-invalid='true']") ??
+        document.getElementById("inquiry-message");
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }
 
@@ -192,25 +212,32 @@ function InquiryForm({
     const found = validateInquiry(draft, options, today);
     setErrors(found);
     if (Object.keys(found).length > 0) {
-      setFormError("Please check the fields marked in red.");
-      scrollToFirstError();
+      setFormError(COPY.checkFields);
+      scrollToProblem();
       return;
     }
     if (token === "") {
-      setFormError("Please complete the security check below.");
+      setFormError(COPY.completeCheck);
+      scrollToProblem();
       return;
     }
     setBusy(true);
     try {
       const outcome = await submitInquiry(token, buildInquiryPayload(draft));
-      if (outcome.kind === "created") onCreated(outcome.references);
-      else if (outcome.kind === "closed") onClosed();
-      else if (outcome.field) {
+      if (outcome.kind === "created") {
+        onCreated(outcome.references, joinNames(draft.students.map((s) => s.fullName)));
+        window.scrollTo({ top: 0 });
+      } else if (outcome.kind === "closed") {
+        onClosed();
+      } else if (outcome.field) {
         // A server check the form didn't catch: show it next to its field.
         setErrors({ [outcome.field]: outcome.message });
-        setFormError("Please check the fields marked in red.");
-        scrollToFirstError();
-      } else setFormError(outcome.message);
+        setFormError(COPY.checkFields);
+        scrollToProblem();
+      } else {
+        setFormError(outcome.message);
+        scrollToProblem();
+      }
     } finally {
       // A token is single use: always start the next attempt with a new one.
       setResetKey((k) => k + 1);
@@ -219,27 +246,70 @@ function InquiryForm({
     }
   }
 
+  const invalid = (key: string) => (errors[key] ? true : undefined);
+  const referralItems = REFERRAL_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
+  const relationshipItems = RELATIONSHIP_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
+  const religionItems = RELIGION_OPTIONS.map((r) => ({ value: r, label: r }));
+  const monthItems = MONTH_OPTIONS.map((m) => ({ value: m.value, label: m.label }));
   const campusItems = [
     { value: NO_CAMPUS, label: "No preference" },
     ...options.campuses.map((c) => ({ value: c.id, label: c.name })),
   ];
   const currentItems = currentGradeChoices(options);
-  const religionItems = RELIGION_OPTIONS.map((r) => ({ value: r, label: r }));
-  const monthItems = MONTH_OPTIONS.map((m) => ({ value: m.value, label: m.label }));
+  const countItems = Array.from({ length: MAX_STUDENTS }, (_, i) => ({
+    value: String(i + 1),
+    label: String(i + 1),
+  }));
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
-      <img src="/tcs-logomark.png" alt="" className="mb-4 h-12 w-12" />
-      <h1 className="text-xl font-semibold">Admissions enquiry</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Tell us about your family and we'll be in touch about next steps. Fields marked{" "}
-        <span className="text-destructive">*</span> are required.
-      </p>
+    <>
+      {formError && (
+        <div id="inquiry-message" className="tcs-message tcs-error" role="alert">
+          {formError}
+        </div>
+      )}
+      <form onSubmit={submit} className="tcs-card" noValidate>
+        {/* ------------------------------------------------ 1. referral */}
+        <Section number={1} title={COPY.sections.referral}>
+          <PField
+            id="referral"
+            label="Referral source"
+            required
+            error={errors.referralSource ?? errors.referralSourceOther}
+          >
+            <NativeSelect
+              id="referral"
+              value={draft.referralSource}
+              onChange={(v) => {
+                clearError("referralSource");
+                setDraft((d) => ({ ...d, referralSource: v }));
+              }}
+              placeholder="Select one"
+              items={referralItems}
+              invalid={!!errors.referralSource}
+            />
+            {draft.referralSource === OTHER && (
+              <input
+                id="referral-other"
+                type="text"
+                className="tcs-other-input"
+                placeholder="Please specify"
+                aria-label="Please specify how you heard about us"
+                maxLength={255}
+                aria-invalid={invalid("referralSourceOther")}
+                aria-describedby={errors.referralSourceOther ? "referral-error" : undefined}
+                value={draft.referralSourceOther}
+                onChange={(e) => {
+                  clearError("referralSourceOther");
+                  setDraft((d) => ({ ...d, referralSourceOther: e.target.value }));
+                }}
+              />
+            )}
+          </PField>
+        </Section>
 
-      <form onSubmit={submit} className="mt-8 space-y-10" noValidate>
-        {/* ------------------------------------------------ guardians */}
-        <section className="space-y-6">
-          <h2 className="text-base font-semibold">Parents or guardians</h2>
+        {/* ------------------------------------------------ 2. guardians */}
+        <Section number={2} title={COPY.sections.guardians}>
           {draft.guardians.map((g, i) => {
             const k = (f: string) => `guardians.${i}.${f}`;
             const id = (f: string) => `g${i}-${f}`;
@@ -248,68 +318,74 @@ function InquiryForm({
               ? { address: draft.guardians[0].address, townCity: draft.guardians[0].townCity }
               : { address: g.address, townCity: g.townCity };
             const text = (
-              field: keyof GuardianDraft,
+              field: "surname" | "firstName" | "email",
               label: string,
-              extra: { type?: string; inputMode?: "tel" | "email"; max?: number } = {},
+              extra: { type?: string; inputMode?: "email"; max?: number } = {},
             ) => (
-              <Field id={id(field)} label={label} required error={errors[k(field)]}>
-                <Input
+              <PField id={id(field)} label={label} required error={errors[k(field)]}>
+                <input
                   id={id(field)}
                   type={extra.type ?? "text"}
                   inputMode={extra.inputMode}
                   maxLength={extra.max ?? 255}
-                  aria-invalid={errors[k(field)] ? true : undefined}
+                  aria-invalid={invalid(k(field))}
                   value={g[field]}
                   onChange={(e) => setGuardian(i, { [field]: e.target.value })}
                 />
-              </Field>
+              </PField>
             );
+            // Blocks are siblings (no wrapper), so the dashed rule between
+            // them and none after the last works as in TCS OS.
             return (
-              <div key={i} className="space-y-4 rounded-lg border p-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium">Parent or guardian {i + 1}</h3>
-                  {i > 0 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setDraft((d) => ({
-                          ...d,
-                          secondSameAddress: false,
-                          guardians: d.guardians.filter((_, j) => j !== i),
-                        }))
-                      }
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {text("surname", "Surname / Family name")}
-                  {text("firstName", "First name(s)")}
-                  <Field
+              <Fragment key={i}>
+                <div className="tcs-block">
+                  <BlockHeading
+                    action={
+                      i > 0 ? (
+                        <button
+                          type="button"
+                          className="tcs-link-btn tcs-subtle"
+                          onClick={() =>
+                            setDraft((d) => ({
+                              ...d,
+                              secondSameAddress: false,
+                              guardians: d.guardians.filter((_, j) => j !== i),
+                            }))
+                          }
+                        >
+                          Remove
+                        </button>
+                      ) : undefined
+                    }
+                  >
+                    Parent / Guardian {i + 1}
+                  </BlockHeading>
+                  <Row>
+                    {text("surname", "Surname / Family name")}
+                    {text("firstName", "First name(s)")}
+                  </Row>
+                  <PField
                     id={id("relationship")}
                     label="Relationship to child"
                     required
                     error={errors[k("relationship")]}
                   >
-                    <Choice
+                    <NativeSelect
                       id={id("relationship")}
                       value={g.relationship}
                       onChange={(v) => setGuardian(i, { relationship: v })}
                       placeholder="Select one"
-                      items={[...RELATIONSHIP_OPTIONS]}
+                      items={relationshipItems}
                       invalid={!!errors[k("relationship")]}
                     />
-                  </Field>
-                  <Field
+                  </PField>
+                  <PField
                     id={id("religion")}
                     label="Religion"
                     required
                     error={errors[k("religion")]}
                   >
-                    <Choice
+                    <NativeSelect
                       id={id("religion")}
                       value={g.religion}
                       onChange={(v) => setGuardian(i, { religion: v })}
@@ -317,106 +393,130 @@ function InquiryForm({
                       items={religionItems}
                       invalid={!!errors[k("religion")]}
                     />
-                  </Field>
-                  {i === 1 && (
-                    <div className="flex items-center gap-2 sm:col-span-2">
-                      <Checkbox
-                        id="g1-same-address"
-                        checked={draft.secondSameAddress}
-                        onCheckedChange={(c) => {
-                          clearError(k("address"));
-                          clearError(k("townCity"));
-                          setDraft((d) => ({ ...d, secondSameAddress: c === true }));
-                        }}
-                      />
-                      <Label htmlFor="g1-same-address" className="font-normal">
-                        Same address as above
-                      </Label>
-                    </div>
-                  )}
-                  <Field id={id("address")} label="Address" required error={errors[k("address")]}>
-                    <Input
+                  </PField>
+                  <PField id={id("address")} label="Address" required error={errors[k("address")]}>
+                    <input
                       id={id("address")}
+                      type="text"
                       maxLength={255}
                       disabled={sameAddress}
-                      aria-invalid={errors[k("address")] ? true : undefined}
+                      aria-invalid={invalid(k("address"))}
                       value={shown.address}
                       onChange={(e) => setGuardian(i, { address: e.target.value })}
                     />
-                  </Field>
-                  <Field
-                    id={id("townCity")}
-                    label="Town / City"
-                    required
-                    error={errors[k("townCity")]}
-                  >
-                    <Input
+                    {i === 1 && (
+                      <div className="tcs-checkbox-field">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={draft.secondSameAddress}
+                            onChange={(e) => {
+                              clearError(k("address"));
+                              clearError(k("townCity"));
+                              const checked = e.target.checked;
+                              setDraft((d) => ({ ...d, secondSameAddress: checked }));
+                            }}
+                          />
+                          Same address as above
+                        </label>
+                      </div>
+                    )}
+                  </PField>
+                  <Row>
+                    <PField
                       id={id("townCity")}
-                      maxLength={255}
-                      disabled={sameAddress}
-                      aria-invalid={errors[k("townCity")] ? true : undefined}
-                      value={shown.townCity}
-                      onChange={(e) => setGuardian(i, { townCity: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    id={id("phone")}
-                    label="Contact number"
-                    required
-                    error={errors[k("phone")]}
-                    hint={PHONE_HINT}
-                  >
-                    <Input
+                      label="Town / City"
+                      required
+                      error={errors[k("townCity")]}
+                    >
+                      <input
+                        id={id("townCity")}
+                        type="text"
+                        maxLength={255}
+                        disabled={sameAddress}
+                        aria-invalid={invalid(k("townCity"))}
+                        value={shown.townCity}
+                        onChange={(e) => setGuardian(i, { townCity: e.target.value })}
+                      />
+                    </PField>
+                    <PField
                       id={id("phone")}
-                      type="tel"
-                      inputMode="tel"
-                      placeholder={PHONE_EXAMPLE}
-                      maxLength={32}
-                      aria-invalid={errors[k("phone")] ? true : undefined}
-                      value={g.phone}
-                      onChange={(e) => {
-                        // Keeps what they type; a symbol or extra digit shows its
-                        // error at once (not while 233... is still being typed).
-                        const raw = e.target.value;
-                        setGuardian(i, { phone: raw });
-                        const error = phoneTypingError(raw);
-                        if (error) setErrors((x) => ({ ...x, [k("phone")]: error }));
-                      }}
-                      onBlur={() => {
-                        // On leaving the box, show the number in its fixed form:
-                        // separators gone, 0... or 233... turned into +233...
-                        const read = readPhoneInput(g.phone);
-                        if (!read.error && read.display !== g.phone) {
-                          setGuardian(i, { phone: read.display });
-                        }
-                      }}
-                    />
-                  </Field>
+                      label="Contact number"
+                      required
+                      error={errors[k("phone")]}
+                      hint={errors[k("phone")] ? null : PHONE_HINT}
+                    >
+                      <input
+                        id={id("phone")}
+                        type="tel"
+                        inputMode="tel"
+                        placeholder={PHONE_EXAMPLE}
+                        maxLength={32}
+                        aria-invalid={invalid(k("phone"))}
+                        value={g.phone}
+                        onChange={(e) => {
+                          // Keeps what they type; a symbol or extra digit shows its
+                          // error at once (not while 233... is still being typed).
+                          const raw = e.target.value;
+                          setGuardian(i, { phone: raw });
+                          const error = phoneTypingError(raw);
+                          if (error) setErrors((x) => ({ ...x, [k("phone")]: error }));
+                        }}
+                        onBlur={() => {
+                          // On leaving the box, show the number in its fixed form:
+                          // separators gone, 0... or 233... turned into +233...
+                          const read = readPhoneInput(g.phone);
+                          if (!read.error && read.display !== g.phone) {
+                            setGuardian(i, { phone: read.display });
+                          }
+                        }}
+                      />
+                    </PField>
+                  </Row>
                   {text("email", "Active email address", {
                     type: "email",
                     inputMode: "email",
                     max: 254,
                   })}
                 </div>
-              </div>
+                {i === 0 && draft.guardians.length < MAX_GUARDIANS && (
+                  <button
+                    type="button"
+                    className="tcs-link-btn"
+                    onClick={() =>
+                      setDraft((d) => ({ ...d, guardians: [...d.guardians, emptyGuardian()] }))
+                    }
+                  >
+                    {COPY.addGuardian}
+                  </button>
+                )}
+              </Fragment>
             );
           })}
-          {draft.guardians.length < MAX_GUARDIANS && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                setDraft((d) => ({ ...d, guardians: [...d.guardians, emptyGuardian()] }))
-              }
-            >
-              Add a second parent or guardian
-            </Button>
-          )}
-        </section>
+        </Section>
 
-        {/* ------------------------------------------------ children */}
-        <section className="space-y-6">
-          <h2 className="text-base font-semibold">Children</h2>
+        {/* ------------------------------------------------ 3. the enquiry */}
+        <Section number={3} title={COPY.sections.enquiry}>
+          <PField id="child-count" label={COPY.childCount} required>
+            <NativeSelect
+              id="child-count"
+              value={String(draft.students.length)}
+              onChange={(v) => {
+                const n = Number(v);
+                // Errors of the children dropped from the end go with them.
+                setErrors((e) =>
+                  Object.fromEntries(
+                    Object.entries(e).filter(([key]) => {
+                      const m = /^students\.([0-9]+)\./.exec(key);
+                      return !m || Number(m[1]) < n;
+                    }),
+                  ),
+                );
+                setDraft((d) => withChildCount(d, n));
+              }}
+              items={countItems}
+            />
+          </PField>
           {draft.students.map((s, i) => {
             const k = (f: string) => `students.${i}.${f}`;
             const id = (f: string) => `s${i}-${f}`;
@@ -424,64 +524,52 @@ function InquiryForm({
             const campusName = options.campuses.find((c) => c.id === s.campusId)?.name;
             const hint = ageHint(parseDmy(s.dateOfBirth), today);
             return (
-              <div key={i} className="space-y-4 rounded-lg border p-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium">Child {i + 1}</h3>
-                  {i > 0 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setDraft((d) => ({ ...d, students: d.students.filter((_, j) => j !== i) }))
-                      }
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field id={id("name")} label="Full name" required error={errors[k("fullName")]}>
-                    <Input
-                      id={id("name")}
-                      maxLength={255}
-                      aria-invalid={errors[k("fullName")] ? true : undefined}
-                      value={s.fullName}
-                      onChange={(e) =>
-                        setStudent(i, "fullName", (x) => ({ ...x, fullName: e.target.value }))
-                      }
-                    />
-                  </Field>
-                  <Field
+              <div key={i} className="tcs-block">
+                <BlockHeading>Child {i + 1}</BlockHeading>
+                <PField id={id("name")} label="Full name" required error={errors[k("fullName")]}>
+                  <input
+                    id={id("name")}
+                    type="text"
+                    maxLength={255}
+                    aria-invalid={invalid(k("fullName"))}
+                    value={s.fullName}
+                    onChange={(e) =>
+                      setStudent(i, "fullName", (x) => ({ ...x, fullName: e.target.value }))
+                    }
+                  />
+                </PField>
+                <PField
+                  id={id("dob")}
+                  label="Date of birth"
+                  required
+                  error={errors[k("dateOfBirth")]}
+                  hint={hint}
+                >
+                  <input
                     id={id("dob")}
-                    label="Date of birth"
-                    required
-                    error={errors[k("dateOfBirth")]}
-                    hint={hint}
-                  >
-                    <Input
-                      id={id("dob")}
-                      inputMode="numeric"
-                      placeholder="dd/mm/yyyy"
-                      maxLength={10}
-                      autoComplete="off"
-                      aria-invalid={errors[k("dateOfBirth")] ? true : undefined}
-                      value={s.dateOfBirth}
-                      onChange={(e) =>
-                        setStudent(i, "dateOfBirth", (x) => ({
-                          ...x,
-                          dateOfBirth: maskDateInput(e.target.value),
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="dd/mm/yyyy"
+                    maxLength={10}
+                    autoComplete="off"
+                    aria-invalid={invalid(k("dateOfBirth"))}
+                    value={s.dateOfBirth}
+                    onChange={(e) =>
+                      setStudent(i, "dateOfBirth", (x) => ({
+                        ...x,
+                        dateOfBirth: maskDateInput(e.target.value),
+                      }))
+                    }
+                  />
+                </PField>
+                <Row>
+                  <PField
                     id={id("current")}
                     label="Current grade / class"
                     required
                     error={errors[k("currentGrade")]}
                   >
-                    <Choice
+                    <NativeSelect
                       id={id("current")}
                       value={s.currentGrade}
                       onChange={(v) => {
@@ -492,19 +580,20 @@ function InquiryForm({
                       items={currentItems}
                       invalid={!!errors[k("currentGrade")]}
                     />
-                  </Field>
+                  </PField>
                   {needsCurrentSchool(s) && (
-                    <Field
+                    <PField
                       id={id("school")}
                       label="Learner's current school"
                       required
                       error={errors[k("currentSchool")]}
                     >
-                      <Input
+                      <input
                         id={id("school")}
+                        type="text"
                         maxLength={255}
                         placeholder="N/A if not yet in school"
-                        aria-invalid={errors[k("currentSchool")] ? true : undefined}
+                        aria-invalid={invalid(k("currentSchool"))}
                         value={s.currentSchool}
                         onChange={(e) =>
                           setStudent(i, "currentSchool", (x) => ({
@@ -513,10 +602,12 @@ function InquiryForm({
                           }))
                         }
                       />
-                    </Field>
+                    </PField>
                   )}
-                  <Field id={id("campus")} label="Preferred campus" error={errors[k("campusId")]}>
-                    <Choice
+                </Row>
+                <Row>
+                  <PField id={id("campus")} label="Preferred campus" error={errors[k("campusId")]}>
+                    <NativeSelect
                       id={id("campus")}
                       value={s.campusId === "" ? NO_CAMPUS : s.campusId}
                       onChange={(v) =>
@@ -524,19 +615,18 @@ function InquiryForm({
                           withCampus(x, v === NO_CAMPUS ? "" : v, options),
                         )
                       }
-                      placeholder="No preference"
                       items={campusItems}
                       invalid={!!errors[k("campusId")]}
                     />
-                  </Field>
-                  <Field
+                  </PField>
+                  <PField
                     id={id("grade")}
                     label="Grade seeking admission into"
                     required
                     error={errors[k("gradeId")]}
                     hint={`${campusName ? `Showing the grades ${campusName} takes. ` : ""}Grade not listed? Please contact the school.`}
                   >
-                    <Choice
+                    <NativeSelect
                       id={id("grade")}
                       value={s.gradeId}
                       onChange={(v) => setStudent(i, "gradeId", (x) => ({ ...x, gradeId: v }))}
@@ -544,14 +634,16 @@ function InquiryForm({
                       items={grades.map((g) => ({ value: g.id, label: g.name }))}
                       invalid={!!errors[k("gradeId")]}
                     />
-                  </Field>
-                  <Field
+                  </PField>
+                </Row>
+                <Row>
+                  <PField
                     id={id("year")}
                     label="Academic year enquiring for"
                     required
                     error={errors[k("academicYear")]}
                   >
-                    <Choice
+                    <NativeSelect
                       id={id("year")}
                       value={s.academicYear}
                       onChange={(v) =>
@@ -561,14 +653,14 @@ function InquiryForm({
                       items={options.academicYears.map((y) => ({ value: y, label: y }))}
                       invalid={!!errors[k("academicYear")]}
                     />
-                  </Field>
-                  <Field
+                  </PField>
+                  <PField
                     id={id("month")}
                     label="Month of enrolment"
                     required
                     error={errors[k("month")]}
                   >
-                    <Choice
+                    <NativeSelect
                       id={id("month")}
                       value={s.month}
                       onChange={(v) => setStudent(i, "month", (x) => ({ ...x, month: v }))}
@@ -576,82 +668,32 @@ function InquiryForm({
                       items={monthItems}
                       invalid={!!errors[k("month")]}
                     />
-                  </Field>
-                </div>
+                  </PField>
+                </Row>
               </div>
             );
           })}
-          {draft.students.length < MAX_STUDENTS && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDraft((d) => ({ ...d, students: [...d.students, emptyStudent()] }))}
-            >
-              Add another child
-            </Button>
-          )}
-        </section>
+        </Section>
 
-        {/* ------------------------------------------------ referral and comments */}
-        <section className="space-y-4">
-          <h2 className="text-base font-semibold">About your enquiry</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              id="referral"
-              label="How did you hear about us?"
-              required
-              error={errors.referralSource}
-            >
-              <Choice
-                id="referral"
-                value={draft.referralSource}
-                onChange={(v) => {
-                  clearError("referralSource");
-                  setDraft((d) => ({ ...d, referralSource: v }));
-                }}
-                placeholder="Select one"
-                items={[...REFERRAL_OPTIONS]}
-                invalid={!!errors.referralSource}
-              />
-            </Field>
-            {draft.referralSource === OTHER && (
-              <Field
-                id="referral-other"
-                label="Please specify"
-                required
-                error={errors.referralSourceOther}
-              >
-                <Input
-                  id="referral-other"
-                  maxLength={255}
-                  aria-invalid={errors.referralSourceOther ? true : undefined}
-                  value={draft.referralSourceOther}
-                  onChange={(e) => {
-                    clearError("referralSourceOther");
-                    setDraft((d) => ({ ...d, referralSourceOther: e.target.value }));
-                  }}
-                />
-              </Field>
-            )}
-          </div>
-          <Field id="comments" label="Comments, suggestions or questions" error={errors.comments}>
-            <Textarea
+        {/* ------------------------------------------------ 4. other information */}
+        <Section number={4} title={COPY.sections.other}>
+          <PField id="comments" label="Comments, suggestions or questions" error={errors.comments}>
+            <textarea
               id="comments"
-              rows={4}
               maxLength={10000}
               placeholder="Anything else we should know?"
-              aria-invalid={errors.comments ? true : undefined}
+              aria-invalid={invalid("comments")}
               value={draft.comments}
               onChange={(e) => setDraft((d) => ({ ...d, comments: e.target.value }))}
             />
-          </Field>
-        </section>
+          </PField>
+        </Section>
 
         {/* ------------------------------------------------ submit */}
-        <section className="space-y-4">
+        <div className="tcs-turnstile">
           {verifyUnavailable ? (
-            <p className="text-sm text-destructive">
-              The security check couldn't load. {OFFICE_MESSAGE}
+            <p className="tcs-field-error">
+              {COPY.verifyUnavailable} {OFFICE_MESSAGE}
             </p>
           ) : (
             <TurnstileWidget
@@ -662,16 +704,11 @@ function InquiryForm({
               onUnavailable={() => setVerifyUnavailable(true)}
             />
           )}
-          {formError && (
-            <p role="alert" className="text-sm text-destructive">
-              {formError}
-            </p>
-          )}
-          <Button type="submit" disabled={busy || verifyUnavailable}>
-            {busy ? "Sending…" : "Submit enquiry"}
-          </Button>
-        </section>
+        </div>
+        <button type="submit" className="tcs-submit" disabled={busy || verifyUnavailable}>
+          {busy ? COPY.submitting : COPY.submit}
+        </button>
       </form>
-    </div>
+    </>
   );
 }

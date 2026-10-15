@@ -1,0 +1,8 @@
+/* Inter for the staff app, self-hosted (admissions slice 9b, C1; Q2).
+   Replaces the runtime Google Fonts link, at the same weights the app used
+   (400, 500, 600, 700). @fontsource sets font-display: swap. Inter is under
+   the SIL Open Font License 1.1 (see /fonts-licences.txt). */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";

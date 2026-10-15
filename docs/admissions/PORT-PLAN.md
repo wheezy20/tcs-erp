@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is built locally on 2026-10-15, uncommitted; it is not applied on hosted and not deployed. The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is built locally on 2026-10-15, uncommitted, not deployed. The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -42,7 +42,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 7c | Read-only Audit Log (`/audit-log`) and Accountant audit narrowing | committed (7a07d6a), migrations applied on hosted (reported 2026-10-14); frontend deploy not confirmed | 7b2 |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | committed (c71b363, 6842848), migrations applied on hosted (reported by Eyram, 2026-10-14) | 7b |
 | 8b | Public enquiry form polish and two intake switches | committed (32eae11, c3943d8, 7d80735), migrations applied on hosted (reported by Eyram, 2026-10-14) | 8 |
-| 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) committed as c822b56; migration `20261024100000` applied on hosted and `admissions-public` deployed on hosted at version 3 (reported by Eyram, 2026-10-15). 9a checkpoint 2 built locally 2026-10-15, uncommitted, not applied on hosted, not deployed. 9b not started; split into 9a and 9b (2026-10-13) | 8 |
+| 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) committed as c822b56; migration `20261024100000` applied on hosted and `admissions-public` deployed on hosted at version 3 (reported by Eyram, 2026-10-15). 9a checkpoint 2 committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). 9b checkpoint C1 (look foundation and `/inquiry`) built locally 2026-10-15, uncommitted, not deployed; C2 to C4 not started (decided 2026-10-15; split into 9a and 9b on 2026-10-13) | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
 | 11 | Public offer response page | not started | 8, 6b |
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | not started | 8 (and 6, 9, 10 for the emails it sends) |
@@ -51,6 +51,15 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 15 | Cutover, domain, TCS OS shutdown (nothing is imported) | not started | all |
 
 Slice 0 is independent of admissions and can run first or in parallel.
+
+## Go-live gates still open
+
+Every gate here must be closed before the step it names. Each one is also listed in its slice below.
+
+- **Published privacy policy (decided 2026-10-15, slice 9b).** A privacy policy must be published before real admissions intake opens, and before admissions.tcsch.edu.gh moves to the ERP (slice 15). The policy is being written (reported by Eyram, 2026-10-15). When it exists, add one link in one place: the declaration copy constant. Until then the declaration is ported exactly as TCS OS has it, with no link. Also a CONSTRAINTS.md checklist item.
+- **"ZZ Test Do Not Process" cleanup (slice 8b).** One test inquiry on hosted must be removed by a small reviewed migration before real intake begins.
+- **Live-test application cleanup (slice 9a, rollout step 4).** Any application created by the D-9k live test must be cleaned up before real intake.
+- **Confirmation email or written acceptance (slice 15).** admissions.tcsch.edu.gh does not move to the ERP until a confirmation email exists (slice 12) or Eyram accepts the gap in writing (gate of 2026-10-14).
 
 ## Decisions recorded
 
@@ -1146,7 +1155,7 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 
 **Eyram gave the go for checkpoint 2 on 2026-10-15** (`submit_application`, the match flags table, the `application` action with the byte check, the plain `/apply` page, the staff Submission check panel and the Settings switch).
 
-**Checkpoint 2 built 2026-10-15 (local, uncommitted):** the rest of 9a. Not committed, not applied on hosted, not deployed. Checkpoint 1 is committed as c822b56. Checkpoint 2 is the submit RPC, the match flags table, the `application` action with the byte check, the plain `/apply` page, the staff Submission check panel and the Settings switch.
+**Checkpoint 2 built 2026-10-15, committed as 92346dd and applied on hosted (reported by Eyram, 2026-10-15):** the rest of 9a. Checkpoint 1 is committed as c822b56. Eyram reports slice 9a is built and live on hosted: the plain `/apply` page, `/inquiry`, `submit_application`, the Edge Function actions and the staff Submission check panel. Not reported in this record: the D-9k live test result, and whether the Public applications switch has been closed again. Checkpoint 2 is the submit RPC, the match flags table, the `application` action with the byte check, the plain `/apply` page, the staff Submission check panel and the Settings switch.
 
 - **Migration `20261025100000_admissions_application_submit.sql`:**
   - `submit_application(p_payload jsonb, p_session_token text, p_sniffed jsonb)` returns text, the APP reference only. This replaces the draft signature `(p_payload, p_client_ip)`, because D-9i made the client IP unnecessary. Service-role only, and it starts with `_require_public_service_caller()`. It accepts the full `ApplicationSerializer` shape now, so 9b is UI only.
@@ -1225,6 +1234,68 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 - Slice 9's form should follow the slice 8b field rules: the religion list, current grade or prior schooling (never both; the not-yet-in-school rule), dd/mm/yyyy date of birth sent as ISO, and the phone rule.
 
 **Size:** two Edge Function actions, one table, two RPCs, one large public form. The split into 9a and 9b is decided (2026-10-13); see Decided above.
+
+### Slice 9b: the full six-section form, in the TCS OS look
+
+**Status:** C1 built 2026-10-15 (local, uncommitted, not deployed). C2, C3 and C4 not started.
+
+**Goal:** `/inquiry` and `/apply` look and read like the TCS OS forms. Frontend only: no migration, no RPC, Edge Function, RLS or grant change. The anon-executable count stays at 170. The payload contract is final: TCS OS stores one combined declaration acceptance, a separate media consent, the signature and server time (the same four columns as the ERP), and every TCS OS application field is already accepted by `submit_application`.
+
+**Approved by Eyram, 2026-10-15.** Decisions:
+
+- **Q1.** Self-host the fonts through `@fontsource` packages, bundled by Vite.
+- **Q2.** Move Inter off Google as well, at the same weights the staff app used (400, 500, 600 and 700).
+- **Q3.** The new look applies to the two public pages only.
+- **Q4.** Nationality is stored as the TCS OS country names (241, Ghana first). Demonyms such as Ghanaian are search aliases only.
+- **Q5.** An unlisted nationality is not allowed.
+- **Q6.** No server change. `students.nationality` stays capped at 100.
+- **Q7.** The application fee amount and the account details live in a frontend constants file.
+- **Q8.** Neutral wording ("the school will contact you") until slice 12 sends email.
+- **Q10.** Port the 1 to 5 child count select on `/inquiry`.
+- **Q11.** Native selects.
+- **Q12.** TCS OS document order, with the fee proof under the fee box, labelled "Proof of application fee payment (bank deposit slip, GIP confirmation or mobile money receipt)".
+- **Q13.** The vaccination slot is always shown; the requirement follows the grade flag.
+- **Q14.** A teal focus ring instead of TCS OS's blue.
+- **Q15.** TCS OS labels: Friend/Colleague, Social Media, Legal Guardian.
+- **Q16.** No declaration text versioning for now. The TCS OS declaration and media consent text (Indemnity Clause, Data Protection, Declaration and Policy, Media Consent) last changed in TCS OS commit f7b57ae on 2026-08-26 ("Phase 5: Expanded application form"). The ERP will port it verbatim in C3, with only the verse attribution reformatted. The date the ERP copy changes is recorded then.
+- **Q17.** The previous school's location is shown only when the child is in school.
+- **Q18.** Deploy after C1 and after C3.
+- **Q9 (answers reported by Eyram, 2026-10-15).** The application fee of GHS 200.00, the Consolidated Bank Ghana account details (account 0383011100001, name Treasures Christian School), the `*170#` steps and the scholarship link are accurate as TCS OS shows them. They keep the TCS OS wording, with dashes and arrows rewritten to the house rule. Q9 is closed except for the privacy policy (see Go-live gates).
+
+**Plan changes from Eyram, 2026-10-15:**
+
+- **(a)** The full-contract integration test runs at the end of C2 and again before the C3 deploy, not only in C4.
+- **(b)** `font-display: swap` for all three families. Inter stays at the staff app's weights, so the staff app looks unchanged.
+- **(c)** This housekeeping is recorded (the status rows above and the checkpoint 2 section).
+
+**Checkpoints.** Each one stops for Eyram's review.
+
+- **C1, look foundation and `/inquiry`.** Built, see below.
+- **C2, `/apply` structure.** Six steps, a sidebar, free navigation, the new plain fields, health as Yes/No, and a warning when leaving the page.
+- **C3, `/apply` content.** Nationality combobox, four document slots, the fee box, the scholarship question and link, the declaration and media consent, and the thank-you page.
+- **C4, close-out.**
+
+**Go-live gate (decided 2026-10-15):** a published privacy policy must exist before real intake and before admissions.tcsch.edu.gh moves to the ERP. The declaration then gets one link, in the declaration copy constant. See "Go-live gates still open".
+
+**C1 built 2026-10-15 (local, uncommitted, not deployed):**
+
+- **Fonts.** `@fontsource/cinzel`, `@fontsource/dm-sans` and `@fontsource/inter`, all at 5.3.0 (exact; OFL-1.1). Inter is self-hosted for the whole app through `frontend/src/fonts/inter.css` (400, 500, 600, 700), linked from `__root.tsx` in place of the Google Fonts link and its preconnects. Cinzel (400, 700) and DM Sans (400, 500) are imported only by `frontend/src/modules/admissions/public-form.css`, which is linked only from the `/inquiry` route head (and `/apply` from C2). Every `@font-face` rule uses `font-display: swap`. `frontend/public/fonts-licences.txt` carries the three copyright lines and the OFL text.
+- **Public stylesheet.** `public-form.css` is the TCS OS stylesheet with literal values (palette #F3FAFA, #D5E5E5, #1A2E2E, #5C7373, #005E61, #0B4C50 and #11B87A; Cinzel 700 headings at 1.6rem and 1.1rem; DM Sans body; 640px main column, 880px wide; card padding 1.75rem; labels 0.85rem; inputs 0.95rem; hints 0.78rem). It is scoped under `.tcs-public`, and `body.tcs-public-body` is added while a public page is mounted and removed on unmount.
+- **Deliberate deviations from TCS OS:** a teal focus ring (Q14), with a transparent outline for forced colours; a red border on invalid fields (TCS OS had none); rows stack under 480px; inputs are 16px under 480px so iOS does not zoom.
+- **Components.** New `components/public-page-parts.tsx` (PublicPage, PublicNotice, Section, BlockHeading, Row, PField with aria-describedby and aria-required wiring, NativeSelect). `/apply` still uses `public-form-parts.tsx` until C2.
+- **`/inquiry`.** Rewritten to the TCS OS layout and wording: centred full logo and "Admissions Enquiry"; four numbered sections (How did you hear about us?, Parent / Guardian information, The enquiry, Other information); "Referral source" with an unlabelled "Please specify"; "Parent / Guardian 1" block headings; "+ Add a second parent / guardian" and "Remove" link buttons; the 1 to 5 child count select (`withChildCount`, which trims from the end); a full-width "Submit enquiry"; the message box above the form; and a thank-you page with TCS OS's sentence, the names as typed, the INQ references and the no-email line.
+- **Kept from the ERP on purpose** (slice 8b and D-9d): the religion list; no free-text Other; current school only for a child in school; optional campus; the forgiving phone box and its hint; the age hint.
+- **Copy.** Parent-facing strings are in the new `src/modules/admissions/public-copy.ts`.
+- **No change** to `buildInquiryPayload`, `validateInquiry`, `submit_inquiry` or the Edge Function. The payload is unchanged.
+- **Tests.** New `public-copy.test.ts` (no em or en dashes in the copy or the public page sources; TCS OS headings; `joinNames`), and `withChildCount` and label tests in `inquiry-form.test.ts`. `npm test` 131 (was 124).
+- **Verification (test-runner, end pass):** lint 0 errors and 13 warnings (the same as the baseline at 92346dd); `tsc` clean; 11 files and 131 tests; build ok; prettier flags only the generated `database.types.ts`; 0 files in `dist` mention fonts.googleapis.com or fonts.gstatic.com; Inter is emitted at exactly 400, 500, 600 and 700; every font face uses swap; the public form CSS is referenced only by the `/inquiry` route; no service role key in `dist/client`; nothing staged. `supabase/` is untouched, so no `db reset`, overload check, types regen or role matrix was needed. The golden payroll suite was not run: no payroll, audit action or audit policy changed.
+- **Deliberate breaks** (pure logic, each against its own test file; both caught; files restored byte for byte): child count shrink dropping from the start (`inquiry-form.test.ts`); an em dash in the copy (`public-copy.test.ts`).
+- **SSR check (local dev server):** `/inquiry` links `styles.css`, `inter.css` and `public-form.css`. `/login` links only the first two. Neither mentions Google. Headless screenshots at 1280 and 375 px matched the TCS OS look, and `/login` still renders in Inter.
+- **Code review:** one BLOCKING finding, fixed in fix round 1. The invalid and focus borders never showed on text inputs, because the base input rule out-ranked them; the rules are now under `:where()`. Non-blocking fixes: row spacing for single-field rows, aria-describedby for inputs, a forced-colours focus fallback, 16px inputs on phones, and the licence copyright lines. Re-review: the fixes are OK and nothing new is blocking.
+- **After the fixes:** lint 0 errors and 13 warnings; `tsc` clean; 131 tests; build ok.
+- **Deploy for C1 (Eyram runs; not run here):** `frontend/scripts/deploy-production.sh`. No `supabase db push` and no `supabase functions deploy`.
+
+**Still open after C1:** C2, C3 and C4; the privacy policy go-live gate; the slice 9a accepted risks (a) to (c); the "ZZ Test Do Not Process" cleanup; checkpoint 1 open items (b) to (e). All unchanged.
 
 ## Slice 10 — Application drafts: save and resume tokens
 
