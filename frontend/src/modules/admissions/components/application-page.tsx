@@ -1,11 +1,13 @@
-import { useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Choice, Field, Notice, Shell } from "@/modules/admissions/components/public-form-parts";
+import {
+  BlockHeading,
+  NativeSelect,
+  PField,
+  PublicNotice,
+  PublicPage,
+  Row,
+} from "@/modules/admissions/components/public-page-parts";
 import { TurnstileWidget } from "@/modules/admissions/components/turnstile-widget";
 import {
   openUploadSession,
@@ -23,15 +25,26 @@ import {
   applicationView,
   buildApplicationPayload,
   checkFile,
+  childAddress,
   emptyApplicationDraft,
+  hasEnteredData,
   requiredDocumentTypes,
   validateApplication,
   type ApplicationDraft,
   type UploadedFile,
+  type YesNo,
 } from "@/modules/admissions/application-form";
+import {
+  LAST_STEP,
+  STEPS,
+  completeSteps,
+  incompleteSteps,
+  routeServerError,
+} from "@/modules/admissions/application-steps";
 import {
   MAX_GUARDIANS,
   MONTH_OPTIONS,
+  NOT_YET_IN_SCHOOL,
   PHONE_EXAMPLE,
   PHONE_HINT,
   RELATIONSHIP_OPTIONS,
@@ -41,7 +54,6 @@ import {
   emptyGuardian,
   gradesForCampus,
   maskDateInput,
-  NOT_YET_IN_SCHOOL,
   parseDmy,
   phoneTypingError,
   readPhoneInput,
@@ -50,14 +62,23 @@ import {
   type GuardianDraft,
   type PublicOptions,
 } from "@/modules/admissions/inquiry-form";
+import { APPLICATION_COPY as COPY } from "@/modules/admissions/public-copy";
 
-// /apply: the plain public Application form (admissions slice 9a,
-// checkpoint 2). No sign-in and no AppShell (__root.tsx lists it as
-// auth-free). One page; the six-section form is slice 9b. Two security
-// checks: one opens the upload session (action "upload"), one sends the
-// application (action "application"). Every rule is enforced again by the
-// admissions-public Edge Function and submit_application, which also reads
-// each file's first bytes before accepting it.
+// /apply: the public Application form (admissions slice 9a), in the TCS OS
+// six step layout from slice 9b C2 (TCS OS backend/templates/public/
+// apply.html): Guardian(s), Student, Emergency, Health, Documents,
+// Declaration, with the sticky section nav on the right (a scrolling strip
+// above the form at 860px and below), free navigation in any order, Back,
+// Next and Submit on the last step. No sign-in and no AppShell (__root.tsx
+// lists it as auth-free). Every rule is enforced again by the
+// admissions-public Edge Function and submit_application.
+//
+// Two security checks, as in 9a: one opens the upload session (action
+// "upload") at the first upload, in the Documents step; one sends the
+// application (action "application"), inside the Declaration step and
+// mounted only while that step is shown. Steps 5 and 6 keep the 9a
+// content until C3 ports the TCS OS document slots, fee box, scholarship,
+// declaration and media consent.
 
 const SITE_KEY = (import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined) ?? "";
 let missingKeyReported = false;
@@ -76,39 +97,57 @@ export function ApplicationPage() {
     siteKey: SITE_KEY,
   });
 
-  if (view === "loading") return <Shell>Loading…</Shell>;
-  if (view === "loadError" || !options.data) {
-    return (
-      <Notice title="The application form couldn't load">
-        Please try again later, or call the school office to apply.
-      </Notice>
+  let body: ReactNode;
+  if (view === "loading") {
+    body = <p className="tcs-subtitle">Loading…</p>;
+  } else if (view === "loadError" || !options.data) {
+    body = (
+      <PublicNotice title={COPY.loadErrorTitle}>
+        <p>{COPY.loadErrorBody}</p>
+      </PublicNotice>
     );
-  }
-  if (view === "created" && reference) return <ThankYou reference={reference} />;
-  if (view === "closed") {
-    return (
-      <Notice title="Online applications are closed">
-        We're not taking applications online at the moment. Please call the school office to apply.
-      </Notice>
+  } else if (view === "created" && reference) {
+    body = <ThankYou reference={reference} />;
+  } else if (view === "closed") {
+    body = (
+      <PublicNotice title={COPY.closedTitle}>
+        <p>{COPY.closedBody}</p>
+      </PublicNotice>
     );
-  }
-  if (view === "unavailable") {
+  } else if (view === "unavailable") {
     if (!missingKeyReported && typeof window !== "undefined") {
       missingKeyReported = true;
       console.error(
         "Application form unavailable: VITE_TURNSTILE_SITE_KEY was empty when this site was built.",
       );
     }
-    return (
-      <Notice title="The application form isn't available">{APPLICATION_OFFICE_MESSAGE}</Notice>
+    body = (
+      <PublicNotice title={COPY.unavailableTitle}>
+        <p>{APPLICATION_OFFICE_MESSAGE}</p>
+      </PublicNotice>
+    );
+  } else {
+    body = (
+      <ApplicationForm
+        options={options.data}
+        onCreated={(ref) => {
+          setReference(ref);
+          window.scrollTo({ top: 0 });
+        }}
+        onClosed={() => setClosedAfterSubmit(true)}
+      />
     );
   }
+
   return (
-    <ApplicationForm
-      options={options.data}
-      onCreated={setReference}
-      onClosed={() => setClosedAfterSubmit(true)}
-    />
+    <PublicPage wide>
+      <h1>{COPY.title}</h1>
+      <p className="tcs-subtitle">
+        {COPY.subtitle}
+        {view === "form" && <span className="tcs-subtitle-note">{COPY.note}</span>}
+      </p>
+      {body}
+    </PublicPage>
   );
 }
 
@@ -116,23 +155,18 @@ export function ApplicationPage() {
  * parent's only record of the reference. */
 function ThankYou({ reference }: { reference: string }) {
   return (
-    <div className="mx-auto max-w-xl px-4 py-16 text-center">
-      <img src="/tcs-logomark.png" alt="" className="mx-auto mb-6 h-12 w-12" />
-      <h1 className="text-lg font-semibold">Thank you, we've received your application</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        The school will check your documents and contact you about the next steps.
-      </p>
-      <div className="mx-auto mt-6 max-w-sm rounded-lg border p-4">
-        <p className="text-sm text-muted-foreground">Your application number</p>
-        <p className="mt-2 font-mono text-lg font-semibold tabular-nums">{reference}</p>
+    <PublicNotice title={COPY.thankYouTitle}>
+      <p>{COPY.thankYouBody}</p>
+      <div className="tcs-reference-box">
+        <p>{COPY.referenceLabel}</p>
+        <p className="tcs-reference">{reference}</p>
       </div>
-      <p className="mt-4 text-sm text-muted-foreground">
-        Please keep this number. You won't receive a confirmation email, so write it down or take a
-        screenshot, and quote it when you contact the school.
-      </p>
-    </div>
+      <p>{COPY.keepReference}</p>
+    </PublicNotice>
   );
 }
+
+type Message = { kind: "error"; text: string } | { kind: "incomplete"; steps: number[] };
 
 function ApplicationForm({
   options,
@@ -145,6 +179,7 @@ function ApplicationForm({
 }) {
   const [draft, setDraft] = useState<ApplicationDraft>(emptyApplicationDraft);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [step, setStep] = useState(0);
   const [uploads, setUploads] = useState<Record<string, UploadedFile | undefined>>({});
   const [uploading, setUploading] = useState<string | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -154,9 +189,47 @@ function ApplicationForm({
   const [resetKey, setResetKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [message, setMessage] = useState<Message | null>(null);
+  // The two security checks fail separately: the upload one (step 5) and
+  // the application one (step 6).
+  const [uploadVerifyUnavailable, setUploadVerifyUnavailable] = useState(false);
   const [verifyUnavailable, setVerifyUnavailable] = useState(false);
   const today = todayInAccra();
+
+  // Without drafts (slice 10), leaving the page loses everything: warn once
+  // anything has been entered. The browser shows its own wording.
+  const dirty = hasEnteredData(draft, uploads);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  const complete = completeSteps(draft, options, today, uploads);
+
+  // On a phone the section nav is a strip that scrolls sideways: keep the
+  // current step in view.
+  const navRef = useRef<HTMLElement>(null);
+  // After a step change (not on first load), focus the new step's heading
+  // so keyboard and screen reader users land at the top of it.
+  const headingRef = useRef<HTMLLegendElement>(null);
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    headingRef.current?.focus({ preventScroll: true });
+  }, [step]);
+  useEffect(() => {
+    navRef.current
+      ?.querySelector(".tcs-active")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [step]);
 
   const clearError = (key: string) =>
     setErrors((e) => {
@@ -185,11 +258,23 @@ function ApplicationForm({
     setDraft((d) => ({ ...d, health: { ...d.health, ...patch } }));
   };
 
-  function scrollToFirstError() {
+  /** Free navigation: any step, any order, nothing blocks. Leaving the
+   * Declaration step unmounts its security check, so its token is dropped
+   * and a fresh one is needed on return. */
+  function goToStep(n: number, keepMessage = false) {
+    if (n < 0 || n > LAST_STEP) return;
+    if (!keepMessage) setMessage(null);
+    if (step === LAST_STEP && n !== LAST_STEP) setToken("");
+    setStep(n);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function scrollToProblem() {
     requestAnimationFrame(() => {
-      document
-        .querySelector("[aria-invalid='true']")
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const target =
+        document.querySelector(".tcs-step-panel [aria-invalid='true']") ??
+        document.getElementById("application-message");
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }
 
@@ -240,17 +325,27 @@ function ApplicationForm({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (sending.current) return;
-    setFormError(null);
+    // Only the Declaration step's Submit sends. Next and Submit are
+    // separate keyed buttons, so a click on Next can't turn into a submit;
+    // this also stops Enter in a field on another step.
+    if (step !== LAST_STEP || sending.current) return;
+    setMessage(null);
     const found = validateApplication(draft, options, today, uploads);
     setErrors(found);
-    if (Object.keys(found).length > 0 || !sessionToken) {
-      setFormError("Please check the fields marked in red.");
-      scrollToFirstError();
+    const incomplete = incompleteSteps(found);
+    if (incomplete.length > 0) {
+      // TCS OS: name every incomplete section, each a link back to it.
+      setMessage({ kind: "incomplete", steps: incomplete });
+      scrollToProblem();
+      return;
+    }
+    if (uploading !== null || !sessionToken) {
+      setMessage({ kind: "error", text: COPY.waitForUploads });
+      scrollToProblem();
       return;
     }
     if (token === "") {
-      setFormError("Please complete the security check below.");
+      setMessage({ kind: "error", text: COPY.completeCheck });
       return;
     }
     sending.current = true;
@@ -261,13 +356,19 @@ function ApplicationForm({
         sessionToken,
         buildApplicationPayload(draft, options, uploads),
       );
-      if (outcome.kind === "created") onCreated(outcome.reference);
-      else if (outcome.kind === "closed") onClosed();
-      else if (outcome.field) {
-        setErrors({ [outcome.field]: outcome.message });
-        setFormError(outcome.message);
-        scrollToFirstError();
-      } else setFormError(outcome.message);
+      if (outcome.kind === "created") {
+        onCreated(outcome.reference);
+      } else if (outcome.kind === "closed") {
+        onClosed();
+      } else {
+        // A server check the form didn't catch: open its step and show it
+        // on the field when it names one.
+        const where = routeServerError(outcome.path, draft);
+        if (where.field) setErrors({ [where.field]: outcome.message });
+        setMessage({ kind: "error", text: outcome.message });
+        if (where.step !== null && where.step !== step) goToStep(where.step, true);
+        scrollToProblem();
+      }
     } finally {
       // A token is single use: always start the next attempt with a new one.
       setResetKey((k) => k + 1);
@@ -278,14 +379,18 @@ function ApplicationForm({
   }
 
   const c = draft.child;
+  const inSchool = c.currentGrade !== NOT_YET_IN_SCHOOL;
+  const where = childAddress(draft);
   const grades = gradesForCampus(options, draft.campusId);
   const docTypes = requiredDocumentTypes(options, c.gradeId);
+  const relationshipItems = RELATIONSHIP_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
   const religionItems = RELIGION_OPTIONS.map((r) => ({ value: r, label: r }));
   const monthItems = MONTH_OPTIONS.map((m) => ({ value: m.value, label: m.label }));
+  const genderItems = GENDER_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
   const invalid = (key: string) => (errors[key] ? true : undefined);
 
   const phoneInput = (id: string, key: string, value: string, set: (v: string) => void) => (
-    <Input
+    <input
       id={id}
       type="tel"
       inputMode="tel"
@@ -294,6 +399,8 @@ function ApplicationForm({
       aria-invalid={invalid(key)}
       value={value}
       onChange={(e) => {
+        // Keeps what they type; a symbol or extra digit shows its error at
+        // once (not while 233... is still being typed).
         const raw = e.target.value;
         set(raw);
         const error = phoneTypingError(raw);
@@ -306,555 +413,812 @@ function ApplicationForm({
     />
   );
 
-  return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
-      <img src="/tcs-logomark.png" alt="" className="mb-4 h-12 w-12" />
-      <h1 className="text-xl font-semibold">Application for admission</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        One application per child. Fields marked <span className="text-destructive">*</span> are
-        required.
-      </p>
+  const yesNo = (
+    flag: "hasNeeds" | "hasMedical" | "hasAllergies",
+    text: "needs" | "medical" | "allergies",
+  ) => {
+    const value: YesNo = draft.health[flag];
+    const flagKey = `health.${flag}`;
+    const textKey = `health.${text}`;
+    const name = `h-${flag}`;
+    return (
+      <div className="tcs-field" role="radiogroup" aria-labelledby={`${name}-q`}>
+        <span id={`${name}-q`} className="tcs-question">
+          {COPY.health[flag]}{" "}
+          <span className="tcs-required" aria-hidden="true">
+            *
+          </span>
+        </span>
+        <div className="tcs-radio-group">
+          {[
+            { v: true, label: "Yes" },
+            { v: false, label: "No" },
+          ].map((o) => (
+            <label key={o.label} className="tcs-radio-option">
+              <input
+                type="radio"
+                name={name}
+                checked={value === o.v}
+                aria-invalid={invalid(flagKey)}
+                aria-describedby={errors[flagKey] ? `${name}-error` : undefined}
+                onChange={() => setHealth({ [flag]: o.v, ...(o.v ? {} : { [text]: "" }) })}
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+        {value === true && (
+          <textarea
+            id={`h-${text}`}
+            aria-label={`${COPY.health[flag]} ${COPY.health.details}`}
+            placeholder={COPY.health.details}
+            maxLength={MAX_HEALTH_DETAILS}
+            aria-invalid={invalid(textKey)}
+            aria-describedby={errors[textKey] ? `h-${text}-error` : undefined}
+            value={draft.health[text]}
+            onChange={(e) => setHealth({ [text]: e.target.value })}
+          />
+        )}
+        {errors[flagKey] && (
+          <div id={`${name}-error`} className="tcs-field-error">
+            {errors[flagKey]}
+          </div>
+        )}
+        {errors[textKey] && (
+          <div id={`h-${text}-error`} className="tcs-field-error">
+            {errors[textKey]}
+          </div>
+        )}
+      </div>
+    );
+  };
 
-      <form onSubmit={submit} className="mt-8 space-y-10" noValidate>
-        {/* ------------------------------------------------ guardians */}
-        <section className="space-y-6">
-          <h2 className="text-base font-semibold">Parents or guardians</h2>
-          {draft.guardians.map((g, i) => {
-            const k = (f: string) => `guardians.${i}.${f}`;
-            const id = (f: string) => `g${i}-${f}`;
-            const sameAddress = i === 1 && draft.secondSameAddress;
-            const shown = sameAddress
-              ? { address: draft.guardians[0].address, townCity: draft.guardians[0].townCity }
-              : { address: g.address, townCity: g.townCity };
-            const text = (
-              field: "surname" | "firstName" | "email",
-              label: string,
-              extra: { type?: string; inputMode?: "email"; max?: number } = {},
-            ) => (
-              <Field id={id(field)} label={label} required error={errors[k(field)]}>
-                <Input
-                  id={id(field)}
-                  type={extra.type ?? "text"}
-                  inputMode={extra.inputMode}
-                  maxLength={extra.max ?? 255}
-                  aria-invalid={invalid(k(field))}
-                  value={g[field]}
-                  onChange={(e) => setGuardian(i, { [field]: e.target.value })}
-                />
-              </Field>
-            );
-            return (
-              <div key={i} className="space-y-4 rounded-lg border p-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium">Parent or guardian {i + 1}</h3>
-                  {i > 0 && (
-                    <Button
+  const current = STEPS[step];
+
+  return (
+    <>
+      {message && (
+        <div id="application-message" className="tcs-message tcs-error" role="alert">
+          {message.kind === "error" ? (
+            <p>{message.text}</p>
+          ) : (
+            <>
+              <p>{COPY.incompleteIntro}</p>
+              <ul>
+                {message.steps.map((n) => (
+                  <li key={n}>
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setDraft((d) => ({
-                          ...d,
-                          secondSameAddress: false,
-                          guardians: d.guardians.filter((_, j) => j !== i),
-                        }))
-                      }
+                      className="tcs-link-btn"
+                      onClick={() => goToStep(n, true)}
                     >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {text("surname", "Surname / Family name")}
-                  {text("firstName", "First name(s)")}
-                  <Field
-                    id={id("relationship")}
-                    label="Relationship to child"
-                    required
-                    error={errors[k("relationship")]}
-                  >
-                    <Choice
-                      id={id("relationship")}
-                      value={g.relationship}
-                      onChange={(v) => setGuardian(i, { relationship: v })}
-                      placeholder="Select one"
-                      items={[...RELATIONSHIP_OPTIONS]}
-                      invalid={!!errors[k("relationship")]}
-                    />
-                  </Field>
-                  <Field
-                    id={id("religion")}
-                    label="Religion"
-                    required
-                    error={errors[k("religion")]}
-                  >
-                    <Choice
-                      id={id("religion")}
-                      value={g.religion}
-                      onChange={(v) => setGuardian(i, { religion: v })}
-                      placeholder="Select one"
-                      items={religionItems}
-                      invalid={!!errors[k("religion")]}
-                    />
-                  </Field>
-                  {i === 1 && (
-                    <div className="flex items-center gap-2 sm:col-span-2">
-                      <Checkbox
-                        id="g1-same-address"
-                        checked={draft.secondSameAddress}
-                        onCheckedChange={(v) => {
-                          clearError(k("address"));
-                          clearError(k("townCity"));
-                          setDraft((d) => ({ ...d, secondSameAddress: v === true }));
-                        }}
+                      {STEPS[n].title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+      <div className="tcs-layout">
+        <form onSubmit={submit} className="tcs-card" noValidate>
+          <fieldset className="tcs-step-panel-wrap">
+            <legend ref={headingRef} tabIndex={-1}>
+              <span className="tcs-section-number">{step + 1}.</span>
+              {current.title}
+            </legend>
+
+            <div className="tcs-step-panel">
+              {/* ------------------------------------------ 1. guardians */}
+              {current.key === "guardians" &&
+                draft.guardians.map((g, i) => {
+                  const k = (f: string) => `guardians.${i}.${f}`;
+                  const id = (f: string) => `g${i}-${f}`;
+                  const sameAddress = i === 1 && draft.secondSameAddress;
+                  const shown = sameAddress
+                    ? { address: draft.guardians[0].address, townCity: draft.guardians[0].townCity }
+                    : { address: g.address, townCity: g.townCity };
+                  const text = (
+                    field: "surname" | "firstName" | "email",
+                    label: string,
+                    extra: {
+                      type?: string;
+                      inputMode?: "email";
+                      max?: number;
+                      hint?: string;
+                    } = {},
+                  ) => (
+                    <PField
+                      id={id(field)}
+                      label={label}
+                      required
+                      error={errors[k(field)]}
+                      hint={extra.hint}
+                    >
+                      <input
+                        id={id(field)}
+                        type={extra.type ?? "text"}
+                        inputMode={extra.inputMode}
+                        maxLength={extra.max ?? 255}
+                        aria-invalid={invalid(k(field))}
+                        value={g[field]}
+                        onChange={(e) => setGuardian(i, { [field]: e.target.value })}
                       />
-                      <Label htmlFor="g1-same-address" className="font-normal">
-                        Same address as above
-                      </Label>
+                    </PField>
+                  );
+                  return (
+                    <Fragment key={i}>
+                      <div className="tcs-block">
+                        <BlockHeading
+                          action={
+                            i > 0 ? (
+                              <button
+                                type="button"
+                                className="tcs-link-btn tcs-subtle"
+                                onClick={() => {
+                                  setErrors((e) =>
+                                    Object.fromEntries(
+                                      Object.entries(e).filter(
+                                        ([key]) => !key.startsWith(`guardians.${i}.`),
+                                      ),
+                                    ),
+                                  );
+                                  setDraft((d) => ({
+                                    ...d,
+                                    secondSameAddress: false,
+                                    guardians: d.guardians.filter((_, j) => j !== i),
+                                  }));
+                                }}
+                              >
+                                Remove
+                              </button>
+                            ) : undefined
+                          }
+                        >
+                          Parent / Guardian {i + 1}
+                        </BlockHeading>
+                        <Row>
+                          {text("surname", "Surname / Family name")}
+                          {text("firstName", "First name(s)")}
+                        </Row>
+                        <PField
+                          id={id("relationship")}
+                          label="Relationship to child"
+                          required
+                          error={errors[k("relationship")]}
+                        >
+                          <NativeSelect
+                            id={id("relationship")}
+                            value={g.relationship}
+                            onChange={(v) => setGuardian(i, { relationship: v })}
+                            placeholder="Select one"
+                            items={relationshipItems}
+                            invalid={!!errors[k("relationship")]}
+                          />
+                        </PField>
+                        <PField
+                          id={id("religion")}
+                          label="Religion"
+                          required
+                          error={errors[k("religion")]}
+                        >
+                          <NativeSelect
+                            id={id("religion")}
+                            value={g.religion}
+                            onChange={(v) => setGuardian(i, { religion: v })}
+                            placeholder="Select one"
+                            items={religionItems}
+                            invalid={!!errors[k("religion")]}
+                          />
+                        </PField>
+                        <PField
+                          id={id("address")}
+                          label="Address"
+                          required
+                          error={errors[k("address")]}
+                        >
+                          <input
+                            id={id("address")}
+                            type="text"
+                            maxLength={255}
+                            disabled={sameAddress}
+                            aria-invalid={invalid(k("address"))}
+                            value={shown.address}
+                            onChange={(e) => setGuardian(i, { address: e.target.value })}
+                          />
+                          {i === 1 && (
+                            <div className="tcs-checkbox-field">
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={draft.secondSameAddress}
+                                  onChange={(e) => {
+                                    clearError(k("address"));
+                                    clearError(k("townCity"));
+                                    const checked = e.target.checked;
+                                    setDraft((d) => ({ ...d, secondSameAddress: checked }));
+                                  }}
+                                />
+                                Same address as above
+                              </label>
+                            </div>
+                          )}
+                        </PField>
+                        <Row>
+                          <PField
+                            id={id("townCity")}
+                            label="Town / City"
+                            required
+                            error={errors[k("townCity")]}
+                          >
+                            <input
+                              id={id("townCity")}
+                              type="text"
+                              maxLength={255}
+                              disabled={sameAddress}
+                              aria-invalid={invalid(k("townCity"))}
+                              value={shown.townCity}
+                              onChange={(e) => setGuardian(i, { townCity: e.target.value })}
+                            />
+                          </PField>
+                          <PField
+                            id={id("phone")}
+                            label="Contact number"
+                            required
+                            error={errors[k("phone")]}
+                            hint={errors[k("phone")] ? null : PHONE_HINT}
+                          >
+                            {phoneInput(id("phone"), k("phone"), g.phone, (v) =>
+                              setGuardian(i, { phone: v }),
+                            )}
+                          </PField>
+                        </Row>
+                        {text("email", "Active email address", {
+                          type: "email",
+                          inputMode: "email",
+                          max: 254,
+                          hint: i === 0 ? COPY.emailHint : undefined,
+                        })}
+                      </div>
+                      {i === 0 && draft.guardians.length < MAX_GUARDIANS && (
+                        <button
+                          type="button"
+                          className="tcs-link-btn"
+                          onClick={() =>
+                            setDraft((d) => ({
+                              ...d,
+                              guardians: [...d.guardians, emptyGuardian()],
+                            }))
+                          }
+                        >
+                          + Add a second parent / guardian
+                        </button>
+                      )}
+                    </Fragment>
+                  );
+                })}
+
+              {/* ------------------------------------------ 2. student */}
+              {current.key === "student" && (
+                <>
+                  <PField id="c-name" label="Full name" required error={errors["child.fullName"]}>
+                    <input
+                      id="c-name"
+                      type="text"
+                      maxLength={255}
+                      aria-invalid={invalid("child.fullName")}
+                      value={c.fullName}
+                      onChange={(e) => setChild({ fullName: e.target.value })}
+                    />
+                  </PField>
+                  <Row>
+                    <PField
+                      id="c-dob"
+                      label="Date of birth"
+                      required
+                      error={errors["child.dateOfBirth"]}
+                      hint={ageHint(parseDmy(c.dateOfBirth), today)}
+                    >
+                      <input
+                        id="c-dob"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="dd/mm/yyyy"
+                        maxLength={10}
+                        autoComplete="off"
+                        aria-invalid={invalid("child.dateOfBirth")}
+                        value={c.dateOfBirth}
+                        onChange={(e) => setChild({ dateOfBirth: maskDateInput(e.target.value) })}
+                      />
+                    </PField>
+                    <PField id="c-gender" label="Gender" required error={errors["child.gender"]}>
+                      <NativeSelect
+                        id="c-gender"
+                        value={c.gender}
+                        onChange={(v) => setChild({ gender: v })}
+                        placeholder="Select one"
+                        items={genderItems}
+                        invalid={!!errors["child.gender"]}
+                      />
+                    </PField>
+                  </Row>
+                  <PField
+                    id="c-nat"
+                    label="Nationality"
+                    required
+                    error={errors["child.nationality"]}
+                  >
+                    <input
+                      id="c-nat"
+                      type="text"
+                      maxLength={100}
+                      aria-invalid={invalid("child.nationality")}
+                      value={c.nationality}
+                      onChange={(e) => setChild({ nationality: e.target.value })}
+                    />
+                  </PField>
+                  <PField
+                    id="c-address"
+                    label="Learner's home address"
+                    required
+                    error={errors["child.address"]}
+                  >
+                    <input
+                      id="c-address"
+                      type="text"
+                      maxLength={255}
+                      disabled={c.sameAddress}
+                      aria-invalid={invalid("child.address")}
+                      value={where.address}
+                      onChange={(e) => setChild({ address: e.target.value })}
+                    />
+                    <div className="tcs-checkbox-field">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={c.sameAddress}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            clearError("child.address");
+                            clearError("child.townCity");
+                            // Unticking starts from guardian 1's address, to edit.
+                            setDraft((d) => {
+                              const from = childAddress(d);
+                              return {
+                                ...d,
+                                child: {
+                                  ...d.child,
+                                  sameAddress: checked,
+                                  ...(checked ? {} : from),
+                                },
+                              };
+                            });
+                          }}
+                        />
+                        Same address as Parent/Guardian 1
+                      </label>
+                    </div>
+                  </PField>
+                  <Row>
+                    <PField
+                      id="c-town"
+                      label="Town / City"
+                      required
+                      error={errors["child.townCity"]}
+                    >
+                      <input
+                        id="c-town"
+                        type="text"
+                        maxLength={255}
+                        disabled={c.sameAddress}
+                        aria-invalid={invalid("child.townCity")}
+                        value={where.townCity}
+                        onChange={(e) => setChild({ townCity: e.target.value })}
+                      />
+                    </PField>
+                    <PField id="c-postal" label="Postal code" error={errors["child.postalCode"]}>
+                      <input
+                        id="c-postal"
+                        type="text"
+                        maxLength={20}
+                        aria-invalid={invalid("child.postalCode")}
+                        value={c.postalCode}
+                        onChange={(e) => setChild({ postalCode: e.target.value })}
+                      />
+                    </PField>
+                  </Row>
+                  <PField id="c-country" label="Country" error={errors["child.country"]}>
+                    <input
+                      id="c-country"
+                      type="text"
+                      maxLength={100}
+                      aria-invalid={invalid("child.country")}
+                      value={c.country}
+                      onChange={(e) => setChild({ country: e.target.value })}
+                    />
+                  </PField>
+                  <Row>
+                    <PField
+                      id="c-current"
+                      label="Current grade / class"
+                      required
+                      error={errors["child.currentGrade"]}
+                    >
+                      <NativeSelect
+                        id="c-current"
+                        value={c.currentGrade}
+                        onChange={(v) => {
+                          clearError("child.currentSchool");
+                          clearError("child.previousSchoolLocation");
+                          setChild({ currentGrade: v });
+                        }}
+                        placeholder="Select one"
+                        items={currentGradeChoices(options)}
+                        invalid={!!errors["child.currentGrade"]}
+                      />
+                    </PField>
+                    {inSchool && (
+                      <PField
+                        id="c-school"
+                        label="Learner's current school"
+                        required
+                        error={errors["child.currentSchool"]}
+                      >
+                        <input
+                          id="c-school"
+                          type="text"
+                          maxLength={255}
+                          placeholder="N/A if not yet in school"
+                          aria-invalid={invalid("child.currentSchool")}
+                          value={c.currentSchool}
+                          onChange={(e) => setChild({ currentSchool: e.target.value })}
+                        />
+                      </PField>
+                    )}
+                  </Row>
+                  {inSchool && (
+                    <PField
+                      id="c-school-location"
+                      label="Location/address of that school"
+                      error={errors["child.previousSchoolLocation"]}
+                    >
+                      <input
+                        id="c-school-location"
+                        type="text"
+                        maxLength={255}
+                        placeholder="State N/A if not applicable"
+                        aria-invalid={invalid("child.previousSchoolLocation")}
+                        value={c.previousSchoolLocation}
+                        onChange={(e) => setChild({ previousSchoolLocation: e.target.value })}
+                      />
+                    </PField>
+                  )}
+                  <PField id="c-campus" label="Campus applying to" required error={errors.campusId}>
+                    <NativeSelect
+                      id="c-campus"
+                      value={draft.campusId}
+                      onChange={(v) => {
+                        clearError("campusId");
+                        setDraft((d) => {
+                          const keep = gradesForCampus(options, v).some(
+                            (g) => g.id === d.child.gradeId,
+                          );
+                          return {
+                            ...d,
+                            campusId: v,
+                            child: { ...d.child, gradeId: keep ? d.child.gradeId : "" },
+                          };
+                        });
+                      }}
+                      placeholder="Select one"
+                      items={options.campuses.map((x) => ({ value: x.id, label: x.name }))}
+                      invalid={!!errors.campusId}
+                    />
+                  </PField>
+                  <PField
+                    id="c-grade"
+                    label="Grade applying for"
+                    required
+                    error={errors["child.gradeId"]}
+                    hint="Grade not listed? Please contact the school."
+                  >
+                    <NativeSelect
+                      id="c-grade"
+                      value={c.gradeId}
+                      onChange={(v) => setChild({ gradeId: v })}
+                      placeholder={draft.campusId === "" ? "Choose a campus first" : "Select one"}
+                      items={grades.map((g) => ({ value: g.id, label: g.name }))}
+                      invalid={!!errors["child.gradeId"]}
+                    />
+                  </PField>
+                  <Row>
+                    <PField
+                      id="c-year"
+                      label="Academic year applying for"
+                      required
+                      error={errors["child.academicYear"]}
+                    >
+                      <NativeSelect
+                        id="c-year"
+                        value={c.academicYear}
+                        onChange={(v) => setChild({ academicYear: v })}
+                        placeholder="Select one"
+                        items={options.academicYears.map((y) => ({ value: y, label: y }))}
+                        invalid={!!errors["child.academicYear"]}
+                      />
+                    </PField>
+                    <PField
+                      id="c-month"
+                      label="Month of enrolment"
+                      required
+                      error={errors["child.month"]}
+                    >
+                      <NativeSelect
+                        id="c-month"
+                        value={c.month}
+                        onChange={(v) => setChild({ month: v })}
+                        placeholder="Select one"
+                        items={monthItems}
+                        invalid={!!errors["child.month"]}
+                      />
+                    </PField>
+                  </Row>
+                </>
+              )}
+
+              {/* ------------------------------------------ 3. emergency */}
+              {current.key === "emergency" && (
+                <>
+                  <p className="tcs-hint tcs-section-hint">{COPY.emergencyHint}</p>
+                  <PField id="e-name" label="Full name" required error={errors["emergency.name"]}>
+                    <input
+                      id="e-name"
+                      type="text"
+                      maxLength={255}
+                      aria-invalid={invalid("emergency.name")}
+                      value={draft.emergency.name}
+                      onChange={(e) => setEmergency({ name: e.target.value })}
+                    />
+                  </PField>
+                  <Row>
+                    <PField
+                      id="e-rel"
+                      label="Relationship to learner"
+                      required
+                      error={errors["emergency.relationship"]}
+                    >
+                      <input
+                        id="e-rel"
+                        type="text"
+                        maxLength={100}
+                        placeholder="e.g. Aunt, Family friend"
+                        aria-invalid={invalid("emergency.relationship")}
+                        value={draft.emergency.relationship}
+                        onChange={(e) => setEmergency({ relationship: e.target.value })}
+                      />
+                    </PField>
+                    <PField
+                      id="e-phone"
+                      label="Contact number"
+                      required
+                      error={errors["emergency.phone"]}
+                      hint={errors["emergency.phone"] ? null : PHONE_HINT}
+                    >
+                      {phoneInput("e-phone", "emergency.phone", draft.emergency.phone, (v) =>
+                        setEmergency({ phone: v }),
+                      )}
+                    </PField>
+                  </Row>
+                </>
+              )}
+
+              {/* ------------------------------------------ 4. health */}
+              {current.key === "health" && (
+                <>
+                  <p className="tcs-hint tcs-section-hint">{COPY.healthPrivacy}</p>
+                  {yesNo("hasNeeds", "needs")}
+                  {yesNo("hasMedical", "medical")}
+                  {yesNo("hasAllergies", "allergies")}
+                </>
+              )}
+
+              {/* ------------------------------------------ 5. documents (9a content until C3) */}
+              {current.key === "documents" && (
+                <>
+                  <p className="tcs-hint tcs-section-hint">{COPY.documentsHint}</p>
+                  {errors.documents && (
+                    <div className="tcs-field-error" role="alert">
+                      {errors.documents}
                     </div>
                   )}
-                  <Field id={id("address")} label="Address" required error={errors[k("address")]}>
-                    <Input
-                      id={id("address")}
-                      maxLength={255}
-                      disabled={sameAddress}
-                      aria-invalid={invalid(k("address"))}
-                      value={shown.address}
-                      onChange={(e) => setGuardian(i, { address: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    id={id("townCity")}
-                    label="Town / City"
-                    required
-                    error={errors[k("townCity")]}
-                  >
-                    <Input
-                      id={id("townCity")}
-                      maxLength={255}
-                      disabled={sameAddress}
-                      aria-invalid={invalid(k("townCity"))}
-                      value={shown.townCity}
-                      onChange={(e) => setGuardian(i, { townCity: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    id={id("phone")}
-                    label="Contact number"
-                    required
-                    error={errors[k("phone")]}
-                    hint={PHONE_HINT}
-                  >
-                    {phoneInput(id("phone"), k("phone"), g.phone, (v) =>
-                      setGuardian(i, { phone: v }),
+                  {!sessionToken ? (
+                    <div className="tcs-document-field">
+                      <p className="tcs-question">{COPY.uploadCheck}</p>
+                      {uploadVerifyUnavailable ? (
+                        <p className="tcs-field-error">
+                          The security check couldn't load. {APPLICATION_OFFICE_MESSAGE}
+                        </p>
+                      ) : (
+                        <TurnstileWidget
+                          siteKey={SITE_KEY}
+                          action="upload"
+                          resetKey={uploadResetKey}
+                          onToken={(t) => void startUploads(t)}
+                          onUnavailable={() => setUploadVerifyUnavailable(true)}
+                        />
+                      )}
+                      {opening && <p className="tcs-upload-status">{COPY.preparingUploads}</p>}
+                    </div>
+                  ) : (
+                    docTypes.map((type) => {
+                      const key = `documents.${type}`;
+                      const done = uploads[type];
+                      return (
+                        <div key={type} className="tcs-document-field">
+                          <PField
+                            id={`d-${type}`}
+                            label={PUBLIC_DOCUMENT_LABELS[type] ?? type}
+                            required
+                            error={errors[key]}
+                            hint={
+                              type === FEE_PROOF
+                                ? "A photo or scan of the slip, confirmation or receipt."
+                                : null
+                            }
+                          >
+                            <input
+                              id={`d-${type}`}
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                              disabled={uploading !== null}
+                              aria-invalid={invalid(key)}
+                              onChange={(e) => {
+                                void chooseFile(type, e.target.files?.[0]);
+                                e.target.value = "";
+                              }}
+                            />
+                          </PField>
+                          {(uploading === type || done) && (
+                            <p
+                              className={done ? "tcs-upload-status tcs-done" : "tcs-upload-status"}
+                            >
+                              {uploading === type
+                                ? "Uploading…"
+                                : `Uploaded: ${done?.fileName}. Choose another file to replace it.`}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </>
+              )}
+
+              {/* ------------------------------------------ 6. declaration (9a content until C3) */}
+              {current.key === "declaration" && (
+                <>
+                  <div className="tcs-field">
+                    <div className="tcs-checkbox-field tcs-standalone">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={draft.agreed}
+                          aria-invalid={invalid("agreed")}
+                          aria-describedby={errors.agreed ? "agreed-error" : undefined}
+                          onChange={(e) => {
+                            clearError("agreed");
+                            const checked = e.target.checked;
+                            setDraft((d) => ({ ...d, agreed: checked }));
+                          }}
+                        />
+                        <span>
+                          I confirm that the information in this application is true and complete.{" "}
+                          <span className="tcs-required" aria-hidden="true">
+                            *
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                    {errors.agreed && (
+                      <div id="agreed-error" className="tcs-field-error">
+                        {errors.agreed}
+                      </div>
                     )}
-                  </Field>
-                  {text("email", "Active email address", {
-                    type: "email",
-                    inputMode: "email",
-                    max: 254,
-                  })}
-                </div>
-              </div>
-            );
-          })}
-          {draft.guardians.length < MAX_GUARDIANS && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                setDraft((d) => ({ ...d, guardians: [...d.guardians, emptyGuardian()] }))
-              }
-            >
-              Add a second parent or guardian
-            </Button>
-          )}
-        </section>
-
-        {/* ------------------------------------------------ child */}
-        <section className="space-y-4">
-          <h2 className="text-base font-semibold">The child</h2>
-          <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
-            <Field id="c-name" label="Full name" required error={errors["child.fullName"]}>
-              <Input
-                id="c-name"
-                maxLength={255}
-                aria-invalid={invalid("child.fullName")}
-                value={c.fullName}
-                onChange={(e) => setChild({ fullName: e.target.value })}
-              />
-            </Field>
-            <Field
-              id="c-dob"
-              label="Date of birth"
-              required
-              error={errors["child.dateOfBirth"]}
-              hint={ageHint(parseDmy(c.dateOfBirth), today)}
-            >
-              <Input
-                id="c-dob"
-                inputMode="numeric"
-                placeholder="dd/mm/yyyy"
-                maxLength={10}
-                autoComplete="off"
-                aria-invalid={invalid("child.dateOfBirth")}
-                value={c.dateOfBirth}
-                onChange={(e) => setChild({ dateOfBirth: maskDateInput(e.target.value) })}
-              />
-            </Field>
-            <Field id="c-gender" label="Gender" required error={errors["child.gender"]}>
-              <Choice
-                id="c-gender"
-                value={c.gender}
-                onChange={(v) => setChild({ gender: v })}
-                placeholder="Select one"
-                items={[...GENDER_OPTIONS]}
-                invalid={!!errors["child.gender"]}
-              />
-            </Field>
-            <Field id="c-nat" label="Nationality" required error={errors["child.nationality"]}>
-              <Input
-                id="c-nat"
-                maxLength={100}
-                aria-invalid={invalid("child.nationality")}
-                value={c.nationality}
-                onChange={(e) => setChild({ nationality: e.target.value })}
-              />
-            </Field>
-            <Field id="c-address" label="Child's address" required error={errors["child.address"]}>
-              <Input
-                id="c-address"
-                maxLength={255}
-                aria-invalid={invalid("child.address")}
-                value={c.address}
-                onChange={(e) => setChild({ address: e.target.value })}
-              />
-            </Field>
-            <Field id="c-town" label="Town / City" required error={errors["child.townCity"]}>
-              <Input
-                id="c-town"
-                maxLength={255}
-                aria-invalid={invalid("child.townCity")}
-                value={c.townCity}
-                onChange={(e) => setChild({ townCity: e.target.value })}
-              />
-            </Field>
-            <Field
-              id="c-current"
-              label="Current grade / class"
-              required
-              error={errors["child.currentGrade"]}
-            >
-              <Choice
-                id="c-current"
-                value={c.currentGrade}
-                onChange={(v) => {
-                  clearError("child.currentSchool");
-                  setChild({ currentGrade: v });
-                }}
-                placeholder="Select one"
-                items={currentGradeChoices(options)}
-                invalid={!!errors["child.currentGrade"]}
-              />
-            </Field>
-            {c.currentGrade !== NOT_YET_IN_SCHOOL && (
-              <Field
-                id="c-school"
-                label="Current school"
-                required
-                error={errors["child.currentSchool"]}
-              >
-                <Input
-                  id="c-school"
-                  maxLength={255}
-                  aria-invalid={invalid("child.currentSchool")}
-                  value={c.currentSchool}
-                  onChange={(e) => setChild({ currentSchool: e.target.value })}
-                />
-              </Field>
-            )}
-            <Field id="c-campus" label="Campus" required error={errors.campusId}>
-              <Choice
-                id="c-campus"
-                value={draft.campusId}
-                onChange={(v) => {
-                  clearError("campusId");
-                  setDraft((d) => {
-                    const keep = gradesForCampus(options, v).some((g) => g.id === d.child.gradeId);
-                    return {
-                      ...d,
-                      campusId: v,
-                      child: { ...d.child, gradeId: keep ? d.child.gradeId : "" },
-                    };
-                  });
-                }}
-                placeholder="Select one"
-                items={options.campuses.map((x) => ({ value: x.id, label: x.name }))}
-                invalid={!!errors.campusId}
-              />
-            </Field>
-            <Field
-              id="c-grade"
-              label="Grade seeking admission into"
-              required
-              error={errors["child.gradeId"]}
-              hint="Grade not listed? Please contact the school."
-            >
-              <Choice
-                id="c-grade"
-                value={c.gradeId}
-                onChange={(v) => setChild({ gradeId: v })}
-                placeholder={draft.campusId === "" ? "Choose a campus first" : "Select one"}
-                items={grades.map((g) => ({ value: g.id, label: g.name }))}
-                invalid={!!errors["child.gradeId"]}
-              />
-            </Field>
-            <Field id="c-year" label="Academic year" required error={errors["child.academicYear"]}>
-              <Choice
-                id="c-year"
-                value={c.academicYear}
-                onChange={(v) => setChild({ academicYear: v })}
-                placeholder="Select one"
-                items={options.academicYears.map((y) => ({ value: y, label: y }))}
-                invalid={!!errors["child.academicYear"]}
-              />
-            </Field>
-            <Field id="c-month" label="Month of enrolment" required error={errors["child.month"]}>
-              <Choice
-                id="c-month"
-                value={c.month}
-                onChange={(v) => setChild({ month: v })}
-                placeholder="Select one"
-                items={monthItems}
-                invalid={!!errors["child.month"]}
-              />
-            </Field>
-          </div>
-        </section>
-
-        {/* ------------------------------------------------ health */}
-        <section className="space-y-4">
-          <h2 className="text-base font-semibold">Health</h2>
-          <p className="text-sm text-muted-foreground">
-            Only staff who need it can see these answers.
-          </p>
-          <div className="space-y-4 rounded-lg border p-4">
-            {(
-              [
-                ["hasNeeds", "needs", "Does your child have any learning or physical needs?"],
-                ["hasMedical", "medical", "Does your child have any medical conditions?"],
-                [
-                  "hasAllergies",
-                  "allergies",
-                  "Does your child have any allergies or dietary requirements?",
-                ],
-              ] as const
-            ).map(([flag, text, label]) => (
-              <div key={flag} className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id={`h-${flag}`}
-                    checked={draft.health[flag]}
-                    onCheckedChange={(v) => setHealth({ [flag]: v === true, [text]: "" })}
-                  />
-                  <Label htmlFor={`h-${flag}`} className="font-normal">
-                    {label} Tick for yes.
-                  </Label>
-                </div>
-                {draft.health[flag] && (
-                  <Field
-                    id={`h-${text}`}
-                    label="Please give details"
+                  </div>
+                  <PField
+                    id="signature"
+                    label="Sign by entering your full name:"
                     required
-                    error={errors[`health.${text}`]}
+                    error={errors.signature}
                   >
-                    <Textarea
-                      id={`h-${text}`}
-                      rows={3}
-                      maxLength={MAX_HEALTH_DETAILS}
-                      aria-invalid={invalid(`health.${text}`)}
-                      value={draft.health[text]}
-                      onChange={(e) => setHealth({ [text]: e.target.value })}
-                    />
-                  </Field>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ------------------------------------------------ emergency contact */}
-        <section className="space-y-4">
-          <h2 className="text-base font-semibold">Emergency contact</h2>
-          <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
-            <Field id="e-name" label="Name" required error={errors["emergency.name"]}>
-              <Input
-                id="e-name"
-                maxLength={255}
-                aria-invalid={invalid("emergency.name")}
-                value={draft.emergency.name}
-                onChange={(e) => setEmergency({ name: e.target.value })}
-              />
-            </Field>
-            <Field
-              id="e-rel"
-              label="Relationship to child"
-              required
-              error={errors["emergency.relationship"]}
-            >
-              <Input
-                id="e-rel"
-                maxLength={100}
-                aria-invalid={invalid("emergency.relationship")}
-                value={draft.emergency.relationship}
-                onChange={(e) => setEmergency({ relationship: e.target.value })}
-              />
-            </Field>
-            <Field
-              id="e-phone"
-              label="Contact number"
-              required
-              error={errors["emergency.phone"]}
-              hint={PHONE_HINT}
-            >
-              {phoneInput("e-phone", "emergency.phone", draft.emergency.phone, (v) =>
-                setEmergency({ phone: v }),
-              )}
-            </Field>
-          </div>
-        </section>
-
-        {/* ------------------------------------------------ documents */}
-        <section className="space-y-4">
-          <h2 className="text-base font-semibold">Documents</h2>
-          <p className="text-sm text-muted-foreground">
-            PDF, JPG or PNG, 10 MB or less each. The proof of payment of the application fee is
-            required for every application
-            {docTypes.length > 1 ? ", and this grade also needs the documents below" : ""}.
-          </p>
-          {errors.documents && (
-            <p role="alert" className="text-sm text-destructive">
-              {errors.documents}
-            </p>
-          )}
-          {!sessionToken ? (
-            <div className="space-y-2 rounded-lg border p-4">
-              <p className="text-sm">Complete this security check to upload your documents.</p>
-              {verifyUnavailable ? (
-                <p className="text-sm text-destructive">
-                  The security check couldn't load. {APPLICATION_OFFICE_MESSAGE}
-                </p>
-              ) : (
-                <TurnstileWidget
-                  siteKey={SITE_KEY}
-                  action="upload"
-                  resetKey={uploadResetKey}
-                  onToken={(t) => void startUploads(t)}
-                  onUnavailable={() => setVerifyUnavailable(true)}
-                />
-              )}
-              {opening && <p className="text-sm text-muted-foreground">Preparing uploads…</p>}
-            </div>
-          ) : (
-            <div className="space-y-3 rounded-lg border p-4">
-              {docTypes.map((type) => {
-                const key = `documents.${type}`;
-                const done = uploads[type];
-                return (
-                  <Field
-                    key={type}
-                    id={`d-${type}`}
-                    label={PUBLIC_DOCUMENT_LABELS[type] ?? type}
-                    required
-                    error={errors[key]}
-                    hint={
-                      uploading === type
-                        ? "Uploading…"
-                        : done
-                          ? `Uploaded: ${done.fileName}. Choose another file to replace it.`
-                          : type === FEE_PROOF
-                            ? "A photo or scan of the slip, confirmation or receipt."
-                            : null
-                    }
-                  >
-                    <Input
-                      id={`d-${type}`}
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                      disabled={uploading !== null}
-                      aria-invalid={invalid(key)}
+                    <input
+                      id="signature"
+                      type="text"
+                      maxLength={255}
+                      aria-invalid={invalid("signature")}
+                      value={draft.signature}
                       onChange={(e) => {
-                        void chooseFile(type, e.target.files?.[0]);
-                        e.target.value = "";
+                        clearError("signature");
+                        setDraft((d) => ({ ...d, signature: e.target.value }));
                       }}
                     />
-                  </Field>
-                );
-              })}
+                  </PField>
+                  <div className="tcs-turnstile">
+                    {verifyUnavailable ? (
+                      <p className="tcs-field-error">
+                        The security check couldn't load. {APPLICATION_OFFICE_MESSAGE}
+                      </p>
+                    ) : (
+                      <TurnstileWidget
+                        siteKey={SITE_KEY}
+                        action="application"
+                        resetKey={resetKey}
+                        onToken={setToken}
+                        onUnavailable={() => setVerifyUnavailable(true)}
+                      />
+                    )}
+                  </div>
+                </>
+              )}
             </div>
-          )}
-        </section>
+          </fieldset>
 
-        {/* ------------------------------------------------ declaration */}
-        <section className="space-y-4">
-          <h2 className="text-base font-semibold">Declaration</h2>
-          <div className="space-y-4 rounded-lg border p-4">
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="agreed"
-                checked={draft.agreed}
-                aria-invalid={invalid("agreed")}
-                onCheckedChange={(v) => {
-                  clearError("agreed");
-                  setDraft((d) => ({ ...d, agreed: v === true }));
-                }}
-              />
-              <Label htmlFor="agreed" className="font-normal leading-snug">
-                I confirm that the information in this application is true and complete.
-              </Label>
-            </div>
-            {errors.agreed && <p className="text-xs text-destructive">{errors.agreed}</p>}
-            <Field
-              id="signature"
-              label="Your full name, as your signature"
-              required
-              error={errors.signature}
-            >
-              <Input
-                id="signature"
-                maxLength={255}
-                aria-invalid={invalid("signature")}
-                value={draft.signature}
-                onChange={(e) => {
-                  clearError("signature");
-                  setDraft((d) => ({ ...d, signature: e.target.value }));
-                }}
-              />
-            </Field>
+          <div className="tcs-step-nav">
+            {step > 0 && (
+              <button
+                key="back"
+                type="button"
+                className="tcs-nav-btn tcs-secondary"
+                onClick={() => goToStep(step - 1)}
+              >
+                {COPY.back}
+              </button>
+            )}
+            {step < LAST_STEP ? (
+              <button
+                key="next"
+                type="button"
+                className="tcs-nav-btn tcs-primary"
+                onClick={() => goToStep(step + 1)}
+              >
+                {COPY.next}
+              </button>
+            ) : (
+              <button
+                key="submit"
+                type="submit"
+                className="tcs-nav-btn tcs-primary"
+                disabled={busy || uploading !== null || verifyUnavailable}
+              >
+                {busy ? COPY.submitting : COPY.submit}
+              </button>
+            )}
           </div>
-        </section>
+        </form>
 
-        {/* ------------------------------------------------ submit */}
-        <section className="space-y-4">
-          {sessionToken && !verifyUnavailable && (
-            <TurnstileWidget
-              siteKey={SITE_KEY}
-              action="application"
-              resetKey={resetKey}
-              onToken={setToken}
-              onUnavailable={() => setVerifyUnavailable(true)}
-            />
-          )}
-          {formError && (
-            <p role="alert" className="text-sm text-destructive">
-              {formError}
-            </p>
-          )}
-          <Button type="submit" disabled={busy || uploading !== null || verifyUnavailable}>
-            {busy ? "Sending…" : "Submit application"}
-          </Button>
-        </section>
-      </form>
-    </div>
+        <nav ref={navRef} className="tcs-section-nav" aria-label="Application sections">
+          {STEPS.map((s, n) => (
+            <button
+              key={s.key}
+              type="button"
+              className={[
+                "tcs-section-nav-item",
+                n === step ? "tcs-active" : "",
+                complete[n] ? "tcs-complete" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              aria-current={n === step ? "step" : undefined}
+              onClick={() => goToStep(n)}
+            >
+              <span className="tcs-section-nav-dot" aria-hidden="true" />
+              {s.nav}
+              {complete[n] && <span className="sr-only"> (complete)</span>}
+            </button>
+          ))}
+        </nav>
+      </div>
+    </>
   );
 }

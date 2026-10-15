@@ -435,3 +435,93 @@ test("two database sessions submitting one upload session: the second waits, the
     "1",
   );
 });
+
+test("the full contract: every field the form can send is accepted and stored as sent", async () => {
+  const fixture = JSON.parse(
+    readFileSync(
+      "supabase/functions/admissions-public/fixtures/full-application-payload.json",
+      "utf8",
+    ),
+  );
+  const grade = (name: string) =>
+    psql(`select id from public.admissions_grades where name = '${name}'`);
+  const s = await session();
+  const documents = [];
+  for (const type of [
+    "application_fee_proof",
+    "proof_of_vaccination",
+    "financial_clearance",
+    "previous_report",
+  ]) {
+    documents.push(await upload(s, type, PDF));
+  }
+  const payload = {
+    ...fixture,
+    guardians: fixture.guardians.map(
+      (g: Record<string, string>, i: number) => ({
+        ...g,
+        email: email(`contract${i}`),
+      }),
+    ),
+    student: {
+      ...fixture.student,
+      full_name: child("Contract"),
+      grade_id: grade("Grade 3"),
+      current_grade_id: grade("Grade 2"),
+    },
+    campus_id: "00000000-0000-0000-0000-000000000001",
+    documents,
+  };
+  const r = await submit(s, payload);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const ref = String(r.body.reference);
+  assert.match(ref, /^APP-[0-9]{4}-[0-9]{4,}$/);
+
+  const row = (sql: string) => psql(sql);
+  const app = `(select id from public.applications where application_reference = '${ref}')`;
+  assert.equal(
+    row(
+      `select st.nationality || '|' || st.postal_code || '|' || st.country || '|' ||
+              st.previous_school_location || '|' || st.current_school || '|' || st.address || '|' || st.gender
+       from public.students st join public.applications a on a.student_id = st.id where a.id = ${app}`,
+    ),
+    "Saint Helena, Ascension and Tristan da Cunha|GT-123-4567|Ghana|12 School Lane, Accra|Contract Primary|7 Contract Road|male",
+  );
+  assert.equal(
+    row(
+      `select wants_scholarship_info || '|' || scholarship_interest_details || '|' || media_consent_agreed
+              || '|' || declaration_agreed || '|' || declaration_signature_name || '|' ||
+              (declaration_ip_address is null)
+       from public.applications where id = ${app}`,
+    ),
+    "true|Interested in the academic scholarship for the 2026/2027 year.|true|true|Parent Contract|true",
+  );
+  assert.equal(
+    row(
+      `select string_agg(document_type || ':' || status, ',' order by document_type)
+       from public.application_documents where application_id = ${app}`,
+    ),
+    "application_fee_proof:pending_review,financial_clearance:pending_review,previous_report:pending_review,proof_of_vaccination:pending_review",
+  );
+  assert.equal(
+    row(
+      `select has_medical_conditions || '|' || medical_conditions_details || '|' || has_learning_or_physical_needs
+       from public.application_health_info where application_id = ${app}`,
+    ),
+    "true|Mild asthma, inhaler in bag|false",
+  );
+  assert.equal(
+    row(
+      `select string_agg(g.phone, ',' order by g.phone) from public.guardians g
+       join public.students st on st.family_id = g.family_id
+       join public.applications a on a.student_id = st.id where a.id = ${app}`,
+    ),
+    "+233240000007,+442079460958",
+  );
+  assert.equal(
+    row(
+      `select name || '|' || relationship || '|' || phone from public.application_emergency_contacts where application_id = ${app}`,
+    ),
+    "Aunt Contract|Aunt|+233200000008",
+  );
+});

@@ -1,0 +1,62 @@
+{
+  "guardians": [
+    {
+      "surname": "Contract",
+      "first_name": "Parent",
+      "relationship": "mother",
+      "religion": "Christian",
+      "address": "7 Contract Road",
+      "town_city": "Tema",
+      "phone": "+233240000007",
+      "email": "contract.parent@example.com"
+    },
+    {
+      "surname": "Contract",
+      "first_name": "Second",
+      "relationship": "father",
+      "religion": "Prefer not to say",
+      "address": "7 Contract Road",
+      "town_city": "Tema",
+      "phone": "+442079460958",
+      "email": "contract.second@example.com"
+    }
+  ],
+  "student": {
+    "full_name": "Contract Child",
+    "date_of_birth": "2017-03-04",
+    "gender": "male",
+    "nationality": "Saint Helena, Ascension and Tristan da Cunha",
+    "address": "7 Contract Road",
+    "town_city": "Tema",
+    "postal_code": "GT-123-4567",
+    "country": "Ghana",
+    "grade_id": "GRADE_ID",
+    "academic_year": "2026/2027",
+    "month_of_enrollment": "September",
+    "current_grade_id": "CURRENT_GRADE_ID",
+    "current_school": "Contract Primary",
+    "previous_school_location": "12 School Lane, Accra"
+  },
+  "campus_id": "CAMPUS_ID",
+  "emergency_contact": {
+    "name": "Aunt Contract",
+    "relationship": "Aunt",
+    "phone": "+233200000008"
+  },
+  "health_info": {
+    "has_learning_or_physical_needs": false,
+    "learning_or_physical_needs_details": "",
+    "has_medical_conditions": true,
+    "medical_conditions_details": "Mild asthma, inhaler in bag",
+    "has_allergies_or_dietary_requirements": false,
+    "allergies_dietary_details": ""
+  },
+  "documents": [
+    { "document_type": "application_fee_proof", "reservation_id": "RESERVATION_ID", "path": "PATH" }
+  ],
+  "wants_scholarship_info": true,
+  "scholarship_interest_details": "Interested in the academic scholarship for the 2026/2027 year.",
+  "media_consent_agreed": true,
+  "declaration_signature_name": "Parent Contract",
+  "declaration_agreed": true
+}

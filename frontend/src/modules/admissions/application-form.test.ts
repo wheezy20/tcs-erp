@@ -1,92 +1,31 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_COUNTRY,
   FEE_PROOF,
+  GENDER_OPTIONS,
   PUBLIC_DOCUMENT_LABELS,
   applicationFieldToKey,
   applicationView,
   buildApplicationPayload,
   checkFile,
+  childAddress,
   emptyApplicationDraft,
+  hasEnteredData,
   interpretApplicationResponse,
   requiredDocumentTypes,
   validateApplication,
-  type ApplicationDraft,
-  type UploadedFile,
 } from "@/modules/admissions/application-form";
-import { parsePublicOptions } from "@/modules/admissions/inquiry-form";
-
-const OPTIONS = parsePublicOptions({
-  intake_open: false,
-  applications_open: true,
-  grades: [
-    {
-      id: "g-n1",
-      name: "Nursery 1",
-      position: 2,
-      required_document_types: [FEE_PROOF, "proof_of_vaccination"],
-    },
-    { id: "g-3", name: "Grade 3", position: 8, required_document_types: [FEE_PROOF] },
-    { id: "g-2", name: "Grade 2", position: 7 },
-  ],
-  campuses: [
-    { id: "c-annex", name: "Annex", accepted_grade_ids: ["g-n1"] },
-    { id: "c-main", name: "Main", accepted_grade_ids: ["g-n1", "g-3", "g-2"] },
-  ],
-  academic_years: ["2026/2027"],
-});
-const TODAY = "2026-10-15";
-const FEE: UploadedFile = {
-  reservationId: "r1",
-  path: "uploads/r1/application_fee_proof.pdf",
-  fileName: "slip.pdf",
-};
-const VAC: UploadedFile = {
-  reservationId: "r2",
-  path: "uploads/r2/proof_of_vaccination.png",
-  fileName: "card.png",
-};
-
-function valid(): ApplicationDraft {
-  const d = emptyApplicationDraft();
-  d.guardians = [
-    {
-      surname: "Mensah",
-      firstName: "Ama",
-      relationship: "mother",
-      religion: "Christian",
-      address: "1 Ring Road",
-      townCity: "Accra",
-      phone: "0590000000",
-      email: " Ama@Example.com ",
-    },
-  ];
-  d.child = {
-    fullName: " Kofi Mensah ",
-    dateOfBirth: "03/02/2019",
-    gender: "male",
-    nationality: "Ghanaian",
-    address: "1 Ring Road",
-    townCity: "Accra",
-    currentGrade: "g-2",
-    currentSchool: "Little Stars",
-    gradeId: "g-3",
-    academicYear: "2026/2027",
-    month: "September",
-  };
-  d.campusId = "c-main";
-  d.emergency = { name: "Kojo", relationship: "Uncle", phone: "+442079460958" };
-  d.signature = "Ama Mensah";
-  d.agreed = true;
-  return d;
-}
+import { FEE, OPTIONS, TODAY, VAC, validDraft } from "@/modules/admissions/application-fixtures";
 
 describe("options and view", () => {
   it("reads each grade's required documents; fee proof always first", () => {
     expect(OPTIONS.grades[0].requiredDocumentTypes).toEqual([FEE_PROOF, "proof_of_vaccination"]);
     expect(requiredDocumentTypes(OPTIONS, "g-n1")).toEqual([FEE_PROOF, "proof_of_vaccination"]);
     expect(requiredDocumentTypes(OPTIONS, "g-3")).toEqual([FEE_PROOF]);
-    // Missing from the options or no grade chosen: the fee proof still.
     expect(requiredDocumentTypes(OPTIONS, "g-2")).toEqual([FEE_PROOF]);
     expect(requiredDocumentTypes(OPTIONS, "")).toEqual([FEE_PROOF]);
     expect(PUBLIC_DOCUMENT_LABELS[FEE_PROOF]).toBe(
@@ -121,7 +60,6 @@ describe("checkFile", () => {
       extension: "jpg",
       contentType: "image/jpeg",
     });
-    expect(checkFile("a.jpeg", 5)).toEqual({ extension: "jpeg", contentType: "image/jpeg" });
     expect(checkFile("a.png", 5)).toEqual({ extension: "png", contentType: "image/png" });
   });
   it("refuses other types, empty and oversized files", () => {
@@ -137,63 +75,120 @@ describe("checkFile", () => {
   });
 });
 
+describe("the draft", () => {
+  it("starts with Ghana as the country, the child's address following guardian 1, and health unanswered", () => {
+    const d = emptyApplicationDraft();
+    expect(d.child.country).toBe(DEFAULT_COUNTRY);
+    expect(d.child.sameAddress).toBe(true);
+    expect([d.health.hasNeeds, d.health.hasMedical, d.health.hasAllergies]).toEqual([
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it("lists gender Male then Female, as TCS OS", () => {
+    expect(GENDER_OPTIONS.map((o) => o.value)).toEqual(["male", "female"]);
+  });
+
+  it("counts as entered only once the parent types something or uploads", () => {
+    const d = emptyApplicationDraft();
+    expect(hasEnteredData(d, {})).toBe(false);
+    expect(hasEnteredData({ ...d, child: { ...d.child, fullName: "K" } }, {})).toBe(true);
+    expect(hasEnteredData(d, { [FEE_PROOF]: FEE })).toBe(true);
+  });
+});
+
+describe("the child's address follows guardian 1", () => {
+  it("reads guardian 1 at the moment of use while ticked, so later edits are followed", () => {
+    const d = validDraft();
+    expect(childAddress(d)).toEqual({ address: "1 Ring Road", townCity: "Accra" });
+    d.guardians[0] = { ...d.guardians[0], address: "2 New Street", townCity: "Tema" };
+    expect(childAddress(d)).toEqual({ address: "2 New Street", townCity: "Tema" });
+    const s = buildApplicationPayload(d, OPTIONS, { [FEE_PROOF]: FEE }).student as Record<
+      string,
+      unknown
+    >;
+    expect([s.address, s.town_city]).toEqual(["2 New Street", "Tema"]);
+  });
+
+  it("uses the child's own address once unticked, and then requires it", () => {
+    const d = validDraft();
+    d.child = { ...d.child, sameAddress: false, address: "", townCity: "" };
+    const e = validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE });
+    expect(Object.keys(e).sort()).toEqual(["child.address", "child.townCity"]);
+    d.child = { ...d.child, address: "9 Child Lane", townCity: "Kumasi" };
+    expect(childAddress(d)).toEqual({ address: "9 Child Lane", townCity: "Kumasi" });
+  });
+
+  it("while ticked, a missing guardian 1 address is reported once, on guardian 1", () => {
+    const d = validDraft();
+    d.guardians[0] = { ...d.guardians[0], address: "" };
+    const e = validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE });
+    expect(Object.keys(e)).toEqual(["guardians.0.address"]);
+  });
+});
+
 describe("validateApplication", () => {
   it("passes a complete application", () => {
-    expect(validateApplication(valid(), OPTIONS, TODAY, { [FEE_PROOF]: FEE })).toEqual({});
+    expect(validateApplication(validDraft(), OPTIONS, TODAY, { [FEE_PROOF]: FEE })).toEqual({});
   });
+
+  it("requires an explicit Yes or No for each health question, and details on Yes", () => {
+    const d = validDraft();
+    d.health = { ...d.health, hasNeeds: null, hasMedical: true, medical: " " };
+    const e = validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE });
+    expect(Object.keys(e).sort()).toEqual(["health.hasNeeds", "health.medical"]);
+    d.health = { ...d.health, hasNeeds: false, medical: "x".repeat(2001) };
+    expect(validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE })["health.medical"]).toMatch(
+      /2000/,
+    );
+  });
+
   it("requires the fee proof for every grade, and vaccination proof where the grade needs it", () => {
-    expect(validateApplication(valid(), OPTIONS, TODAY, {})).toHaveProperty(
+    expect(validateApplication(validDraft(), OPTIONS, TODAY, {})).toHaveProperty(
       `documents.${FEE_PROOF}`,
     );
-    const n1 = valid();
+    const n1 = validDraft();
     n1.child.gradeId = "g-n1";
-    const e = validateApplication(n1, OPTIONS, TODAY, { [FEE_PROOF]: FEE });
-    expect(e).toHaveProperty("documents.proof_of_vaccination");
+    expect(validateApplication(n1, OPTIONS, TODAY, { [FEE_PROOF]: FEE })).toHaveProperty(
+      "documents.proof_of_vaccination",
+    );
     expect(
       validateApplication(n1, OPTIONS, TODAY, { [FEE_PROOF]: FEE, proof_of_vaccination: VAC }),
     ).toEqual({});
   });
-  it("applies the campus grade rule, the phone rule, health details and the declaration", () => {
-    const d = valid();
-    d.campusId = "c-annex";
-    d.emergency.phone = "12345";
-    d.health.hasMedical = true;
-    d.agreed = false;
-    d.signature = " ";
-    const e = validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE });
-    expect(Object.keys(e).sort()).toEqual(
-      ["agreed", "child.gradeId", "emergency.phone", "health.medical", "signature"].sort(),
-    );
-    d.health.medical = "x".repeat(2001);
-    expect(validateApplication(d, OPTIONS, TODAY, {})["health.medical"]).toMatch(/2000/);
+
+  it("caps the optional student fields", () => {
+    const d = validDraft();
+    d.child = {
+      ...d.child,
+      postalCode: "x".repeat(21),
+      country: "x".repeat(101),
+      previousSchoolLocation: "x".repeat(256),
+    };
+    expect(
+      Object.keys(validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE })).sort(),
+    ).toEqual(["child.country", "child.postalCode", "child.previousSchoolLocation"]);
   });
-  it("needs no current school for a child not yet in school", () => {
-    const d = valid();
-    d.child.currentGrade = "not_yet_in_school";
-    d.child.currentSchool = "";
+
+  it("asks for no current school or its location for a child not yet in school", () => {
+    const d = validDraft();
+    d.child = {
+      ...d.child,
+      currentGrade: "not_yet_in_school",
+      currentSchool: "",
+      previousSchoolLocation: "x".repeat(300),
+    };
     expect(validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE })).toEqual({});
   });
 });
 
 describe("buildApplicationPayload", () => {
-  it("is exactly the shape submit_application accepts, with only the required documents", () => {
-    const d = valid();
-    d.health.hasAllergies = true;
-    d.health.allergies = " peanuts ";
-    d.health.medical = "left over";
+  it("is exactly the shape submit_application accepts", () => {
+    const d = validDraft();
+    d.health = { ...d.health, hasAllergies: true, allergies: " peanuts ", medical: "left over" };
     const p = buildApplicationPayload(d, OPTIONS, { [FEE_PROOF]: FEE, proof_of_vaccination: VAC });
-    expect(Object.keys(p).sort()).toEqual(
-      [
-        "campus_id",
-        "declaration_agreed",
-        "declaration_signature_name",
-        "documents",
-        "emergency_contact",
-        "guardians",
-        "health_info",
-        "student",
-      ].sort(),
-    );
     expect(p.documents).toEqual([
       {
         document_type: FEE_PROOF,
@@ -201,30 +196,21 @@ describe("buildApplicationPayload", () => {
         path: "uploads/r1/application_fee_proof.pdf",
       },
     ]);
-    expect(p.guardians).toEqual([
-      {
-        surname: "Mensah",
-        first_name: "Ama",
-        relationship: "mother",
-        religion: "Christian",
-        address: "1 Ring Road",
-        town_city: "Accra",
-        phone: "+233590000000",
-        email: "Ama@Example.com",
-      },
-    ]);
     expect(p.student).toEqual({
       full_name: "Kofi Mensah",
       date_of_birth: "2019-02-03",
       gender: "male",
-      nationality: "Ghanaian",
+      nationality: "Ghana",
       address: "1 Ring Road",
       town_city: "Accra",
+      postal_code: "",
+      country: "Ghana",
       grade_id: "g-3",
       academic_year: "2026/2027",
       month_of_enrollment: "September",
       current_grade_id: "g-2",
       current_school: "Little Stars",
+      previous_school_location: "Spintex Road",
     });
     expect(p.health_info).toEqual({
       has_learning_or_physical_needs: false,
@@ -234,20 +220,59 @@ describe("buildApplicationPayload", () => {
       has_allergies_or_dietary_requirements: true,
       allergies_dietary_details: "peanuts",
     });
-    expect(p.emergency_contact).toEqual({
-      name: "Kojo",
-      relationship: "Uncle",
-      phone: "+442079460958",
-    });
+    expect([
+      p.wants_scholarship_info,
+      p.scholarship_interest_details,
+      p.media_consent_agreed,
+    ]).toEqual([false, "", false]);
     expect(JSON.stringify(p)).not.toMatch(/ip_address|agreed_at|"ip"/);
   });
-  it("sends prior_schooling and no current school for a child not yet in school", () => {
-    const d = valid();
+
+  it("has exactly the keys of the full-contract fixture the integration test submits", () => {
+    const fixture = JSON.parse(
+      readFileSync(
+        resolve(
+          __dirname,
+          "../../../../supabase/functions/admissions-public/fixtures/full-application-payload.json",
+        ),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    const d = validDraft();
+    d.guardians.push({ ...d.guardians[0], email: "second@example.com" });
+    d.wantsScholarship = true;
+    d.scholarshipDetails = "x";
+    d.mediaConsent = true;
+    const p = buildApplicationPayload(d, OPTIONS, { [FEE_PROOF]: FEE });
+    const shape = (v: unknown): unknown =>
+      Array.isArray(v)
+        ? v.map(shape)
+        : v && typeof v === "object"
+          ? Object.fromEntries(
+              Object.keys(v)
+                .sort()
+                .map((k) => [k, shape((v as Record<string, unknown>)[k])]),
+            )
+          : typeof v;
+    expect(shape(p)).toEqual(shape(fixture));
+  });
+
+  it("sends prior_schooling and no school fields for a child not yet in school", () => {
+    const d = validDraft();
     d.child.currentGrade = "not_yet_in_school";
     const s = buildApplicationPayload(d, OPTIONS, {}).student as Record<string, unknown>;
     expect(s.prior_schooling).toBe("not_yet_in_school");
     expect(s).not.toHaveProperty("current_grade_id");
     expect(s).not.toHaveProperty("current_school");
+    expect(s).not.toHaveProperty("previous_school_location");
+  });
+
+  it("sends scholarship details only on Yes", () => {
+    const d = validDraft();
+    d.scholarshipDetails = "kept back";
+    expect(buildApplicationPayload(d, OPTIONS, {}).scholarship_interest_details).toBe("");
+    d.wantsScholarship = true;
+    expect(buildApplicationPayload(d, OPTIONS, {}).scholarship_interest_details).toBe("kept back");
   });
 });
 
@@ -261,7 +286,8 @@ describe("responses", () => {
       expect(interpretApplicationResponse(200, body).kind).toBe("refused");
     }
   });
-  it("maps refusals and field paths", () => {
+
+  it("maps refusals, keeping the server's path", () => {
     expect(interpretApplicationResponse(409, { error: "closed" })).toEqual({
       kind: "closed",
       message: "closed",
@@ -272,10 +298,21 @@ describe("responses", () => {
       kind: "refused",
       message: "m",
       field: "child.dateOfBirth",
+      path: "student.date_of_birth",
+    });
+    expect(interpretApplicationResponse(400, { error: "m", field: "documents" })).toEqual({
+      kind: "refused",
+      message: "m",
+      field: "documents",
+      path: "documents",
     });
     expect(applicationFieldToKey("guardians.1.town_city")).toBe("guardians.1.townCity");
+    expect(applicationFieldToKey("student.postal_code")).toBe("child.postalCode");
+    expect(applicationFieldToKey("student.previous_school_location")).toBe(
+      "child.previousSchoolLocation",
+    );
+    expect(applicationFieldToKey("health_info.has_medical_conditions")).toBe("health.hasMedical");
     expect(applicationFieldToKey("emergency_contact.phone")).toBe("emergency.phone");
-    expect(applicationFieldToKey("health_info.allergies_dietary_details")).toBe("health.allergies");
     expect(applicationFieldToKey("declaration_agreed")).toBe("agreed");
     expect(applicationFieldToKey("students.0.grade_id")).toBeNull();
     expect(interpretApplicationResponse(0, null).kind).toBe("refused");

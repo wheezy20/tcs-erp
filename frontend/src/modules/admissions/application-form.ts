@@ -43,8 +43,8 @@ export const PUBLIC_DOCUMENT_LABELS: Record<string, string> = {
 };
 
 export const GENDER_OPTIONS = [
-  { value: "female", label: "Female" },
   { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
 ] as const;
 
 // ---------------------------------------------------------------- options
@@ -118,6 +118,9 @@ export type UploadedFile = { reservationId: string; path: string; fileName: stri
 
 // ---------------------------------------------------------------- draft
 
+/** A Yes/No answer with no default: null until the parent picks one. */
+export type YesNo = boolean | null;
+
 export type ApplicationDraft = {
   guardians: GuardianDraft[];
   secondSameAddress: boolean;
@@ -126,10 +129,17 @@ export type ApplicationDraft = {
     dateOfBirth: string; // dd/mm/yyyy as typed
     gender: string;
     nationality: string;
+    /** "Same address as Parent/Guardian 1", ticked by default (TCS OS):
+     * the child's address and town follow guardian 1 when sent. */
+    sameAddress: boolean;
     address: string;
     townCity: string;
+    postalCode: string;
+    country: string;
     currentGrade: string; // a grade id, NOT_YET_IN_SCHOOL, or ""
     currentSchool: string;
+    /** "Location/address of that school": only for a child in school. */
+    previousSchoolLocation: string;
     gradeId: string;
     academicYear: string;
     month: string;
@@ -137,16 +147,22 @@ export type ApplicationDraft = {
   campusId: string;
   emergency: { name: string; relationship: string; phone: string };
   health: {
-    hasNeeds: boolean;
+    hasNeeds: YesNo;
     needs: string;
-    hasMedical: boolean;
+    hasMedical: YesNo;
     medical: string;
-    hasAllergies: boolean;
+    hasAllergies: YesNo;
     allergies: string;
   };
+  /** No inputs until slice 9b C3; sent with these defaults until then. */
+  wantsScholarship: boolean;
+  scholarshipDetails: string;
+  mediaConsent: boolean;
   signature: string;
   agreed: boolean;
 };
+
+export const DEFAULT_COUNTRY = "Ghana";
 
 export function emptyApplicationDraft(): ApplicationDraft {
   return {
@@ -157,10 +173,14 @@ export function emptyApplicationDraft(): ApplicationDraft {
       dateOfBirth: "",
       gender: "",
       nationality: "",
+      sameAddress: true,
       address: "",
       townCity: "",
+      postalCode: "",
+      country: DEFAULT_COUNTRY,
       currentGrade: "",
       currentSchool: "",
+      previousSchoolLocation: "",
       gradeId: "",
       academicYear: "",
       month: "",
@@ -168,13 +188,16 @@ export function emptyApplicationDraft(): ApplicationDraft {
     campusId: "",
     emergency: { name: "", relationship: "", phone: "" },
     health: {
-      hasNeeds: false,
+      hasNeeds: null,
       needs: "",
-      hasMedical: false,
+      hasMedical: null,
       medical: "",
-      hasAllergies: false,
+      hasAllergies: null,
       allergies: "",
     },
+    wantsScholarship: false,
+    scholarshipDetails: "",
+    mediaConsent: false,
     signature: "",
     agreed: false,
   };
@@ -188,11 +211,33 @@ function guardiansToSend(draft: ApplicationDraft): GuardianDraft[] {
   );
 }
 
+/** The child's address and town as they will be sent: guardian 1's while
+ * "Same address as Parent/Guardian 1" is ticked, read at the moment of
+ * use, so a later change to guardian 1 is followed. */
+export function childAddress(draft: ApplicationDraft): { address: string; townCity: string } {
+  return draft.child.sameAddress
+    ? { address: draft.guardians[0]?.address ?? "", townCity: draft.guardians[0]?.townCity ?? "" }
+    : { address: draft.child.address, townCity: draft.child.townCity };
+}
+
+/** Whether the parent has entered anything yet: the leave-this-page
+ * warning shows only then. The prefilled country and the ticked address
+ * box don't count. */
+export function hasEnteredData(
+  draft: ApplicationDraft,
+  uploads: Record<string, UploadedFile | undefined>,
+): boolean {
+  if (Object.values(uploads).some(Boolean)) return true;
+  const empty = emptyApplicationDraft();
+  return JSON.stringify(draft) !== JSON.stringify(empty);
+}
+
 // ---------------------------------------------------------------- validation
 
 /** Field keys: "guardians.0.phone", "child.gradeId", "campusId",
- * "emergency.phone", "health.medical", "documents.application_fee_proof",
- * "signature", "agreed". */
+ * "emergency.phone", "health.hasMedical", "health.medical",
+ * "documents.application_fee_proof", "signature", "agreed". Every key
+ * belongs to exactly one step (application-steps.ts). */
 export function validateApplication(
   draft: ApplicationDraft,
   options: PublicOptions,
@@ -204,6 +249,9 @@ export function validateApplication(
     const v = value.trim();
     if (v === "") errors[key] = `${label} is required`;
     else if (v.length > max) errors[key] = `${label} must be ${max} characters or fewer`;
+  };
+  const optional = (key: string, value: string, label: string, max: number) => {
+    if (value.trim().length > max) errors[key] = `${label} must be ${max} characters or fewer`;
   };
 
   guardiansToSend(draft).forEach((g, i) => {
@@ -234,13 +282,20 @@ export function validateApplication(
   }
   if (!GENDER_OPTIONS.some((o) => o.value === c.gender)) errors["child.gender"] = "Choose one";
   required("child.nationality", c.nationality, "Nationality", 100);
-  required("child.address", c.address, "Address");
-  required("child.townCity", c.townCity, "Town or city");
+  // With the box ticked, guardian 1's address is used: a gap there shows
+  // on guardian 1 (step 1), not twice.
+  if (!c.sameAddress) {
+    required("child.address", c.address, "Address");
+    required("child.townCity", c.townCity, "Town or city");
+  }
+  optional("child.postalCode", c.postalCode, "Postal code", 20);
+  optional("child.country", c.country, "Country", 100);
   if (!currentGradeChoices(options).some((o) => o.value === c.currentGrade)) {
     errors["child.currentGrade"] = "Choose the current grade or class";
   }
   if (c.currentGrade !== NOT_YET_IN_SCHOOL) {
     required("child.currentSchool", c.currentSchool, "Current school");
+    optional("child.previousSchoolLocation", c.previousSchoolLocation, "Location", 255);
   }
   if (!options.campuses.some((x) => x.id === draft.campusId)) {
     errors.campusId = "Choose a campus";
@@ -255,23 +310,28 @@ export function validateApplication(
     errors["child.month"] = "Choose a month of enrolment";
   }
 
-  required("emergency.name", draft.emergency.name, "Name");
+  required("emergency.name", draft.emergency.name, "Full name");
   required("emergency.relationship", draft.emergency.relationship, "Relationship", 100);
   const ecPhone = phoneError(draft.emergency.phone);
   if (ecPhone) errors["emergency.phone"] = ecPhone;
 
+  // Health: each question needs an explicit Yes or No (no default), and a
+  // Yes needs details.
   const h = draft.health;
-  const details = (key: string, on: boolean, value: string) => {
-    if (on) required(key, value, "Details", MAX_HEALTH_DETAILS);
+  const answer = (flagKey: string, flag: YesNo, detailKey: string, value: string) => {
+    if (flag === null) errors[flagKey] = "Choose Yes or No";
+    else if (flag) required(detailKey, value, "Details", MAX_HEALTH_DETAILS);
   };
-  details("health.needs", h.hasNeeds, h.needs);
-  details("health.medical", h.hasMedical, h.medical);
-  details("health.allergies", h.hasAllergies, h.allergies);
+  answer("health.hasNeeds", h.hasNeeds, "health.needs", h.needs);
+  answer("health.hasMedical", h.hasMedical, "health.medical", h.medical);
+  answer("health.hasAllergies", h.hasAllergies, "health.allergies", h.allergies);
 
   for (const type of requiredDocumentTypes(options, c.gradeId)) {
     if (!uploads[type]) errors[`documents.${type}`] = "Upload this document";
   }
 
+  if (draft.wantsScholarship)
+    optional("scholarshipDetails", draft.scholarshipDetails, "Details", 10000);
   required("signature", draft.signature, "Your full name");
   if (!draft.agreed) errors.agreed = "You must agree to the declaration";
   return errors;
@@ -280,7 +340,9 @@ export function validateApplication(
 // ---------------------------------------------------------------- payload
 
 /** The exact shape submit_application accepts. Only the documents this
- * grade requires are sent; health details only when the answer is yes; the
+ * grade requires are sent (C3 adds the optional slots); health details
+ * only when the answer is yes; the child's address follows guardian 1 when
+ * ticked; the previous school location only for a child in school; the
  * date of birth as yyyy-mm-dd. No IP, no time, no age. */
 export function buildApplicationPayload(
   draft: ApplicationDraft,
@@ -288,22 +350,27 @@ export function buildApplicationPayload(
   uploads: Record<string, UploadedFile | undefined>,
 ): Record<string, unknown> {
   const c = draft.child;
+  const where = childAddress(draft);
+  const inSchool = c.currentGrade !== NOT_YET_IN_SCHOOL;
   const student: Record<string, unknown> = {
     full_name: c.fullName.trim(),
     date_of_birth: parseDmy(c.dateOfBirth) ?? "",
     gender: c.gender,
     nationality: c.nationality.trim(),
-    address: c.address.trim(),
-    town_city: c.townCity.trim(),
+    address: where.address.trim(),
+    town_city: where.townCity.trim(),
+    postal_code: c.postalCode.trim(),
+    country: c.country.trim(),
     grade_id: c.gradeId,
     academic_year: c.academicYear,
     month_of_enrollment: c.month,
   };
-  if (c.currentGrade === NOT_YET_IN_SCHOOL) {
-    student.prior_schooling = NOT_YET_IN_SCHOOL;
-  } else {
+  if (inSchool) {
     student.current_grade_id = c.currentGrade;
     student.current_school = c.currentSchool.trim();
+    student.previous_school_location = c.previousSchoolLocation.trim();
+  } else {
+    student.prior_schooling = NOT_YET_IN_SCHOOL;
   }
   const h = draft.health;
   const documents = requiredDocumentTypes(options, c.gradeId).flatMap((type) => {
@@ -329,14 +396,17 @@ export function buildApplicationPayload(
       phone: storedPhone(draft.emergency.phone),
     },
     health_info: {
-      has_learning_or_physical_needs: h.hasNeeds,
-      learning_or_physical_needs_details: h.hasNeeds ? h.needs.trim() : "",
-      has_medical_conditions: h.hasMedical,
-      medical_conditions_details: h.hasMedical ? h.medical.trim() : "",
-      has_allergies_or_dietary_requirements: h.hasAllergies,
-      allergies_dietary_details: h.hasAllergies ? h.allergies.trim() : "",
+      has_learning_or_physical_needs: h.hasNeeds === true,
+      learning_or_physical_needs_details: h.hasNeeds === true ? h.needs.trim() : "",
+      has_medical_conditions: h.hasMedical === true,
+      medical_conditions_details: h.hasMedical === true ? h.medical.trim() : "",
+      has_allergies_or_dietary_requirements: h.hasAllergies === true,
+      allergies_dietary_details: h.hasAllergies === true ? h.allergies.trim() : "",
     },
     documents,
+    wants_scholarship_info: draft.wantsScholarship,
+    scholarship_interest_details: draft.wantsScholarship ? draft.scholarshipDetails.trim() : "",
+    media_consent_agreed: draft.mediaConsent,
     declaration_signature_name: draft.signature.trim(),
     declaration_agreed: draft.agreed,
   };
@@ -347,12 +417,14 @@ export function buildApplicationPayload(
 export type ApplicationOutcome =
   | { kind: "created"; reference: string }
   | { kind: "closed"; message: string }
-  | { kind: "refused"; message: string; field?: string };
+  | { kind: "refused"; message: string; field?: string; path?: string };
 
 const CHILD_KEYS: Record<string, string> = {
   full_name: "fullName",
   date_of_birth: "dateOfBirth",
   town_city: "townCity",
+  postal_code: "postalCode",
+  previous_school_location: "previousSchoolLocation",
   current_school: "currentSchool",
   current_grade_id: "currentGrade",
   prior_schooling: "currentGrade",
@@ -362,6 +434,9 @@ const CHILD_KEYS: Record<string, string> = {
 };
 const GUARDIAN_KEYS: Record<string, string> = { first_name: "firstName", town_city: "townCity" };
 const HEALTH_KEYS: Record<string, string> = {
+  has_learning_or_physical_needs: "hasNeeds",
+  has_medical_conditions: "hasMedical",
+  has_allergies_or_dietary_requirements: "hasAllergies",
   learning_or_physical_needs_details: "needs",
   medical_conditions_details: "medical",
   allergies_dietary_details: "allergies",
@@ -382,6 +457,7 @@ export function applicationFieldToKey(path: string | undefined): string | null {
   if (path === "campus_id") return "campusId";
   if (path === "declaration_signature_name") return "signature";
   if (path === "declaration_agreed") return "agreed";
+  if (path === "scholarship_interest_details") return "scholarshipDetails";
   if (path === "documents") return "documents";
   return null;
 }
@@ -407,9 +483,14 @@ export function interpretApplicationResponse(status: number, body: unknown): App
   }
   if (status === 409) return { kind: "closed", message };
   if (status === 400) {
-    const field =
-      isRecord(body) && typeof body.field === "string" ? applicationFieldToKey(body.field) : null;
-    return field ? { kind: "refused", message, field } : { kind: "refused", message };
+    const path = isRecord(body) && typeof body.field === "string" ? body.field : undefined;
+    const field = applicationFieldToKey(path);
+    return {
+      kind: "refused",
+      message,
+      ...(field ? { field } : {}),
+      ...(path !== undefined ? { path } : {}),
+    };
   }
   if (status === 429 || status === 503 || status === 500) return { kind: "refused", message };
   return { kind: "refused", message: APPLICATION_OFFICE_MESSAGE };

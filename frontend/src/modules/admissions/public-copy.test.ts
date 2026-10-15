@@ -40,6 +40,9 @@ describe("public form copy", () => {
   it("the public page sources and stylesheet carry no em or en dashes either", () => {
     for (const file of [
       "components/inquiry-page.tsx",
+      "components/application-page.tsx",
+      "application-steps.ts",
+      "application-form.ts",
       "components/public-page-parts.tsx",
       "public-form.css",
       "public-copy.ts",

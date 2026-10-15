@@ -134,6 +134,11 @@ body.tcs-public-body {
   margin-bottom: 1.1rem;
 }
 
+/* The step heading takes focus on a step change; no ring for that. */
+.tcs-public legend:focus {
+  outline: none;
+}
+
 .tcs-public legend .tcs-section-number {
   color: var(--tcs-primary);
   margin-right: 0.4rem;
@@ -212,7 +217,7 @@ body.tcs-public-body {
   margin-bottom: 0.35rem;
 }
 
-.tcs-public label .tcs-required {
+.tcs-public .tcs-required {
   color: var(--tcs-error);
 }
 
@@ -401,6 +406,228 @@ body.tcs-public-body {
   font-weight: 600;
   color: var(--tcs-text);
   margin: 0.25rem 0 0;
+}
+
+/* ---------------------------------------------------- the step layout
+   (/apply; TCS OS apply.html: form and section nav side by side, the nav a
+   sticky 210px column on the right; at 860px and below a scrolling strip
+   above the form). */
+.tcs-public .tcs-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.tcs-public .tcs-layout > form {
+  flex: 1;
+  min-width: 0;
+}
+
+.tcs-public .tcs-section-nav {
+  flex: 0 0 210px;
+  position: sticky;
+  top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tcs-public .tcs-section-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: left;
+  color: var(--tcs-text);
+  background: var(--tcs-card-bg);
+  border: 1px solid var(--tcs-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tcs-public .tcs-section-nav-item:hover {
+  border-color: var(--tcs-primary);
+}
+
+.tcs-public .tcs-section-nav-item.tcs-active {
+  border-color: var(--tcs-primary);
+  background: var(--tcs-bg);
+}
+
+.tcs-public .tcs-section-nav-item:focus-visible {
+  outline: 2px solid var(--tcs-primary);
+  outline-offset: 2px;
+}
+
+.tcs-public .tcs-section-nav-dot {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--tcs-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  line-height: 1;
+  color: transparent;
+}
+
+.tcs-public .tcs-section-nav-item.tcs-complete .tcs-section-nav-dot {
+  border-color: var(--tcs-accent);
+  background: var(--tcs-accent);
+  color: #fff;
+}
+
+.tcs-public .tcs-section-nav-item.tcs-complete .tcs-section-nav-dot::after {
+  content: "\2713";
+}
+
+@media (max-width: 860px) {
+  .tcs-public .tcs-layout {
+    flex-direction: column;
+  }
+
+  .tcs-public .tcs-section-nav {
+    order: -1;
+    position: static;
+    flex: 0 0 auto;
+    flex-direction: row;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tcs-public .tcs-section-nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+  }
+}
+
+.tcs-public .tcs-section-hint {
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tcs-public .tcs-step-nav {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+}
+
+.tcs-public .tcs-nav-btn {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+}
+
+.tcs-public .tcs-nav-btn.tcs-primary {
+  color: #fff;
+  background: var(--tcs-primary);
+}
+
+.tcs-public .tcs-nav-btn.tcs-primary:hover:not(:disabled) {
+  background: var(--tcs-primary-hover);
+}
+
+.tcs-public .tcs-nav-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tcs-public .tcs-nav-btn.tcs-secondary {
+  background: #fff;
+  border: 1px solid var(--tcs-border);
+  color: var(--tcs-text);
+  flex: 0 0 auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.tcs-public .tcs-message ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.tcs-public .tcs-message p {
+  margin: 0;
+}
+
+/* Yes/No questions (health) */
+.tcs-public .tcs-radio-group {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.tcs-public .tcs-radio-option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 400;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.tcs-public input[type="radio"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--tcs-primary);
+}
+
+.tcs-public .tcs-radio-group + textarea {
+  margin-top: 0.75rem;
+}
+
+.tcs-public .tcs-question {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 0.35rem;
+}
+
+.tcs-public .tcs-checkbox-field.tcs-standalone {
+  margin-top: 0;
+  align-items: flex-start;
+}
+
+.tcs-public .tcs-checkbox-field.tcs-standalone input[type="checkbox"] {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.tcs-public .tcs-checkbox-field.tcs-standalone label {
+  align-items: flex-start;
+  font-weight: 400;
+}
+
+/* Document slots */
+.tcs-public .tcs-document-field {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--tcs-border);
+  border-radius: 6px;
+}
+
+.tcs-public .tcs-upload-status {
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--tcs-text-muted);
+}
+
+.tcs-public .tcs-upload-status.tcs-done {
+  color: var(--tcs-success);
 }
 
 /* Last in the file so it wins over the base input rule above: iOS zooms
