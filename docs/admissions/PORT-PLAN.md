@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551 (reported by Eyram, 2026-10-15; no deploy of C2 has been reported). Slice 9b checkpoint C3 (`/apply` content) is built locally on 2026-10-15, uncommitted, not deployed. C4 has not started. The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is written locally on 2026-10-15, docs only, uncommitted. The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -38,11 +38,11 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 6b | Offers, enrolment gate, student IDs (staff side) | committed (6c1f014) and applied on hosted | 6a |
 | 7a | Staff pipeline UI: list, detail, notes, documents, health panel | applied on hosted, frontend deployed (2026-10-12) | 6b |
 | 7b1 | Detail page actions: decision, offer, enrolment, grade correction | committed (f04a336) | 7a |
-| 7b2 | Admin screens: academic years, capacity, offer expiry, campus rules | committed (bed38c9), migrations applied on hosted (reported 2026-10-14); frontend deploy not confirmed | 7b1 |
-| 7c | Read-only Audit Log (`/audit-log`) and Accountant audit narrowing | committed (7a07d6a), migrations applied on hosted (reported 2026-10-14); frontend deploy not confirmed | 7b2 |
+| 7b2 | Admin screens: academic years, capacity, offer expiry, campus rules | committed (bed38c9), migrations applied on hosted (reported 2026-10-14); frontend live and checked (reported by Eyram, 2026-10-14) | 7b1 |
+| 7c | Read-only Audit Log (`/audit-log`) and Accountant audit narrowing | committed (7a07d6a), migrations applied on hosted (reported 2026-10-14); frontend live and checked (reported by Eyram, 2026-10-14) | 7b2 |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | committed (c71b363, 6842848), migrations applied on hosted (reported by Eyram, 2026-10-14) | 7b |
 | 8b | Public enquiry form polish and two intake switches | committed (32eae11, c3943d8, 7d80735), migrations applied on hosted (reported by Eyram, 2026-10-14) | 8 |
-| 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) committed as c822b56; migration `20261024100000` applied on hosted and `admissions-public` deployed on hosted at version 3 (reported by Eyram, 2026-10-15). 9a checkpoint 2 committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). 9b checkpoint C1 (look foundation and `/inquiry`) committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15); 9b checkpoint C2 (`/apply` six-step layout) committed as 8393551 (reported by Eyram, 2026-10-15; no deploy of C2 has been reported); 9b checkpoint C3 (`/apply` content) built locally 2026-10-15, uncommitted, not deployed; C4 not started (decided 2026-10-15; split into 9a and 9b on 2026-10-13) | 8 |
+| 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) committed as c822b56; migration `20261024100000` applied on hosted and `admissions-public` deployed on hosted at version 3 (reported by Eyram, 2026-10-15). 9a checkpoint 2 committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). 9b checkpoint C1 (look foundation and `/inquiry`) committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15); 9b checkpoint C2 (`/apply` six-step layout) committed as 8393551; 9b checkpoint C3 (`/apply` content) committed as 14582d0, deployed with C2 and checked on hosted by Eyram (reported by Eyram, 2026-10-15); C4 close-out written locally 2026-10-15, docs only, uncommitted (decided 2026-10-15; split into 9a and 9b on 2026-10-13) | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
 | 11 | Public offer response page | not started | 8, 6b |
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | not started | 8 (and 6, 9, 10 for the emails it sends) |
@@ -57,10 +57,12 @@ Slice 0 is independent of admissions and can run first or in parallel.
 Every gate here must be closed before the step it names. Each one is also listed in its slice below.
 
 - **Published privacy policy (decided 2026-10-15, slice 9b).** A privacy policy must be published before real admissions intake opens, and before admissions.tcsch.edu.gh moves to the ERP (slice 15). The policy is being written (reported by Eyram, 2026-10-15). When it exists, add one link in one place: the declaration copy constant. Until then the declaration is ported exactly as TCS OS has it, with no link. Also a CONSTRAINTS.md checklist item.
-- **"ZZ Test Do Not Process" cleanup (slice 8b).** One test inquiry on hosted must be removed by a small reviewed migration before real intake begins.
-- **Live-test application cleanup (slice 9a, rollout step 4).** Any application created by the D-9k live test must be cleaned up before real intake.
-- **Test enquiry from the 9b C1 rollout (reported by Eyram, 2026-10-15).** Eyram submitted one test enquiry on hosted while checking C1. It must be cleaned up before real intake, together with the "ZZ Test Do Not Process" record and the slice 9a live-test application.
-- **Test application from the 9b C3 hosted check (planned, not yet run; decided 2026-10-15).** If Eyram runs the C3 hosted check after the deploy, the test application it creates (child named "ZZ Test Do Not Process") joins this cleanup list and must be removed before real intake. Nothing is listed until the check has been run.
+- **Go-live test data cleanup.** Every test record on hosted must be removed before real intake opens. The plan is in "Go-live test data cleanup plan" below (written 2026-10-15, plan only, nothing run). The records known so far:
+  - **"ZZ Test Do Not Process" (slice 8b).** One test inquiry on hosted.
+  - **Live-test application (slice 9a, rollout step 4).** The application created by the D-9k live test. The test was done and checked out (reported by Eyram, 2026-10-15).
+  - **Test enquiry from the 9b C1 rollout (reported by Eyram, 2026-10-15).** One test enquiry submitted while checking C1.
+  - **Test applications from the 9b C3 hosted check (reported by Eyram, 2026-10-15).** The check included a second submission that produced the match panel (family matched by guardian email, child matched by name and date of birth, differences listed, record unchanged), so it made at least two applications, with their documents and files. The second was a new application for a family already on record, not an inquiry advancing.
+- **Stored declaration version (backlog, decided before go-live).** Q16 left declaration text versioning out of 9b. Before real intake, decide whether each application stores which declaration text the parent agreed to (for example a version key next to `declaration_agreed_at`), since the privacy policy link will change that text. See "Backlog from slice 9".
 - **Confirmation email or written acceptance (slice 15).** admissions.tcsch.edu.gh does not move to the ERP until a confirmation email exists (slice 12) or Eyram accepts the gap in writing (gate of 2026-10-14).
 
 ## Decisions recorded
@@ -1239,7 +1241,7 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 
 ### Slice 9b: the full six-section form, in the TCS OS look
 
-**Status:** C1 committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). C2 committed as 8393551 (reported by Eyram, 2026-10-15; no deploy of C2 has been reported). C3 built 2026-10-15 (local, uncommitted, not deployed). C4 not started.
+**Status:** C1 committed as dffe810, deployed to hosted and checked by Eyram. C2 committed as 8393551. C3 committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (all reported by Eyram, 2026-10-15). C4 (close-out) written 2026-10-15, docs only, local and uncommitted.
 
 **Goal:** `/inquiry` and `/apply` look and read like the TCS OS forms. Frontend only: no migration, no RPC, Edge Function, RLS or grant change. The anon-executable count stays at 170. The payload contract is final: TCS OS stores one combined declaration acceptance, a separate media consent, the signature and server time (the same four columns as the ERP), and every TCS OS application field is already accepted by `submit_application`.
 
@@ -1274,8 +1276,8 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 
 - **C1, look foundation and `/inquiry`.** Committed as dffe810 and deployed (reported by Eyram, 2026-10-15), see below.
 - **C2, `/apply` structure.** Six steps, a sidebar, free navigation, the new plain fields, health as Yes/No, and a warning when leaving the page. Committed as 8393551 (reported by Eyram, 2026-10-15), see below.
-- **C3, `/apply` content.** Nationality combobox, four document slots, the fee box, the scholarship question and link, the declaration and media consent, and the thank-you page. Built locally 2026-10-15, uncommitted, not deployed, see below.
-- **C4, close-out.**
+- **C3, `/apply` content.** Nationality combobox, four document slots, the fee box, the scholarship question and link, the declaration and media consent, and the thank-you page. Committed as 14582d0, deployed and checked on hosted (reported by Eyram, 2026-10-15), see below.
+- **C4, close-out.** The side by side checklist, the contract test, the slice 9 docs reconciliation and the go-live cleanup plan. Written 2026-10-15, see below.
 
 **Go-live gate (decided 2026-10-15):** a published privacy policy must exist before real intake and before admissions.tcsch.edu.gh moves to the ERP. The declaration then gets one link, in the declaration copy constant. See "Go-live gates still open".
 
@@ -1316,7 +1318,7 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 - **Code review.** One BLOCKING finding, fixed in fix round 1: Next on step 5 could submit the form, because Next and Submit shared one unkeyed button slot and React changed its type during the click. They are now separate keyed buttons, and submit runs only on step 6 (checked in a browser: Next on Documents lands on Declaration with no message). Also fixed: separate failure flags for the two security checks, focus to the step heading, and errors cleared when guardian 2 is removed. Re-review: the fixes are OK and nothing new is blocking.
 - **Deploy for C2.** None. Q18 is deploy after C1 and after C3, so C2 goes out with C3. If Eyram wants to see C2 on hosted before then, `frontend/scripts/deploy-production.sh` (Eyram runs it).
 
-**C3 built 2026-10-15 (local, uncommitted, not deployed):** `/apply` content. Frontend only. No migration, RPC, Edge Function, RLS or grant change, the payload contract is unchanged, and `submit_application` is not changed. The anon-executable count stays at 170.
+**C3 built 2026-10-15, committed as 14582d0 (deployed and checked on hosted, reported by Eyram, 2026-10-15; see "C3 rollout" below):** `/apply` content. Frontend only. No migration, RPC, Edge Function, RLS or grant change, the payload contract is unchanged, and `submit_application` is not changed. The anon-executable count stays at 170.
 
 - **Nationality (Q4 to Q6).** New `frontend/src/modules/admissions/nationalities.ts` holds the 241 TCS OS country names, checked against TCS OS by diff, with Ghana first and the rest in `Intl.Collator("en")` order. The stored value is the country name, so the staff pipeline reads one spelling. Search-only aliases (Ghanaian, UK, USA, Ivory Coast, Turkey and about 50 more) each point at a listed country, and they never appear as values. Matching ignores accents and punctuation, reads a hyphen as a space, and puts prefix matches first. The combobox is the WAI-ARIA pattern with an in-page list (no portal) in `components/nationality-combobox.tsx`: Enter or ArrowDown opens the list, the arrows move, Enter picks and never submits, Escape closes and keeps focus, Tab moves on, and tapping works. A typed name in any case becomes the listed name on leaving the field. An unlisted value is refused in the form with "Choose a country from the list" and the hint "Not listed? Please contact the school.". `submit_application` still accepts any text up to 100 characters, so this refusal is in the form only.
 - **Documents, in TCS OS order (Q12, Q13).** Proof of vaccination is always shown. It is starred, and required, when the grade's `required_document_types` asks for it, with the hint "Required when applying for a preschool grade.". Then proof of financial clearance from the previous school (optional), report card or transcript from the previous school (optional), then the fee box and the fee proof slot "Proof of application fee payment (bank deposit slip, GIP confirmation or mobile money receipt)", which is compulsory for every grade. The upload security check sits at the top of the step, and the file inputs wait for it. Each file shows uploading, uploaded or failed. A failed replacement keeps the earlier file, still sends it, and says so. The browser checks the extension and the 10 MB limit, and the server stays the authority. Once 8 files have been started in one visit, the form says "reload and choose your files again" (D-9g). Every slot with an upload is sent, in slot order, and an optional slot is sent only when a file is attached.
@@ -1335,7 +1337,83 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 - **Deploy for C3 (Eyram runs it; decision Q18).** `frontend/scripts/deploy-production.sh`. No `supabase db push` and no `supabase functions deploy`. This deploy also carries C2 (8393551), which has not been reported on hosted.
 - **Hosted check after the deploy (planned, not run here).** `/inquiry` unchanged. `/apply` with Public applications open: one full end-to-end submission with fake data (child named "ZZ Test Do Not Process"), covering all six steps, the combobox, the documents, the fee box, the scholarship link, the declaration, media consent and the thank-you with the APP reference. Then the staff Submission check panel and the downloads for that application. Then close the switch. The resulting test application joins the go-live cleanup list (see "Go-live gates still open").
 
-**Still open after C3:** C4 (close-out); the privacy policy go-live gate; the test application from the C3 hosted check, if that check is run; the go-live cleanup items (the "ZZ Test Do Not Process" record, the slice 9a live-test application and the C1 rollout test enquiry); the slice 9a accepted risks (a) to (c); checkpoint 1 open items (b) to (e).
+**C3 rollout (reported by Eyram, 2026-10-15):** C3 is committed as 14582d0 and deployed to hosted. The deploy carried C2 (8393551) as well. Eyram checked it on hosted, including a second submission that produced the match panel: the family matched by guardian email, the child matched by name and date of birth, the differences were listed, and the record was unchanged. The test applications from this check are on the go-live cleanup list. Answers reported by Eyram later on 2026-10-15: the C3 hosted check list for `/apply` was run and everything checked out (see C4.1); the second submission was a new application for a family already on record, not an inquiry advancing; the slice 9a D-9k live test was done earlier and checked out; every test record on hosted uses the child name "ZZ Test Do Not Process", and Eyram will list their references for the cleanup script. Still not reported: whether Public applications is closed again.
+
+**C4, close-out (written 2026-10-15, docs only, local and uncommitted).** No code, migration, Edge Function, RLS, grant or deploy change. Nothing was run against hosted.
+
+**C4.1 Side by side checklist (TCS OS against the ERP, at 375, 768 and 1280 px).** The 9b plan named the areas for a 20 point manual check; these are the 20 points. Status uses three values only:
+
+- **Reported:** Eyram reported it on hosted, with the date. No width was reported for any check, so no row is marked as checked at a given width.
+- **Local only:** seen in a local test, local build scan or local headless screenshot. This is not a hosted check.
+- **Not checked:** nothing reported.
+
+| # | Check | Widths | Status |
+|---|---|---|---|
+| 1 | No request to fonts.googleapis.com or fonts.gstatic.com (DevTools, Network) | any | Reported for the C1 deploy (2026-10-15): "fonts are self-hosted with no Google font request". The pages checked were not named. Local only: no Google font host in `dist`. |
+| 2 | Same as 1, on `/apply` after the C3 deploy | any | Not checked |
+| 3 | `/inquiry` headings in Cinzel 700, body in DM Sans (computed style) | 375, 768, 1280 | Reported for C1 (2026-10-15): fonts match the TCS OS look. Width not reported. |
+| 4 | `/inquiry` colours: background #F3FAFA, teal #005E61, borders #D5E5E5, text #1A2E2E, muted #5C7373 | 375, 768, 1280 | Reported for C1 (2026-10-15): colours match. Width not reported. |
+| 5 | `/apply` fonts and colours as in 3 and 4, plus the mint #11B87A step tick | 375, 768, 1280 | Not checked. Local only: screenshots at 375 and 1280. |
+| 6 | Sizes: 640 px column on `/inquiry`, 880 px on `/apply`, card padding 1.75rem, labels 0.85rem, inputs 0.95rem, hints 0.78rem | 768, 1280 | Not checked |
+| 7 | Phone: paired fields stack under 480 px, and tapping an input does not zoom (16 px inputs) | 375 | Not checked. Local only: 375 screenshots. |
+| 8 | Sidebar at 860 px and below: a sideways strip above the form, the active step scrolled into view | 375, 768 | Not checked |
+| 9 | Sidebar above 860 px: a sticky 210 px column on the right that stays in view while scrolling | 1280 | Not checked. Local only: 1280 screenshots. |
+| 10 | A step's dot turns mint with a tick only when its required fields are valid | 375, 1280 | Reported for the C3 hosted check (Eyram, 2026-10-15): sidebar ticks. Not checked at any of the three widths. |
+| 11 | Free navigation: any step from the sidebar, Back and Next on every step, Next on Documents goes to Declaration and never submits | any | Reported for the C3 hosted check (Eyram, 2026-10-15): all six steps. Next on Documents not reported separately. Local only: browser check after the C2 fix. |
+| 12 | Submit with gaps lists every incomplete section as a link back to it | any | Not checked. Local only: C2 screenshot. |
+| 13 | Nationality by keyboard: type "ivo", ArrowDown, Enter picks Côte d'Ivoire and does not submit, Escape closes and keeps focus, Tab moves on | 1280 | Reported for the C3 hosted check (Eyram, 2026-10-15): typing "ghanaian" and "ivo" by keyboard. Not checked at 1280 px specifically. Local only: Escape and Tab in the C3 browser check. |
+| 14 | Nationality by touch on a real phone: tap opens, the list scrolls without closing, tap picks | 375 | Not checked |
+| 15 | Nationality rules: "Ghanaian" finds Ghana; an unlisted value shows "Choose a country from the list" | any | Reported for the C3 hosted check (Eyram, 2026-10-15): "ghanaian". The unlisted value message not reported. Local only: `nationalities.test.ts`. |
+| 16 | Documents step: TCS OS slot order, vaccination starred for a preschool grade, fee box text and account details, the scholarship link opens in a new tab | 375, 1280 | Reported for the C3 hosted check (Eyram, 2026-10-15): vaccination required for a preschool grade and not for Grade 3; fee proof upload and the refusal without it; replacing a file; an optional document; scholarship Yes with details. Slot order, fee box text and the link opening in a new tab not reported separately. Not checked at either width. |
+| 17 | Declaration step: the scrolling box with the three sections, media consent on its own checkbox, the signature line, "the school's privacy policy" with no link | 375, 1280 | Reported for the C3 hosted check (Eyram, 2026-10-15): the declaration and signature. The rest not reported separately. Not checked at either width. |
+| 18 | No em or en dash in any visible copy on either page, including errors and the thank-you | any | Not checked. Local only: `public-copy.test.ts` scans the copy and the public page sources. |
+| 19 | Teal focus ring on every control, red border on invalid fields; Turnstile shows on `/inquiry` and both checks show on `/apply` | 375, 1280 | Turnstile on `/inquiry`: reported for C1 (2026-10-15). Turnstile in `/apply` steps 5 and 6: reported for the C3 hosted check (Eyram, 2026-10-15). Focus ring and invalid border: not checked. |
+| 20 | The staff app is unchanged: login, dashboard and an admissions page in Inter, same layout | 1280 | Reported for C1 (2026-10-15). Not reported after the C3 deploy. |
+
+**Also reported on hosted (C3 check, Eyram, 2026-10-15), outside the 20 visual points:** the thank-you page; the Submission check panel with the fee proof first; documents arriving as downloads; and a second submission, a new application for a family already on record, which the panel showed as matched by guardian email with the child matched by name and date of birth, listed the differences (guardian first name, and the child's previous school location blank) and said the record was not changed. The blank previous school location is backlog item 1 seen on hosted.
+
+**Not checked on hosted (Eyram, 2026-10-15):** `/apply` at 375, 768 and 1280 px, and by touch on a phone.
+
+**C4.2 Payload contract test.** It is in the suite. The shared fixture `supabase/functions/admissions-public/fixtures/full-application-payload.json` is read by two tests: `frontend/src/modules/admissions/application-form.test.ts` (the form's payload has exactly the fixture's keys) and `supabase/functions/admissions-public/submit.integration.test.ts` test 6 (a real submission against the local stack with every field, the stored values checked). Run on 2026-10-15 at 14582d0 on the local stack (not reset first; the test uses names unique per run):
+
+- `npm test` (vitest): 13 files, 170 tests, all passing.
+- `handler.test.ts`: 51 of 51.
+- `submit.integration.test.ts`: 6 of 6, including test 6, the full contract.
+- Not rerun in C4, because no code changed after their last green runs: the 44 probe files (green at checkpoint 2; 9b changed no SQL), `integration.test.ts` 7 of 7, `upload.integration.test.ts` 7 of 7, and lint, `tsc`, build and prettier (green at the end of C3).
+
+**C4.3 Slice 9 as built (reconciled 2026-10-15).** Slice 9 is complete: 9a (checkpoints 1 and 2) and 9b (C1 to C4).
+
+- **Hosted, as reported by Eyram:** checkpoint 1 (c822b56, migration `20261024100000`, `admissions-public` version 3); checkpoint 2 (92346dd, migration `20261025100000`, applied; Eyram reports 9a live on hosted); C1 (dffe810), C2 (8393551) and C3 (14582d0) deployed. The `admissions-public` version after checkpoint 2 was planned as 4; the version number was not reported.
+- **The "Delivers" list at the top of slice 9 is the original plan, kept for history.** What was built differs in these places:
+  - `submit_application(p_payload, p_session_token, p_sniffed)` returns only the APP reference. The planned `p_client_ip` was dropped (D-9i).
+  - Upload paths are `uploads/<reservation id>/<type>.<ext>`, not `pending/<uuid>/...`. Sessions and reservations live 6 hours, not 2 (D-9g). Uploads go through a session opened by one Turnstile solve (D-9f), and `upload_url` has no IP limit (D-9l).
+  - Abandoned uploads are cleaned by an Edge Function sweep after solved requests (D-9h), not by pg_cron after 24 hours. A scheduled sweep comes with slice 12.
+  - A match is never refused (D-9c). A match past `inquiry` makes a new flagged application (D-9j).
+  - The role matrix in this slice is probe files U1 to U25 (checkpoint 1) and A1 to A26 (checkpoint 2).
+- **Decisions:** D-9a to D-9p (slice 9 sections above) and Q1 to Q18 (slice 9b). The DESIGN.md conventions from this slice: public uploads through a session and server-made paths; stored files deleted only through the Storage API; caps kept with the counters; Edge reports, database decides; staff open stranger-uploaded files only through a download link; self-hosted fonts; and, added in C4, one shared payload fixture and parent-facing copy in one file.
+
+**Accepted risks for the whole of slice 9 (consolidated, none new):**
+
+- Checkpoint 1 (2026-10-14): PDF content (the byte check proves the kind, not that the file is harmless); a fake child in a real family; the per-email limit reveals or blocks an email for a day; APP numbers and match timing.
+- Cap change (2026-10-15): a bot can upload to a live signed URL up to 2 hours after its reservation stopped counting.
+- Checkpoint 2 (2026-10-15): (a) per-email griefing; (b) two simultaneous submissions with disjoint emails can make two families; (c) the Edge Function parses non-application bodies up to 64 KB before refusing at 32 KB.
+- By decision in 9b: the nationality list is enforced in the form only, and the server accepts any text up to 100 characters (Q6).
+- Left as they are after C3 review: the reload message at the 8 file cap loses the typed form (no drafts until slice 10); minor screen reader notes on the "No match" row and the upload status.
+
+**Still open from checkpoint 1:** (b) `upload_url` has no IP limit; (c) the bucket trusts the declared Content-Type, though since checkpoint 2 submit refuses a file whose leading bytes don't match its extension and staff only download; (d) sessions and cleaned reservations are never purged (slice 12); (e) the sweep runs on every solved `upload_session` request, bounded at 20 deletes.
+
+**Backlog from slice 9 (recorded 2026-10-15, none built):**
+
+1. **A blank answer shows as a difference in the Submission check panel.** When a matched record holds a value and the new submission left that field empty, `differenceRows` (`submission-check.ts`) lists it with "(blank)" as the submitted value. Nothing is changed (D-9b), but an officer may read it as the parent clearing the field. Watch for officer confusion after go-live. If it confuses, either hide blank against value rows or label them "left blank on this form; record kept". No change now.
+2. **A withdrawn or spam disposal.** The eight stages have no place for an application the parent withdraws or one that is spam. Today staff can leave it where it is or record a negative decision, which misstates it. Needs a decision before it is built: a stage or a disposal reason, who may set it (a permission gate), whether it frees capacity, and whether spam rows fall under the D-4d purge.
+3. **A stored declaration version before go-live.** Q16 left versioning out. The privacy policy link will change the declaration text, so before real intake decide whether each application stores which text was agreed (for example a version key next to `declaration_agreed_at`). This is a schema change and needs its own slice. Also listed under "Go-live gates still open".
+4. **Carried, unchanged:** draft saves through the Edge Function with the session token (slice 10); the scheduled sweep and the purge of old sessions and reservations (slice 12).
+
+**C4.4 Go-live cleanup plan.** Written as its own section, "Go-live test data cleanup plan", before the cutover runbook. Plan only.
+
+**Still open after C4 (slice 9 closed):** the privacy policy go-live gate; the stored declaration version decision; the go-live test data cleanup (plan written, nothing run); checklist points not yet checked on hosted (C4.1); whether Public applications is closed again after the C3 check (not reported); the accepted risks and the checkpoint 1 open items above; backlog items 1 to 4.
+
+**Still open after C3 (history):** C4 (close-out); the privacy policy go-live gate; the test application from the C3 hosted check, if that check is run; the go-live cleanup items (the "ZZ Test Do Not Process" record, the slice 9a live-test application and the C1 rollout test enquiry); the slice 9a accepted risks (a) to (c); checkpoint 1 open items (b) to (e).
 
 **Still open after C2 (history):** C3 (nationality combobox, four document slots, the fee box with the TCS OS wording, the scholarship question and link, the declaration and media consent text, the thank-you sentence) and C4; the privacy policy go-live gate; the go-live cleanup items (the "ZZ Test Do Not Process" record, the slice 9a live-test application and the C1 rollout test enquiry); the slice 9a accepted risks (a) to (c); checkpoint 1 open items (b) to (e). All unchanged.
 
@@ -1880,6 +1958,148 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 8. Who maintains the marketing site, and can its two widgets be repointed, or must the ERP serve those exact paths?
 9. Partly answered 2026-10-11: all TCS OS applications and inquiries are test data. Still open: are the 6 leads and 17 guardians who received TCS OS campaigns real or test data? That decides whether their unsubscribe links need handling at cutover.
 
+## Go-live test data cleanup plan (written 2026-10-15, plan only)
+
+**Status:** plan only. Nothing has been run, nothing has been written to any database, and nothing here has connected to hosted. Every step marked **[E]** is Eyram's. The run itself is a hand data migration on production, so it is a confirmation gate: the script is written, reviewed and dry-run before anything is committed.
+
+**Facts the plan rests on (from the migrations):**
+
+- **D-4f.** `application_documents.application_id` is `on delete restrict`, so an application with document rows can't be deleted until those rows are deleted first.
+- **D-4d.** `storage.objects` has the `protect_objects_delete` trigger (`storage.protect_delete()`), which refuses SQL deletes. It can be bypassed with the `storage.allow_delete_query` setting, but that removes only the row and leaves the file in the storage backend, so it must not be used. Files are removed only through the Storage API or the dashboard.
+- **Append-only audit log.** No API role has insert, update, delete or truncate on `audit_log` (slice 7c removed truncate). Only the table owner could delete from it, and doing so would break the convention. `audit_log.entity_id` is text with no foreign key, so deleting a record leaves its audit rows in place.
+- **Cascades.** Deleting an application removes its health info, emergency contacts, notes, decision, offer and match flag rows. It sets `application_upload_sessions.submitted_application_id` and any other application's `application_match_flags.matched_application_id` to null. Deleting a student deletes its applications, and deleting a family deletes its guardians and students. No delete trigger exists on any admissions table, so the deletes write no audit row.
+- Inquiries are `applications` rows at stage `inquiry`, with their own family, guardians and student. They never have documents.
+
+**What exists or will exist on hosted, and how each kind is removed:**
+
+| Kind | Known on hosted | Personal data | How it is removed | What gets in the way |
+|---|---|---|---|---|
+| Inquiries | "ZZ Test Do Not Process" (slice 8b); the C1 rollout test enquiry; any other slice 8 or 8b test | names, emails, phones, child details | delete the `applications` row, then its student and family if nothing else uses them | nothing; no documents |
+| Applications with documents | the C3 hosted check (at least two); the 9a D-9k live test (done, reported by Eyram, 2026-10-15) | as above, plus health answers, emergency contact, signature | delete its `application_documents` rows first, then the application (cascades health, contacts, notes, decision, offer, match flag) | D-4f: document rows first |
+| Stored files in `admissions-documents` | every file attached to a test application, plus any abandoned upload the sweep has not removed (the sweep only runs on a solved upload request, so with the switch closed nothing runs it) | the documents themselves (bank slips, report cards, vaccination cards) | Storage API or the dashboard, by exact path, **before** the SQL run | D-4d: no SQL delete |
+| Families, guardians, students | one per test submission, or fewer where a match reused them | names, emails, phones, addresses, date of birth | delete students whose every application is a test, then families whose every student is a test (guardians cascade) | a guard must stop a family that also holds a real child |
+| Match flags | one per matched test submission | guardian and student differences | cascade with the application; a flag on a non-test application that points at a test application must be zero (guard) | none |
+| Upload sessions and reservations | one session per upload visit; one reservation per file started | none readable (token hashes, types, paths) | delete the reservations of every session made before the cut-off, then those sessions, once no file remains at their paths | reservations restrict session deletes |
+| `audit_log` rows | stage changes, document status changes, any decision or offer on a test record, and every switch change (`admissions_settings_changed`) | references, stages, document types, staff ids; no names or emails written by these triggers | **kept.** They are true history: the tests happened. The cleanup is recorded in JOURNAL with the list of references removed, so a reader can tell those rows apart | append-only by design |
+| `public_rate_limits` rows | counters for `submit_ip`, `submit_global`, `inquiry_email`, `application_email`, `upload_ip`, `upload_global` | none readable (HMAC keys, counts) | **left.** Windows are 1 hour or 1 day and stop counting on their own; nothing purges them yet (checkpoint 1 item (d)) | none |
+| Reference counters | `INQ-2026` and `APP-2026` advanced by the tests | none | **left.** The first real reference continues the sequence, leaving a gap. Resetting would reuse references that the kept audit rows already name. Eyram's call; the recommendation is no reset | none |
+| Later slices (will exist) | slice 10 drafts and tokens, slice 11 offer tokens, slice 12 email outbox rows (and the Resend log, outside the database), slice 13 leads, slice 14 campaigns and unsubscribe rows | varies | each slice that adds a table adds a row here before the cleanup is run | to be planned with each slice |
+
+**Stop conditions (the script refuses, and Eyram decides separately):** a test record at `enrolled` or with a `student_id` (a STUDENT counter was used); an accepted offer; a target family that also holds a student with a non-test application; a guardian email of a target family that also appears in a non-test family; a file in the bucket attached to a non-test application; either public switch open.
+
+**Which test records Eyram must identify by name.** The script works only from an explicit list of references. It never selects by a name, not even the shared test child name. Every test record on hosted uses the child name "ZZ Test Do Not Process" (reported by Eyram, 2026-10-15), and Eyram will list the references later. The dry run shows each listed record back with its names, so Eyram can check it before the commit run:
+
+- the "ZZ Test Do Not Process" inquiry: its INQ reference;
+- the C1 rollout test enquiry: its INQ reference;
+- the 9a D-9k live-test application: its APP reference;
+- the C3 hosted check: every APP reference it made (the second submission was a new application, so it has its own row);
+- any other submission made on hosted by anyone testing;
+- a statement that no real parent has submitted. Query D1 lists every switch change, so the times the switches were open can be read off it.
+
+**Backups first [E]:**
+
+1. **Database.** Make sure a dashboard backup exists for the day. Then take a local dump, kept off the repo and deleted after the verification period: `npx supabase db dump --linked --data-only -f <outside the repo>/pre-cleanup-data.sql`. The dump holds personal data, so it is kept encrypted or on an encrypted disk.
+2. **Files.** Database backups do not include Storage files. Download every file that query D3 lists into a local folder before deleting it.
+3. **The dry-run output.** Save the results of D1 to D7 as CSV next to the backup. That is the record of exactly what was removed.
+
+**Dry run [E], read-only, in the SQL editor.** Replace `<refs>` with the list Eyram named, for example `array['INQ-2026-0001', 'APP-2026-0003']` (made-up references).
+
+```sql
+-- D1. Switches now, and every time they changed.
+select public_intake_open, public_applications_open from public.admissions_settings;
+select occurred_at, actor_id, before, after from public.audit_log
+where action = 'admissions_settings_changed' order by occurred_at;
+
+-- D2. Every admissions record on hosted. Before go-live, every row should be a test.
+select a.inquiry_reference, a.application_reference, a.stage, a.created_at,
+       s.full_name, s.date_of_birth, s.student_id,
+       (select string_agg(g.email, ', ') from public.guardians g where g.family_id = s.family_id) as guardian_emails
+from public.applications a join public.students s on s.id = a.student_id
+order by a.created_at;
+
+-- D3. Every file in the bucket and what it belongs to.
+select o.name, o.created_at,
+       coalesce(a.application_reference, a.inquiry_reference) as belongs_to,
+       (a.inquiry_reference = any(<refs>) or a.application_reference = any(<refs>)) as is_target,
+       r.consumed_at, r.cleaned_at
+from storage.objects o
+left join public.application_documents d on d.storage_path = o.name
+left join public.applications a on a.id = d.application_id
+left join public.application_upload_reservations r on r.storage_path = o.name
+where o.bucket_id = 'admissions-documents'
+order by o.created_at;
+
+-- D4. Target applications and what the delete would cascade.
+with t as (select id from public.applications
+           where inquiry_reference = any(<refs>) or application_reference = any(<refs>))
+select a.inquiry_reference, a.application_reference, a.stage,
+       (select count(*) from public.application_documents x where x.application_id = a.id) as documents,
+       (select count(*) from public.application_health_info x where x.application_id = a.id) as health,
+       (select count(*) from public.application_emergency_contacts x where x.application_id = a.id) as contacts,
+       (select count(*) from public.application_notes x where x.application_id = a.id) as notes,
+       (select count(*) from public.application_decisions x where x.application_id = a.id) as decisions,
+       (select count(*) from public.application_offers x where x.application_id = a.id) as offers,
+       (select count(*) from public.application_match_flags x where x.application_id = a.id) as flags
+from public.applications a where a.id in (select id from t);
+-- Must be zero: flags on non-target applications that point at a target.
+-- (same t) select count(*) from public.application_match_flags f
+--   where f.matched_application_id in (select id from t) and f.application_id not in (select id from t);
+
+-- D5. Students and families that would go, and the guard on shared emails.
+--   students to delete: every application of the student is a target;
+--   families to delete: every student of the family is in the list above;
+--   guard: guardian emails of those families that also appear in any other family (must be none).
+
+-- D6. Upload sessions and reservations made before the cut-off.
+select count(*) filter (where consumed_at is not null) as used,
+       count(*) filter (where cleaned_at is not null) as cleaned,
+       count(*) filter (where consumed_at is null and cleaned_at is null) as open
+from public.application_upload_reservations r
+join public.application_upload_sessions s on s.id = r.session_id
+where s.created_at < '<cut-off>';
+
+-- D7. Audit rows that mention the targets (kept; listed for the record).
+select occurred_at, action, entity_table, entity_id, before, after
+from public.audit_log
+where after ->> 'application_reference' = any(<refs>)
+   or entity_id in (select id::text from public.applications
+                    where inquiry_reference = any(<refs>) or application_reference = any(<refs>))
+order by occurred_at;
+```
+
+D5 is written out in full in the script, with the same `<refs>`. The dry run also records the expected count for each table, which the commit run checks.
+
+**Sequence [E]:**
+
+1. Both public switches closed (D1), and kept closed until real intake opens, so no new record arrives between the dry run and the run.
+2. The backups above.
+3. Delete the files that D3 marks as targets, plus the unattached leftovers from test sessions, through the dashboard (Storage, `admissions-documents`, select by path, delete). For more than a handful of files, the Storage API call `DELETE /storage/v1/object/admissions-documents` with a `prefixes` list, the same call `storage.ts` uses, with the service role key kept out of shell history. Re-run D3: no target path remains.
+4. Run the cleanup script in dry-run mode, then in commit mode (below).
+5. Run the verification queries.
+6. Record the date, the references removed and the counts in JOURNAL (the database keeps no audit row of the deletes).
+
+**The cleanup script (recommended shape).** One reviewed SQL file, `docs/admissions/go-live-cleanup.sql`, written when the cleanup is due, in the style of `hosted-annex-setup.sql`, and run by Eyram in the SQL editor. One `do` block, so it is one transaction:
+
+1. Constants at the top: the list of references, the cut-off time, the expected counts from the dry run, and `v_commit boolean := false`.
+2. Guards, each raising an exception that names what failed: both switches closed; every named reference exists exactly once; the stop conditions above; no file remains in `storage.objects` at any target document path or at any reservation path being deleted; no non-target match flag points at a target.
+3. Deletes in this order: `application_documents` of the targets (D-4f); the target `applications`; students whose every application was a target; families whose every student was removed; reservations of sessions made before the cut-off, then those sessions.
+4. After each delete, the row count must equal the expected count, or it raises.
+5. Re-select: no target reference remains.
+6. If `v_commit` is false, it raises a final exception "dry run OK" with the counts, which rolls everything back. Eyram sets `v_commit := true` only after reading that message.
+
+**Why a hand script and not a migration in `supabase/migrations/`:** a migration runs on every local `db reset` and on any future project, where the references don't exist. Its guards would then need a "do nothing if absent" branch, which weakens them, and the test references and names would sit in the schema history for good. A hand script runs once, where the records are, with strict guards. If Eyram prefers a migration so the run is in the history, it must do nothing unless every named reference is present, and the review must check that branch.
+
+**Verification [E], after the commit run:**
+
+- V1: no target reference remains in `applications`; no student, family or guardian from D5 remains.
+- V2: each admissions table's row count equals its count before the run minus the expected deletes. If Eyram confirmed every record was a test, `applications`, `students`, `families` and `guardians` are empty.
+- V3: D3 shows no target file and no unattached file from a test session.
+- V4: the switches are still closed (D1).
+- V5: in the staff app, the application list shows no test record, and the Audit Log page still loads and shows the kept rows.
+- V6: the backups open (the dump file is readable and the downloaded files are present) before they are set aside.
+
+**Before or after the privacy policy and the confirmation email?** After both, once, as the last step before real intake opens. Publishing the privacy policy changes the declaration copy and needs a hosted check, and slice 12's confirmation email needs a hosted end-to-end test. Both create more test applications and, for email, outbox rows. The slice 15 parity tests add more again. Cleaning before them means two reviewed production deletes instead of one. The order is: privacy policy published and linked; confirmation email in place (or Eyram's written acceptance of the gap); the last hosted test; this cleanup; verification; then real intake opens. One exception: if any test record holds a real person's details (a real email, phone, child name or a real document such as an actual bank slip), remove that record sooner, with the same script and guards.
+
 ## Cutover runbook (slice 15)
 
 **[E]** marks Eyram's production steps. The main session hands over exact commands and never runs them.
@@ -1899,7 +2119,7 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
   - a bulk campaign to test addresses, with one invalid address skipped;
   - a one-click unsubscribe POST that returns 200;
   - a capability matrix check with real dev accounts.
-- Test rows are deleted afterwards through the Manager-run purge RPC or hand SQL. **[E]**
+- Test rows are deleted afterwards by the reviewed hand script in "Go-live test data cleanup plan" above, after the last hosted test and before intake opens. **[E]**
 
 **Sequence:**
 

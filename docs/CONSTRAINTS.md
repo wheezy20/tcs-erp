@@ -58,6 +58,16 @@ Things that shape how this gets built, not just what gets built.
       until then; once the policy is published, one link goes into the
       declaration copy constant. Recorded in PORT-PLAN, "Go-live gates still
       open". Not yet written (reported by Eyram, 2026-10-15).
+- [ ] Go-live test data cleanup (planned 2026-10-15, slice 9b C4). Every test
+      inquiry, application, file, family and upload session on hosted is
+      removed before real intake opens, once, after the privacy policy, the
+      confirmation email and the last hosted test. Eyram names each test
+      record by reference; files go through the Storage API or the
+      dashboard; audit rows are kept. Plan only, nothing run. See PORT-PLAN,
+      "Go-live test data cleanup plan".
+- [ ] Stored declaration version (backlog, 2026-10-15). Decide before real
+      intake whether each application records which declaration text was
+      agreed, since the privacy policy link changes that text.
 - [x] **`deposit_number_counters` has RLS off** (`20260901100000`), and
       Supabase's default privileges give `anon` full table privileges on
       it. So anyone holding the public anon key, and every staff role
