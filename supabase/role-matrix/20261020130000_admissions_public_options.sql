@@ -65,7 +65,8 @@ begin
     raise exception 'top-level keys changed';
   end if;
   if exists (select 1 from jsonb_array_elements(r -> 'grades') g
-             where (select array_agg(k order by k) from jsonb_object_keys(g) k) is distinct from array['id', 'name', 'position']) then
+             -- required_document_types added by slice 9a (20261024100000, the approved options change).
+             where (select array_agg(k order by k) from jsonb_object_keys(g) k) is distinct from array['id', 'name', 'position', 'required_document_types']) then
     raise exception 'grade fields changed';
   end if;
   if exists (select 1 from jsonb_array_elements(r -> 'campuses') c

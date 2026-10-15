@@ -553,6 +553,77 @@ export type Database = {
           },
         ]
       }
+      application_upload_reservations: {
+        Row: {
+          cleaned_at: string | null
+          cleanup_claimed_at: string | null
+          consumed_at: string | null
+          created_at: string
+          document_type: string
+          expires_at: string
+          extension: string
+          id: string
+          session_id: string
+          storage_path: string | null
+        }
+        Insert: {
+          cleaned_at?: string | null
+          cleanup_claimed_at?: string | null
+          consumed_at?: string | null
+          created_at?: string
+          document_type: string
+          expires_at: string
+          extension: string
+          id?: string
+          session_id: string
+          storage_path?: string | null
+        }
+        Update: {
+          cleaned_at?: string | null
+          cleanup_claimed_at?: string | null
+          consumed_at?: string | null
+          created_at?: string
+          document_type?: string
+          expires_at?: string
+          extension?: string
+          id?: string
+          session_id?: string
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_upload_reservations_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "application_upload_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_upload_sessions: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          token_hash: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          token_hash: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token_hash?: string
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           academic_year: string
@@ -4730,6 +4801,11 @@ export type Database = {
       _admissions_reference_year: { Args: { p_at?: string }; Returns: number }
       _admissions_seed_public_campus_labels: { Args: never; Returns: number }
       _admissions_sequence_text: { Args: { p_seq: number }; Returns: string }
+      _application_required_document_types: {
+        Args: { p_grade_id: string }
+        Returns: string[]
+      }
+      _application_upload_capacity_check: { Args: never; Returns: undefined }
       _employee_import_check: { Args: { p_rows: Json }; Returns: Json }
       _employee_import_date: {
         Args: { p_text: string }
@@ -5197,6 +5273,13 @@ export type Database = {
       check_public_rate_limit: {
         Args: { p_bucket: string; p_key_hash?: string }
         Returns: boolean
+      }
+      claim_expired_application_uploads: {
+        Args: { p_limit: number }
+        Returns: {
+          reservation_id: string
+          storage_path: string
+        }[]
       }
       clear_statement_line: {
         Args: { p_line_id: string; p_note?: string }
@@ -5935,6 +6018,10 @@ export type Database = {
         Args: { p_branch_id: string; p_category: string }
         Returns: string
       }
+      finish_application_upload_cleanup: {
+        Args: { p_reservation_ids: string[] }
+        Returns: number
+      }
       generate_employee_document: {
         Args: {
           p_document_kind: string
@@ -6119,6 +6206,7 @@ export type Database = {
         Args: { p_as_of: string; p_branch_id: string }
         Returns: undefined
       }
+      open_application_upload_session: { Args: never; Returns: Json }
       open_day: {
         Args: { p_branch_id: string; p_opening_float: number }
         Returns: {
@@ -6965,6 +7053,14 @@ export type Database = {
         }
       }
       require_writable_role: { Args: never; Returns: undefined }
+      reserve_application_upload: {
+        Args: {
+          p_document_type: string
+          p_extension: string
+          p_session_token: string
+        }
+        Returns: Json
+      }
       reset_offer: { Args: { p_application_id: string }; Returns: Json }
       reverse_journal_entry: {
         Args: { p_date?: string; p_description?: string; p_entry_id: string }

@@ -11,6 +11,11 @@
 //     every Edge Function. The service role key stays here; the browser
 //     calls this function with no key of its own beyond the public one.
 //   - fetch for Turnstile's siteverify, with a timeout.
+//   - Storage for the upload actions (slice 9a), from storage.ts: signing
+//     one overwrite-off upload to an exact path in the private
+//     admissions-documents bucket, and deleting swept files. Both use the
+//     service role, which bypasses the bucket's lack of a write policy.
+//   - EdgeRuntime.waitUntil, so the upload sweep runs after the response.
 //
 // verify_jwt = false (supabase/config.toml): visitors aren't signed in.
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -21,8 +26,12 @@ import {
   makeTurnstileVerifier,
   type RpcResult,
 } from "./handler.ts";
+import { makeStorage } from "./storage.ts";
 
 const verifyTurnstile = makeTurnstileVerifier(fetch);
+
+declare const EdgeRuntime:
+  { waitUntil: (work: Promise<unknown>) => void } | undefined;
 
 Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -51,5 +60,13 @@ Deno.serve(async (req) => {
     },
     log: (outcome) =>
       console.log(JSON.stringify({ fn: "admissions-public", outcome })),
+    storage:
+      supabaseUrl && serviceRoleKey
+        ? makeStorage(fetch, supabaseUrl, serviceRoleKey)
+        : undefined,
+    defer: (work) => {
+      if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(work);
+      else void work;
+    },
   });
 });

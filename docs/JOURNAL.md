@@ -4900,3 +4900,56 @@ The phone box is now forgiving on the client only. The database rule (D-9d, migr
   - Digits without a plus that are too many for a Ghana number (for example 447946095800) are refused with the same tip, so they are never quietly turned into a +233 number.
 - **New hint:** "For example 0590000000 or +233590000000. From outside Ghana, start with + and the country code."
 - **Verification:** the inquiry vitest file passes (49 tests) and `tsc` is clean. Nothing else was run, as asked.
+
+## 2026-10-14: Slice 9 planning, application fee proof made compulsory (D-9e)
+
+D-9e is decided: the application fee proof is compulsory. This is option A from the slice 9 plan. The earlier recommendation (optional, with an outstanding document row for staff) is dropped.
+
+- `submit_application` refuses any submission without an `application_fee_proof` file that was reserved, uploaded and passed the byte check. It uses the same generic refusal as the other document failures.
+- No outstanding `application_fee_proof` row is ever created, because a missing fee proof can't get through.
+- Both the 9a plain form and the 9b form mark it required.
+- One database helper gives the required document types per grade (fee proof for every grade, vaccination proof for preschool grades). Both the submit RPC and the public options use it, so the form and the server can't disagree.
+- The staff Submission check panel shows the fee proof first, with a note that staff must match it against the bank or mobile money record.
+- Test plan additions: a probe that a submission with every other document but no fee proof is refused, and a deliberate break that removes the check.
+
+Plan only: no code or migrations. Recorded in PORT-PLAN, slice 9, and the consolidated decision table. D-9a and D-9f to D-9l are still open.
+
+## 2026-10-14: Admissions slice 9a checkpoint 1, the upload backend (built locally)
+
+Checkpoint 1 of slice 9a is built locally and uncommitted. It is not applied on hosted and not deployed. It covers the upload path only: sessions, reservations, the cleanup sweep, the rate buckets, the required-documents helper and the two Edge Function actions `upload_session` and `upload_url`. Checkpoint 2 (`submit_application`, the `application` action with the byte check, `/apply`, the staff check panel and the Settings switch) has not started. Detail is in PORT-PLAN, slice 9, "Checkpoint 1 built 2026-10-14".
+
+- **Why one Turnstile solve opens a session (D-9f).** A parent uploads up to four files, and each upload needs a signed URL. One solve gives a session token, stored only as a hash, and every reservation in that session hangs off it. Submit will accept only that session's files.
+- **Why the sweep has an age rule.** Storage's signed upload token lives 2 hours from signing, whatever the reservation's expiry. The sweep therefore cleans a reservation only when it is unused, expired for more than 30 minutes and made more than 2 hours 15 minutes ago. Once a row is cleaned its token is dead, so nothing can land after the sweep and be orphaned. Review found the sweep would have cleaned too early; that was fixed in fix round 1.
+- **Why cleanup runs in the Edge Function.** `storage.objects` has a delete guard, so files can only be removed through the Storage API. The Edge Function's `storage.ts` makes those calls.
+- **Migration and probes.** `20261024100000_admissions_application_uploads.sql` adds the two tables (RLS on, no policies, no API privileges), four service-role-only RPCs, two unlisted helpers and the new rate rules. `get_public_admissions_options` gains `required_document_types` with its signature unchanged, so the anon-executable count stays at 170. The new probe file `20261024100000_admissions_application_uploads.sql` has U1 to U23.
+
+**Verification (local only):**
+
+- **Baseline** at HEAD 378d9d1 on a fresh reset: 42 probe files green, anon-executable 170.
+- **Local Storage checks:** an anon upload without a signed URL is refused; a token for another path is refused (InvalidSignature); a second upload to the same path is refused even with `x-upsert` true (KeyAlreadyExists); 11 MiB is refused (413); `text/html` is refused (415); a Range request returns 206 with the leading bytes; the signed upload token lasts 2 hours with overwrite off.
+- **test-runner, after the build, fresh reset:** lint 0 errors and 13 warnings; `tsc` clean; `npm test` 107 of 107; build clean; overload check clean; types regen identical; anon-executable 170; all 43 probe files green; `handler.test.ts` 40 of 40; the two integration files 7 of 7 each; prettier clean.
+- **Order matters.** Running the integration tests before the probe loop makes probe I1 in `20261011100000_admissions_core_applicants_structure.sql` fail on a reference collision, because the integration tests commit inquiry rows. It is green on a fresh reset. Run the probes first.
+- **Deliberate breaks:** 8 of the 21 planned for checkpoint 1, all caught (U9, U11, U14, U15, U16 and the two unit and integration tests). The other 13 belong to checkpoint 2. The golden payroll suite was skipped: nothing payroll-related changed, and the audit action list and audit policies are unchanged.
+- **Code review:** no blocking findings. Two non-blocking findings were fixed in fix round 1: the sweep age rule above, and probe U22 split into U22 (no write policy on the bucket, expect all roles) and U23 (direct insert, expect none). Re-review found both fixes OK.
+
+**Open after checkpoint 1 (non-blocking, recorded in PORT-PLAN, slice 9):**
+
+- The 400 open-reservation cap can be filled cheaply: one solve gives 8 reservations with no file, held about 6.5 to 8.5 hours. A few IPs could block uploads for every parent. Counting only reservations with a file, or a shorter life for empty ones, is Eyram's call (D-9g).
+- `upload_url` has no IP limit (D-9l).
+- The bucket trusts the declared Content-Type until checkpoint 2's byte check. Staff file viewing should use a download disposition.
+- Sessions and cleaned reservation rows are never purged. A purge belongs with slice 12's scheduled sweep.
+- The sweep runs on every solved `upload_session` request, bounded at 20 deletes each.
+
+**Outstanding for Eyram:** the go for checkpoint 2 after review of this diff. The deploy for checkpoint 1 is for Eyram to run, not run here: `npx supabase db push` (applies `20261024100000`), then `npx supabase functions deploy admissions-public`. No new secrets and no frontend change. Public applications are still closed, so nothing is reachable by parents until the switch is turned on.
+
+## 2026-10-15: Admissions slice 9a checkpoint 1, open-reservation cap counts stored files
+
+Eyram reviewed checkpoint 1 and asked for one change before it ships. It is still local and uncommitted, and nothing is applied on hosted or deployed.
+
+- **The cap.** The 400 open-reservation cap now counts a reservation only if its file exists at the reserved path, or if it is unexpired, has no file yet and is under 30 minutes old. Before, every unused reservation counted for up to about 8.5 hours, so one Turnstile solve could hold 8 places without uploading anything and a few IPs could block uploads for every parent. The 30 minutes is the window of the `upload_open_reservations` rule, kept with the other numbers. The sweep age rule and the 6 hour lifetime are unchanged. Migration `20261024100000` was changed in place, since it is not applied anywhere.
+- **Residual risk, accepted:** a bot can still upload to a live signed URL up to 2 hours after its reservation stopped counting. That is bounded by 100 sessions per hour, 8 files per session and 10 MiB per file, and the file counts again once it lands.
+- **Probes and break:** U4 updated; U24 (files block) and U25 (old empty reservations don't block) added; U15 covers fresh empty ones. The break "count every unused reservation again" is caught by U25, one more break in checkpoint 1 at Eyram's request.
+- **Checkpoint 2 requirement:** staff open application documents through signed URLs that force a download, not an inline viewer.
+- **CLAUDE.md:** run the probe files before the Edge Function integration tests.
+
+Recorded in PORT-PLAN, slice 9 (D-9g and the checkpoint 1 section), and DESIGN.md (the caps bullet).

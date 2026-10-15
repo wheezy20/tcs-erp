@@ -16,6 +16,8 @@ import {
   loadConfig,
   makeTurnstileVerifier,
   parseAllowedOrigins,
+  sweepExpiredUploads,
+  SWEEP_BATCH,
   type Config,
   type Deps,
   type RpcResult,
@@ -573,4 +575,336 @@ test("the verifier posts secret and token, and throws on a bad answer or timeout
   const keepAlive = setTimeout(() => {}, 1000);
   await assert.rejects(makeTurnstileVerifier(hang, 50)(TOKEN, SECRET));
   clearTimeout(keepAlive);
+});
+
+// ---------------------------------------------------------------- uploads (slice 9a checkpoint 1)
+
+const SESSION = "a".repeat(64);
+const RES_ID = "4d44e2df-9e85-4139-a906-986359e0e8f9";
+const RES_PATH = `uploads/${RES_ID}/application_fee_proof.pdf`;
+
+function uploadHarness(opts: {
+  ipOk?: boolean | "error";
+  globalOk?: boolean | "error";
+  turnstile?: TurnstileOutcome | "throw";
+  open?: RpcResult | "throw";
+  reserve?: RpcResult | "throw";
+  sign?: { token: string } | "throw";
+  claim?: RpcResult;
+  remove?: "throw";
+  noStorage?: boolean;
+}) {
+  const order: string[] = [];
+  const logs: string[] = [];
+  const signed: string[] = [];
+  const removed: string[][] = [];
+  const finished: unknown[] = [];
+  const deferred: Promise<unknown>[] = [];
+  const deps: Deps = {
+    config: CONFIG,
+    verifyTurnstile: async () => {
+      order.push("turnstile");
+      if (opts.turnstile === "throw") throw new Error("timeout");
+      return opts.turnstile ?? { ...GOOD_TURNSTILE, action: "upload" };
+    },
+    rpc: async (fn, args) => {
+      if (fn === "check_public_rate_limit") {
+        order.push(String(args.p_bucket));
+        const v =
+          args.p_bucket === "upload_ip"
+            ? (opts.ipOk ?? true)
+            : (opts.globalOk ?? true);
+        if (v === "error")
+          return { data: null, error: { code: "XX000", message: "boom" } };
+        return { data: v, error: null };
+      }
+      order.push(fn);
+      if (fn === "open_application_upload_session") {
+        if (opts.open === "throw") throw new Error("network");
+        return (
+          opts.open ?? {
+            data: {
+              session_token: SESSION,
+              expires_at: "2026-10-15T00:00:00Z",
+              max_files: 8,
+            },
+            error: null,
+          }
+        );
+      }
+      if (fn === "reserve_application_upload") {
+        if (opts.reserve === "throw") throw new Error("network");
+        return (
+          opts.reserve ?? {
+            data: {
+              reservation_id: RES_ID,
+              storage_path: RES_PATH,
+              expires_at: "2026-10-15T00:00:00Z",
+            },
+            error: null,
+          }
+        );
+      }
+      if (fn === "claim_expired_application_uploads")
+        return opts.claim ?? { data: [], error: null };
+      if (fn === "finish_application_upload_cleanup") {
+        finished.push(args.p_reservation_ids);
+        return { data: 1, error: null };
+      }
+      throw new Error(`unexpected rpc ${fn}`);
+    },
+    log: (o) => logs.push(o),
+    storage: opts.noStorage
+      ? undefined
+      : {
+          signUpload: async (path) => {
+            signed.push(path);
+            if (opts.sign === "throw") throw new Error("sign");
+            return opts.sign ?? { token: "signed-upload-token" };
+          },
+          remove: async (paths) => {
+            removed.push(paths);
+            if (opts.remove === "throw") throw new Error("remove");
+          },
+        },
+    defer: (work) => {
+      deferred.push(work);
+    },
+  };
+  return { deps, order, logs, signed, removed, finished, deferred };
+}
+
+const SESSION_REQ = { action: "upload_session", turnstile_token: TOKEN };
+const URL_REQ = {
+  action: "upload_url",
+  payload: {
+    session_token: SESSION,
+    document_type: "application_fee_proof",
+    extension: "PDF",
+    size: 1000,
+  },
+};
+
+test("upload_session: upload_ip, Turnstile, sweep, upload_global, then the session; only three keys back", async () => {
+  const h = uploadHarness({});
+  const res = await handle(post(SESSION_REQ), h.deps);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await json(res), {
+    session_token: SESSION,
+    expires_at: "2026-10-15T00:00:00Z",
+    max_files: 8,
+  });
+  assert.equal(h.order[0], "upload_ip");
+  assert.equal(h.order[1], "turnstile");
+  assert.ok(h.order.indexOf("upload_global") > h.order.indexOf("turnstile"));
+  assert.equal(h.order.at(-1), "open_application_upload_session");
+  assert.equal(h.deferred.length, 1);
+  assert.equal(h.signed.length, 0);
+});
+
+test("upload_session: the IP key is a 64-hex HMAC, the IP limit refuses before Turnstile", async () => {
+  const seen: unknown[] = [];
+  const h = uploadHarness({ ipOk: false });
+  const rpc = h.deps.rpc;
+  h.deps.rpc = async (fn, args) => {
+    seen.push(args.p_key_hash);
+    return rpc(fn, args);
+  };
+  const res = await handle(post(SESSION_REQ), h.deps);
+  assert.equal(res.status, 429);
+  assert.equal((await json(res)).error, MESSAGES.appOffice);
+  assert.equal(seen[0], await hmacHex(IP_KEY, RAW_IP));
+  assert.ok(!h.order.includes("turnstile"));
+  assert.equal(h.deferred.length, 0);
+});
+
+test("upload_session: Turnstile must carry the upload action; an inquiry token is refused, and the reverse", async () => {
+  for (const turnstile of [
+    { ...GOOD_TURNSTILE, action: "inquiry" },
+    { ...GOOD_TURNSTILE, action: "upload", hostname: "evil.test" },
+    { ...GOOD_TURNSTILE, action: "upload", success: false },
+  ]) {
+    const h = uploadHarness({ turnstile });
+    const res = await handle(post(SESSION_REQ), h.deps);
+    assert.equal(res.status, 400);
+    assert.ok(!h.order.includes("open_application_upload_session"));
+    assert.equal(h.deferred.length, 0);
+  }
+  const inquiry = harness({
+    turnstile: { ...GOOD_TURNSTILE, action: "upload" },
+  });
+  assert.equal((await handle(post(VALID), inquiry.deps)).status, 400);
+});
+
+test("upload_session: the global limit refuses after Turnstile, and the sweep still runs", async () => {
+  const h = uploadHarness({ globalOk: false });
+  const res = await handle(post(SESSION_REQ), h.deps);
+  assert.equal(res.status, 429);
+  assert.equal(h.deferred.length, 1);
+  assert.ok(!h.order.includes("open_application_upload_session"));
+});
+
+test("upload_session: closed, cap full and unexpected errors map to fixed answers", async () => {
+  const cases: [RpcResult, number, string][] = [
+    [
+      { data: null, error: { code: "TCS03", message: "x" } },
+      409,
+      MESSAGES.appClosed,
+    ],
+    [
+      { data: null, error: { code: "TCS29", message: "x" } },
+      429,
+      MESSAGES.appOffice,
+    ],
+    [
+      { data: null, error: { code: "42501", message: "secret detail" } },
+      500,
+      MESSAGES.error,
+    ],
+    [{ data: { session_token: "short" }, error: null }, 500, MESSAGES.error],
+  ];
+  for (const [open, status, message] of cases) {
+    const h = uploadHarness({ open });
+    const res = await handle(post(SESSION_REQ), h.deps);
+    assert.equal(res.status, status);
+    assert.equal((await json(res)).error, message);
+  }
+});
+
+test("upload requests with the wrong keys are refused before any call", async () => {
+  for (const body of [
+    { ...SESSION_REQ, payload: {} },
+    { action: "upload_session" },
+    { ...URL_REQ, turnstile_token: TOKEN },
+    {
+      action: "upload_url",
+      payload: { ...URL_REQ.payload, path: "uploads/x" },
+    },
+    {
+      action: "upload_url",
+      payload: { ...URL_REQ.payload, session_token: "A".repeat(64) },
+    },
+    {
+      action: "upload_url",
+      payload: { ...URL_REQ.payload, session_token: 12 },
+    },
+  ]) {
+    const h = uploadHarness({});
+    const res = await handle(post(body), h.deps);
+    assert.equal(res.status, 400, JSON.stringify(body));
+    assert.deepEqual(h.order, []);
+  }
+});
+
+test("upload_url: a bad type, extension or size is refused before the database", async () => {
+  for (const change of [
+    { document_type: "passport_photo" },
+    { extension: "heic" },
+    { extension: "exe" },
+    { size: 0 },
+    { size: 10 * 1024 * 1024 + 1 },
+    { size: 1.5 },
+    { size: "100" },
+  ]) {
+    const h = uploadHarness({});
+    const res = await handle(
+      post({
+        action: "upload_url",
+        payload: { ...URL_REQ.payload, ...change },
+      }),
+      h.deps,
+    );
+    assert.equal(res.status, 400);
+    assert.equal((await json(res)).error, MESSAGES.fileRejected);
+    assert.deepEqual(h.order, []);
+  }
+});
+
+test("upload_url: reserves, signs exactly the database's path, no Turnstile and no limit call", async () => {
+  const h = uploadHarness({});
+  const res = await handle(post(URL_REQ), h.deps);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await json(res), {
+    reservation_id: RES_ID,
+    path: RES_PATH,
+    upload_token: "signed-upload-token",
+    expires_at: "2026-10-15T00:00:00Z",
+  });
+  assert.deepEqual(h.order, ["reserve_application_upload"]);
+  assert.deepEqual(h.signed, [RES_PATH]);
+});
+
+test("upload_url: a path that isn't this reservation's shape is never signed", async () => {
+  for (const storage_path of [
+    "uploads/other/application_fee_proof.pdf",
+    `uploads/${RES_ID}/application_fee_proof.html`,
+    `uploads/${"0".repeat(8)}-0000-4000-8000-000000000000/application_fee_proof.pdf`,
+    `receipts/${RES_ID}/application_fee_proof.pdf`,
+  ]) {
+    const h = uploadHarness({
+      reserve: {
+        data: { reservation_id: RES_ID, storage_path, expires_at: "x" },
+        error: null,
+      },
+    });
+    const res = await handle(post(URL_REQ), h.deps);
+    assert.equal(res.status, 500);
+    assert.deepEqual(h.signed, []);
+  }
+});
+
+test("upload_url: database refusals map like the session's, and a TCS22 message is shown", async () => {
+  const h = uploadHarness({
+    reserve: {
+      data: null,
+      error: { code: "TCS22", message: "Your upload session has expired." },
+    },
+  });
+  const res = await handle(post(URL_REQ), h.deps);
+  assert.equal(res.status, 400);
+  assert.equal((await json(res)).error, "Your upload session has expired.");
+  assert.deepEqual(h.signed, []);
+  const closed = uploadHarness({
+    reserve: { data: null, error: { code: "TCS03", message: "x" } },
+  });
+  assert.equal((await handle(post(URL_REQ), closed.deps)).status, 409);
+});
+
+test("upload_url: a signing failure or missing storage refuses with the office message", async () => {
+  const h = uploadHarness({ sign: "throw" });
+  const res = await handle(post(URL_REQ), h.deps);
+  assert.equal(res.status, 503);
+  assert.equal((await json(res)).error, MESSAGES.appOffice);
+  const none = uploadHarness({ noStorage: true });
+  assert.equal((await handle(post(URL_REQ), none.deps)).status, 503);
+  assert.equal((await handle(post(SESSION_REQ), none.deps)).status, 503);
+});
+
+test("sweep: deletes only reservation-shaped paths, then marks exactly those", async () => {
+  const good = { reservation_id: RES_ID, storage_path: RES_PATH };
+  const h = uploadHarness({
+    claim: {
+      data: [good, { reservation_id: RES_ID, storage_path: "receipts/x.png" }],
+      error: null,
+    },
+  });
+  await sweepExpiredUploads(h.deps);
+  assert.deepEqual(h.removed, [[RES_PATH]]);
+  assert.deepEqual(h.finished, [[RES_ID]]);
+  assert.ok(h.logs.includes("sweep_odd_rows"));
+  assert.equal(SWEEP_BATCH, 20);
+});
+
+test("sweep: a failed delete leaves the claim to lapse; a failed claim deletes nothing; never throws", async () => {
+  const good = { reservation_id: RES_ID, storage_path: RES_PATH };
+  const h = uploadHarness({
+    claim: { data: [good], error: null },
+    remove: "throw",
+  });
+  await sweepExpiredUploads(h.deps);
+  assert.deepEqual(h.finished, []);
+  assert.ok(h.logs.includes("sweep_failed"));
+  const c = uploadHarness({ claim: { data: null, error: { code: "XX000" } } });
+  await sweepExpiredUploads(c.deps);
+  assert.deepEqual(c.removed, []);
 });

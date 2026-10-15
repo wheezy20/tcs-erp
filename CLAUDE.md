@@ -83,6 +83,9 @@ and fails on any cell that doesn't match the probe's `-- expect:` line.
 Needs the dev staff accounts (`./scripts/seed-local-dev-staff.sh`) and
 the local stack running. The probe format is documented at the top of
 the script. The `test-runner` subagent owns this whole pass.
+Run the probe files before the Edge Function integration tests: the
+integration tests commit inquiry rows, and probe I1 in the core
+applicants structure file then hits a reference collision until a reset.
 
 **Golden payslip suite.** `./scripts/golden-payslips.sh` holds
 `create_payslip()`, `post_payroll_run()` and the run-exclusion flow to
