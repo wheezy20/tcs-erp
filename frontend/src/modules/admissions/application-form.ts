@@ -9,6 +9,8 @@
 // ISO sent, and the phone rule. Health details are at most 2,000
 // characters (D-4e).
 
+import { isListedNationality, listedNationality } from "@/modules/admissions/nationalities";
+import { DOCUMENTS_COPY } from "@/modules/admissions/public-copy";
 import {
   EMAIL_PATTERN,
   MONTH_OPTIONS,
@@ -33,14 +35,26 @@ export const FEE_PROOF = "application_fee_proof";
 export const APPLICATION_OFFICE_MESSAGE =
   "We couldn't take your application online just now. Please call the school office and we'll help you directly.";
 
-/** What a parent sees for each document the public form can ask for. */
-export const PUBLIC_DOCUMENT_LABELS: Record<string, string> = {
-  application_fee_proof:
-    "Proof of payment (bank deposit slip, GIP confirmation or mobile money receipt)",
-  proof_of_vaccination: "Proof of vaccination",
-  financial_clearance: "Financial clearance",
-  previous_report: "Previous school report",
-};
+/** What a parent sees for each document slot (TCS OS labels, slice 9b C3). */
+export const PUBLIC_DOCUMENT_LABELS: Record<string, string> = DOCUMENTS_COPY.labels;
+
+/** The four slots, in TCS OS order: vaccination, financial clearance,
+ * report card, then (under the fee box) the fee proof. */
+export const DOCUMENT_SLOTS = [
+  "proof_of_vaccination",
+  "financial_clearance",
+  "previous_report",
+  FEE_PROOF,
+] as const;
+
+/** Files one upload session may hold (D-9g); the server is the authority. */
+export const MAX_FILES_PER_SESSION = 8;
+
+/** Whether another file can still be uploaded in this visit. Each choice,
+ * a replacement included, takes a new reservation. */
+export function canUploadMore(filesStarted: number): boolean {
+  return filesStarted < MAX_FILES_PER_SESSION;
+}
 
 export const GENDER_OPTIONS = [
   { value: "male", label: "Male" },
@@ -154,7 +168,8 @@ export type ApplicationDraft = {
     hasAllergies: YesNo;
     allergies: string;
   };
-  /** No inputs until slice 9b C3; sent with these defaults until then. */
+  /** "Are you interested in scholarship information?" No by default, as
+   * in TCS OS; the details are sent only on Yes. */
   wantsScholarship: boolean;
   scholarshipDetails: string;
   mediaConsent: boolean;
@@ -281,7 +296,11 @@ export function validateApplication(
     errors["child.dateOfBirth"] = "Enter the date of birth as dd/mm/yyyy";
   }
   if (!GENDER_OPTIONS.some((o) => o.value === c.gender)) errors["child.gender"] = "Choose one";
-  required("child.nationality", c.nationality, "Nationality", 100);
+  // From the list only (decision Q5); the server caps the length.
+  if (c.nationality.trim() === "") errors["child.nationality"] = "Nationality is required";
+  else if (!isListedNationality(c.nationality)) {
+    errors["child.nationality"] = "Choose a country from the list";
+  }
   // With the box ticked, guardian 1's address is used: a gap there shows
   // on guardian 1 (step 1), not twice.
   if (!c.sameAddress) {
@@ -339,8 +358,8 @@ export function validateApplication(
 
 // ---------------------------------------------------------------- payload
 
-/** The exact shape submit_application accepts. Only the documents this
- * grade requires are sent (C3 adds the optional slots); health details
+/** The exact shape submit_application accepts. Every document slot with
+ * an upload is sent, in slot order; health details
  * only when the answer is yes; the child's address follows guardian 1 when
  * ticked; the previous school location only for a child in school; the
  * date of birth as yyyy-mm-dd. No IP, no time, no age. */
@@ -356,7 +375,7 @@ export function buildApplicationPayload(
     full_name: c.fullName.trim(),
     date_of_birth: parseDmy(c.dateOfBirth) ?? "",
     gender: c.gender,
-    nationality: c.nationality.trim(),
+    nationality: listedNationality(c.nationality) ?? c.nationality.trim(),
     address: where.address.trim(),
     town_city: where.townCity.trim(),
     postal_code: c.postalCode.trim(),
@@ -373,7 +392,8 @@ export function buildApplicationPayload(
     student.prior_schooling = NOT_YET_IN_SCHOOL;
   }
   const h = draft.health;
-  const documents = requiredDocumentTypes(options, c.gradeId).flatMap((type) => {
+  // Every slot with an upload, required or not (one file per type).
+  const documents = DOCUMENT_SLOTS.flatMap((type) => {
     const u = uploads[type];
     return u ? [{ document_type: type, reservation_id: u.reservationId, path: u.path }] : [];
   });

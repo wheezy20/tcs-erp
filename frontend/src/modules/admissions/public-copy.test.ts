@@ -3,7 +3,18 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ENQUIRY_COPY, joinNames } from "@/modules/admissions/public-copy";
+import {
+  APPLICATION_COPY,
+  APPLICATION_FEE,
+  DECLARATION_COPY,
+  DECLARATION_SECTIONS,
+  DOCUMENTS_COPY,
+  ENQUIRY_COPY,
+  FEE_BOX,
+  SCHOLARSHIP_COPY,
+  applicationThankYou,
+  joinNames,
+} from "@/modules/admissions/public-copy";
 
 const DASHES = /[–—]/;
 
@@ -21,7 +32,70 @@ function strings(value: unknown): string[] {
 
 describe("public form copy", () => {
   it("has no em or en dashes anywhere", () => {
-    for (const s of strings(ENQUIRY_COPY)) expect(s, s).not.toMatch(DASHES);
+    for (const s of strings([
+      ENQUIRY_COPY,
+      APPLICATION_COPY,
+      APPLICATION_FEE,
+      FEE_BOX,
+      DOCUMENTS_COPY,
+      SCHOLARSHIP_COPY,
+      DECLARATION_SECTIONS,
+      DECLARATION_COPY,
+    ]))
+      expect(s, s).not.toMatch(DASHES);
+    expect(applicationThankYou("Kofi", "Grade 3", "2026/2027")).not.toMatch(DASHES);
+  });
+
+  it("carries the full fee box, with the account details and no email promise", () => {
+    expect(FEE_BOX.heading).toBe("Application fee: GHS 200.00");
+    expect(FEE_BOX.accountLines).toEqual([
+      "Consolidated Bank Ghana",
+      "Account No: 0383011100001",
+      "Name: Treasures Christian School",
+    ]);
+    expect(FEE_BOX.process).toBe(
+      "Walk in to the bank, OR dial *170#, then Option 1 (Transfer money), then Option 6 (Bank account), then Option 1 (Wallet to bank account), then # for next, then Option 16 (CBG), then Enter account number 0383011100001, then Enter amount GHS 200.00, then Enter Reference: name of the learner",
+    );
+    expect(FEE_BOX.intro).toContain("does NOT mean admission has been granted");
+    expect(JSON.stringify(FEE_BOX)).not.toMatch(/e-?mail/i);
+    expect(JSON.stringify(FEE_BOX)).not.toMatch(/\u2192|->/);
+  });
+
+  it("carries the full declaration, word for word, and the media consent", () => {
+    expect(DECLARATION_SECTIONS.map((s) => s.heading)).toEqual([
+      "Indemnity Clause",
+      "Data Protection",
+      "Declaration and Policy",
+    ]);
+    const text = JSON.stringify(DECLARATION_SECTIONS);
+    for (const phrase of [
+      "except in cases of proven gross negligence",
+      "in accordance with applicable data protection laws and the school's privacy policy.",
+      "TCS reserves the right to recommend an alternative placement or decline admission",
+      "Newly admitted pupils may be placed under observation during an initial adjustment period.",
+      "(Proverbs 22:6)",
+      "We look forward to welcoming your family into the TCS community.",
+      "By signing this form, I consent and agree to the terms and conditions of Treasures Christian School.",
+    ])
+      expect(text).toContain(phrase);
+    expect(DECLARATION_SECTIONS.flatMap((s) => s.paragraphs)).toHaveLength(8);
+    expect(DECLARATION_COPY.mediaText).toMatch(
+      /^I\/We grant permission for the learner's photographs/,
+    );
+    expect(DECLARATION_COPY.mediaText).toMatch(
+      /a written notice must be submitted to the school administration\.$/,
+    );
+    expect(SCHOLARSHIP_COPY.url).toBe(
+      "https://drive.google.com/file/d/12dDFJDSY2yaKT-KdMBQ7Y4DGq7_Bhbgf/view?usp=sharing",
+    );
+  });
+
+  it("thanks the parent with the name, grade and year, and promises no email", () => {
+    const s = applicationThankYou("Kofi Mensah", "Grade 3", "2026/2027");
+    expect(s).toBe(
+      "Thank you! We've received the application for Kofi Mensah (Grade 3, 2026/2027). Our admissions team will review your documents and be in touch soon.",
+    );
+    expect(s).not.toMatch(/e-?mail/i);
   });
 
   it("keeps the TCS OS headings", () => {
@@ -43,6 +117,8 @@ describe("public form copy", () => {
       "components/application-page.tsx",
       "application-steps.ts",
       "application-form.ts",
+      "nationalities.ts",
+      "components/nationality-combobox.tsx",
       "components/public-page-parts.tsx",
       "public-form.css",
       "public-copy.ts",

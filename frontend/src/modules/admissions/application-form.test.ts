@@ -20,6 +20,11 @@ import {
   validateApplication,
 } from "@/modules/admissions/application-form";
 import { FEE, OPTIONS, TODAY, VAC, validDraft } from "@/modules/admissions/application-fixtures";
+import {
+  DOCUMENT_SLOTS,
+  MAX_FILES_PER_SESSION,
+  canUploadMore,
+} from "@/modules/admissions/application-form";
 
 describe("options and view", () => {
   it("reads each grade's required documents; fee proof always first", () => {
@@ -29,7 +34,7 @@ describe("options and view", () => {
     expect(requiredDocumentTypes(OPTIONS, "g-2")).toEqual([FEE_PROOF]);
     expect(requiredDocumentTypes(OPTIONS, "")).toEqual([FEE_PROOF]);
     expect(PUBLIC_DOCUMENT_LABELS[FEE_PROOF]).toBe(
-      "Proof of payment (bank deposit slip, GIP confirmation or mobile money receipt)",
+      "Proof of application fee payment (bank deposit slip, GIP confirmation or mobile money receipt)",
     );
   });
 
@@ -189,7 +194,13 @@ describe("buildApplicationPayload", () => {
     const d = validDraft();
     d.health = { ...d.health, hasAllergies: true, allergies: " peanuts ", medical: "left over" };
     const p = buildApplicationPayload(d, OPTIONS, { [FEE_PROOF]: FEE, proof_of_vaccination: VAC });
+    // Every slot with an upload is sent, in slot order, required or not.
     expect(p.documents).toEqual([
+      {
+        document_type: "proof_of_vaccination",
+        reservation_id: "r2",
+        path: "uploads/r2/proof_of_vaccination.png",
+      },
       {
         document_type: FEE_PROOF,
         reservation_id: "r1",
@@ -316,5 +327,96 @@ describe("responses", () => {
     expect(applicationFieldToKey("declaration_agreed")).toBe("agreed");
     expect(applicationFieldToKey("students.0.grade_id")).toBeNull();
     expect(interpretApplicationResponse(0, null).kind).toBe("refused");
+  });
+});
+
+describe("documents (slice 9b C3)", () => {
+  it("has the four slots in TCS OS order, fee proof last under the fee box", () => {
+    expect(DOCUMENT_SLOTS).toEqual([
+      "proof_of_vaccination",
+      "financial_clearance",
+      "previous_report",
+      FEE_PROOF,
+    ]);
+  });
+
+  it("sends optional slots only when a file was uploaded, and accepts them", () => {
+    const fc = {
+      reservationId: "r3",
+      path: "uploads/r3/financial_clearance.pdf",
+      fileName: "fc.pdf",
+    };
+    const pr = { reservationId: "r4", path: "uploads/r4/previous_report.jpg", fileName: "pr.jpg" };
+    const d = validDraft();
+    const uploads = { [FEE_PROOF]: FEE, financial_clearance: fc, previous_report: pr };
+    expect(validateApplication(d, OPTIONS, TODAY, uploads)).toEqual({});
+    expect(
+      (buildApplicationPayload(d, OPTIONS, uploads).documents as { document_type: string }[]).map(
+        (x) => x.document_type,
+      ),
+    ).toEqual(["financial_clearance", "previous_report", FEE_PROOF]);
+    expect(buildApplicationPayload(d, OPTIONS, { [FEE_PROOF]: FEE }).documents).toHaveLength(1);
+  });
+
+  it("still requires the fee proof when every other slot is filled", () => {
+    const n1 = validDraft();
+    n1.child.gradeId = "g-n1";
+    const fc = {
+      reservationId: "r3",
+      path: "uploads/r3/financial_clearance.pdf",
+      fileName: "fc.pdf",
+    };
+    const e = validateApplication(n1, OPTIONS, TODAY, {
+      proof_of_vaccination: VAC,
+      financial_clearance: fc,
+    });
+    expect(Object.keys(e)).toEqual([`documents.${FEE_PROOF}`]);
+  });
+
+  it("stops at the files per session cap", () => {
+    expect(MAX_FILES_PER_SESSION).toBe(8);
+    expect(canUploadMore(7)).toBe(true);
+    expect(canUploadMore(8)).toBe(false);
+  });
+});
+
+describe("nationality (slice 9b C3)", () => {
+  it("refuses a value not on the list, and accepts a listed one in any case", () => {
+    const d = validDraft();
+    d.child.nationality = "Ghanaian";
+    expect(validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE })["child.nationality"]).toBe(
+      "Choose a country from the list",
+    );
+    d.child.nationality = "Wakanda";
+    expect(validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE })).toHaveProperty(
+      "child.nationality",
+    );
+    d.child.nationality = " cote d'ivoire ";
+    expect(validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE })).toEqual({});
+    expect(
+      (buildApplicationPayload(d, OPTIONS, {}).student as { nationality: string }).nationality,
+    ).toBe("Côte d'Ivoire");
+  });
+});
+
+describe("media consent and the declaration are independent", () => {
+  it("media consent is sent as given, whatever the declaration says", () => {
+    const d = validDraft();
+    d.mediaConsent = true;
+    d.agreed = false;
+    expect(buildApplicationPayload(d, OPTIONS, {}).media_consent_agreed).toBe(true);
+    expect(validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE })).toEqual({
+      agreed: "You must agree to the declaration",
+    });
+    d.mediaConsent = false;
+    d.agreed = true;
+    const p = buildApplicationPayload(d, OPTIONS, {});
+    expect([p.media_consent_agreed, p.declaration_agreed]).toEqual([false, true]);
+    expect(validateApplication(d, OPTIONS, TODAY, { [FEE_PROOF]: FEE })).toEqual({});
+  });
+
+  it("scholarship defaults to No", () => {
+    const d = emptyApplicationDraft();
+    expect(d.wantsScholarship).toBe(false);
   });
 });

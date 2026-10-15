@@ -223,8 +223,7 @@ body.tcs-public-body {
 
 /* :where() keeps this rule at the specificity of one class, so the focus
    and invalid rules below can change the border. */
-.tcs-public
-  :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+.tcs-public :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
   display: block;
   width: 100%;
   padding: 0.55rem 0.65rem;
@@ -630,11 +629,116 @@ body.tcs-public-body {
   color: var(--tcs-success);
 }
 
+/* The nationality combobox: a list under the field, in the page. */
+.tcs-public .tcs-combobox {
+  position: relative;
+}
+
+.tcs-public .tcs-combobox-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--tcs-border);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(26, 46, 46, 0.12);
+}
+
+.tcs-public .tcs-combobox-option,
+.tcs-public .tcs-combobox-empty {
+  padding: 0.5rem 0.65rem;
+  font-size: 0.9rem;
+}
+
+.tcs-public .tcs-combobox-option {
+  cursor: pointer;
+}
+
+.tcs-public .tcs-combobox-option.tcs-active {
+  background: var(--tcs-bg);
+  color: var(--tcs-primary);
+}
+
+.tcs-public .tcs-combobox-empty {
+  color: var(--tcs-text-muted);
+}
+
+/* The fee box and the declaration text (TCS OS apply.html). */
+.tcs-public .tcs-payment-box {
+  background: var(--tcs-bg);
+  border: 1px solid var(--tcs-border);
+  border-radius: 6px;
+  padding: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.tcs-public .tcs-payment-box p {
+  margin: 0;
+}
+
+.tcs-public .tcs-payment-box p + p {
+  margin-top: 0.75rem;
+}
+
+.tcs-public .tcs-declaration-text {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 1rem 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  background: var(--tcs-bg);
+  border: 1px solid var(--tcs-border);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.tcs-public .tcs-declaration-text h4 {
+  font-family: var(--tcs-font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--tcs-primary);
+  margin: 1rem 0 0.4rem;
+}
+
+.tcs-public .tcs-declaration-text h4:first-child {
+  margin-top: 0;
+}
+
+.tcs-public .tcs-declaration-text p {
+  margin: 0 0 0.6rem;
+}
+
+.tcs-public .tcs-declaration-text p:last-child {
+  margin-bottom: 0;
+}
+
+.tcs-public .tcs-declaration-text .tcs-verse {
+  font-style: italic;
+  color: var(--tcs-text-muted);
+}
+
+.tcs-public .tcs-upload-status.tcs-failed {
+  color: var(--tcs-error);
+}
+
+.tcs-public a {
+  color: var(--tcs-primary);
+}
+
 /* Last in the file so it wins over the base input rule above: iOS zooms
    the page when an input under 16px gets focus. */
 @media (max-width: 480px) {
-  .tcs-public
-    :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+  .tcs-public :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
     font-size: 1rem;
   }
 }

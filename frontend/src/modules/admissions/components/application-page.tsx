@@ -24,6 +24,8 @@ import {
   PUBLIC_DOCUMENT_LABELS,
   applicationView,
   buildApplicationPayload,
+  DOCUMENT_SLOTS,
+  canUploadMore,
   checkFile,
   childAddress,
   emptyApplicationDraft,
@@ -62,7 +64,16 @@ import {
   type GuardianDraft,
   type PublicOptions,
 } from "@/modules/admissions/inquiry-form";
-import { APPLICATION_COPY as COPY } from "@/modules/admissions/public-copy";
+import { NationalityCombobox } from "@/modules/admissions/components/nationality-combobox";
+import {
+  APPLICATION_COPY as COPY,
+  DECLARATION_COPY,
+  DECLARATION_SECTIONS,
+  DOCUMENTS_COPY as DOCS,
+  FEE_BOX,
+  SCHOLARSHIP_COPY,
+  applicationThankYou,
+} from "@/modules/admissions/public-copy";
 
 // /apply: the public Application form (admissions slice 9a), in the TCS OS
 // six step layout from slice 9b C2 (TCS OS backend/templates/public/
@@ -86,13 +97,13 @@ let missingKeyReported = false;
 export function ApplicationPage() {
   const options = useLoad(getPublicAdmissionsOptions, [], "Could not load the form.");
   const [closedAfterSubmit, setClosedAfterSubmit] = useState(false);
-  const [reference, setReference] = useState<string | null>(null);
+  const [created, setCreated] = useState<{ reference: string; sentence: string } | null>(null);
 
   const view = applicationView({
     loading: options.loading,
     error: options.error,
     options: options.data,
-    created: reference !== null,
+    created: created !== null,
     closedAfterSubmit,
     siteKey: SITE_KEY,
   });
@@ -106,8 +117,8 @@ export function ApplicationPage() {
         <p>{COPY.loadErrorBody}</p>
       </PublicNotice>
     );
-  } else if (view === "created" && reference) {
-    body = <ThankYou reference={reference} />;
+  } else if (view === "created" && created) {
+    body = <ThankYou reference={created.reference} sentence={created.sentence} />;
   } else if (view === "closed") {
     body = (
       <PublicNotice title={COPY.closedTitle}>
@@ -130,8 +141,8 @@ export function ApplicationPage() {
     body = (
       <ApplicationForm
         options={options.data}
-        onCreated={(ref) => {
-          setReference(ref);
+        onCreated={(reference, sentence) => {
+          setCreated({ reference, sentence });
           window.scrollTo({ top: 0 });
         }}
         onClosed={() => setClosedAfterSubmit(true)}
@@ -153,10 +164,10 @@ export function ApplicationPage() {
 
 /** No confirmation email exists until slice 12, so this page is the
  * parent's only record of the reference. */
-function ThankYou({ reference }: { reference: string }) {
+function ThankYou({ reference, sentence }: { reference: string; sentence: string }) {
   return (
     <PublicNotice title={COPY.thankYouTitle}>
-      <p>{COPY.thankYouBody}</p>
+      <p>{sentence}</p>
       <div className="tcs-reference-box">
         <p>{COPY.referenceLabel}</p>
         <p className="tcs-reference">{reference}</p>
@@ -174,7 +185,7 @@ function ApplicationForm({
   onClosed,
 }: {
   options: PublicOptions;
-  onCreated: (reference: string) => void;
+  onCreated: (reference: string, sentence: string) => void;
   onClosed: () => void;
 }) {
   const [draft, setDraft] = useState<ApplicationDraft>(emptyApplicationDraft);
@@ -182,6 +193,11 @@ function ApplicationForm({
   const [step, setStep] = useState(0);
   const [uploads, setUploads] = useState<Record<string, UploadedFile | undefined>>({});
   const [uploading, setUploading] = useState<string | null>(null);
+  // Per slot: a file going up now or the last attempt failed; uploaded
+  // files are in `uploads`. filesStarted counts reservations asked for in
+  // this visit, for the files per session cap.
+  const [fileStatus, setFileStatus] = useState<Record<string, "uploading" | "failed">>({});
+  const [filesStarted, setFilesStarted] = useState(0);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [uploadResetKey, setUploadResetKey] = useState(0);
@@ -302,7 +318,13 @@ function ApplicationForm({
       setErrors((e) => ({ ...e, [`documents.${type}`]: checked.error }));
       return;
     }
+    if (!canUploadMore(filesStarted)) {
+      setErrors((e) => ({ ...e, [`documents.${type}`]: DOCS.limitReached }));
+      return;
+    }
     setUploading(type);
+    setFilesStarted((n) => n + 1);
+    setFileStatus((s) => ({ ...s, [type]: "uploading" }));
     try {
       const uploaded = await uploadDocument(
         sessionToken,
@@ -313,7 +335,14 @@ function ApplicationForm({
         APPLICATION_OFFICE_MESSAGE,
       );
       setUploads((u) => ({ ...u, [type]: uploaded }));
+      setFileStatus((s) => {
+        const next = { ...s };
+        delete next[type];
+        return next;
+      });
     } catch (err) {
+      // A failed replacement leaves the earlier upload in place.
+      setFileStatus((s) => ({ ...s, [type]: "failed" }));
       setErrors((e) => ({
         ...e,
         [`documents.${type}`]: err instanceof Error ? err.message : APPLICATION_OFFICE_MESSAGE,
@@ -357,7 +386,15 @@ function ApplicationForm({
         buildApplicationPayload(draft, options, uploads),
       );
       if (outcome.kind === "created") {
-        onCreated(outcome.reference);
+        // TCS OS's sentence, with the name, grade and year as entered.
+        onCreated(
+          outcome.reference,
+          applicationThankYou(
+            draft.child.fullName.trim(),
+            options.grades.find((g) => g.id === draft.child.gradeId)?.name ?? "",
+            draft.child.academicYear,
+          ),
+        );
       } else if (outcome.kind === "closed") {
         onClosed();
       } else {
@@ -469,6 +506,52 @@ function ApplicationForm({
             {errors[textKey]}
           </div>
         )}
+      </div>
+    );
+  };
+
+  /** One document slot: label (star when this grade requires it), file
+   * input, and its status (uploading, uploaded, failed). The inputs wait
+   * for the upload session, and stop at the files per session cap. */
+  const documentSlot = (type: string) => {
+    const key = `documents.${type}`;
+    const done = uploads[type];
+    const state = fileStatus[type];
+    const required = docTypes.includes(type);
+    return (
+      <div className="tcs-document-field">
+        <PField
+          id={`d-${type}`}
+          label={PUBLIC_DOCUMENT_LABELS[type] ?? type}
+          required={required}
+          error={errors[key]}
+          hint={type === "proof_of_vaccination" ? DOCS.vaccinationHint : null}
+        >
+          <input
+            id={`d-${type}`}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+            disabled={!sessionToken || uploading !== null || !canUploadMore(filesStarted)}
+            aria-invalid={invalid(key)}
+            onChange={(e) => {
+              void chooseFile(type, e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </PField>
+        {state === "uploading" ? (
+          <p className="tcs-upload-status" role="status">
+            {DOCS.uploading}
+          </p>
+        ) : state === "failed" ? (
+          <p className="tcs-upload-status tcs-failed" role="status">
+            {done ? `${DOCS.failed} ${DOCS.earlierKept(done.fileName)}` : DOCS.failed}
+          </p>
+        ) : done ? (
+          <p className="tcs-upload-status tcs-done" role="status">
+            {DOCS.uploaded(done.fileName)}
+          </p>
+        ) : null}
       </div>
     );
   };
@@ -748,14 +831,13 @@ function ApplicationForm({
                     label="Nationality"
                     required
                     error={errors["child.nationality"]}
+                    hint="Not listed? Please contact the school."
                   >
-                    <input
+                    <NationalityCombobox
                       id="c-nat"
-                      type="text"
-                      maxLength={100}
-                      aria-invalid={invalid("child.nationality")}
                       value={c.nationality}
-                      onChange={(e) => setChild({ nationality: e.target.value })}
+                      onChange={(v) => setChild({ nationality: v })}
+                      invalid={!!errors["child.nationality"]}
                     />
                   </PField>
                   <PField
@@ -1023,7 +1105,7 @@ function ApplicationForm({
                 </>
               )}
 
-              {/* ------------------------------------------ 5. documents (9a content until C3) */}
+              {/* ------------------------------------------ 5. documents and payment */}
               {current.key === "documents" && (
                 <>
                   <p className="tcs-hint tcs-section-hint">{COPY.documentsHint}</p>
@@ -1032,7 +1114,7 @@ function ApplicationForm({
                       {errors.documents}
                     </div>
                   )}
-                  {!sessionToken ? (
+                  {!sessionToken && (
                     <div className="tcs-document-field">
                       <p className="tcs-question">{COPY.uploadCheck}</p>
                       {uploadVerifyUnavailable ? (
@@ -1050,54 +1132,118 @@ function ApplicationForm({
                       )}
                       {opening && <p className="tcs-upload-status">{COPY.preparingUploads}</p>}
                     </div>
-                  ) : (
-                    docTypes.map((type) => {
-                      const key = `documents.${type}`;
-                      const done = uploads[type];
-                      return (
-                        <div key={type} className="tcs-document-field">
-                          <PField
-                            id={`d-${type}`}
-                            label={PUBLIC_DOCUMENT_LABELS[type] ?? type}
-                            required
-                            error={errors[key]}
-                            hint={
-                              type === FEE_PROOF
-                                ? "A photo or scan of the slip, confirmation or receipt."
-                                : null
-                            }
-                          >
+                  )}
+                  {!canUploadMore(filesStarted) && (
+                    <p className="tcs-field-error" role="status">
+                      {DOCS.limitReached}
+                    </p>
+                  )}
+                  {DOCUMENT_SLOTS.map((type) => {
+                    const slot = documentSlot(type);
+                    return type === FEE_PROOF ? (
+                      <Fragment key={type}>
+                        <p className="tcs-block-heading" style={{ marginTop: "1.5rem" }}>
+                          {FEE_BOX.heading}
+                        </p>
+                        <div className="tcs-payment-box">
+                          <p>{FEE_BOX.intro}</p>
+                          <p>
+                            {FEE_BOX.accountHeading}
+                            {FEE_BOX.accountLines.map((line) => (
+                              <Fragment key={line}>
+                                <br />
+                                {line}
+                              </Fragment>
+                            ))}
+                          </p>
+                          <p>
+                            {FEE_BOX.processHeading}
+                            <br />
+                            {FEE_BOX.process}
+                          </p>
+                        </div>
+                        {slot}
+                      </Fragment>
+                    ) : (
+                      <Fragment key={type}>{slot}</Fragment>
+                    );
+                  })}
+
+                  <div className="tcs-field" style={{ marginTop: "1.5rem" }}>
+                    <div role="radiogroup" aria-labelledby="scholarship-q">
+                      <span id="scholarship-q" className="tcs-question">
+                        {SCHOLARSHIP_COPY.question}{" "}
+                        <span className="tcs-required" aria-hidden="true">
+                          *
+                        </span>
+                      </span>
+                      <div className="tcs-hint" style={{ marginTop: 0, marginBottom: "0.5rem" }}>
+                        {SCHOLARSHIP_COPY.hint}{" "}
+                        <a href={SCHOLARSHIP_COPY.url} target="_blank" rel="noopener noreferrer">
+                          {SCHOLARSHIP_COPY.linkText}
+                        </a>
+                      </div>
+                      <div className="tcs-radio-group">
+                        {[
+                          { v: true, label: "Yes" },
+                          { v: false, label: "No" },
+                        ].map((o) => (
+                          <label key={o.label} className="tcs-radio-option">
                             <input
-                              id={`d-${type}`}
-                              type="file"
-                              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                              disabled={uploading !== null}
-                              aria-invalid={invalid(key)}
-                              onChange={(e) => {
-                                void chooseFile(type, e.target.files?.[0]);
-                                e.target.value = "";
+                              type="radio"
+                              name="wants-scholarship"
+                              checked={draft.wantsScholarship === o.v}
+                              onChange={() => {
+                                clearError("scholarshipDetails");
+                                setDraft((d) => ({ ...d, wantsScholarship: o.v }));
                               }}
                             />
-                          </PField>
-                          {(uploading === type || done) && (
-                            <p
-                              className={done ? "tcs-upload-status tcs-done" : "tcs-upload-status"}
-                            >
-                              {uploading === type
-                                ? "Uploading…"
-                                : `Uploaded: ${done?.fileName}. Choose another file to replace it.`}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
+                            {o.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    {draft.wantsScholarship && (
+                      <textarea
+                        id="scholarship-details"
+                        aria-label={`${SCHOLARSHIP_COPY.question} ${SCHOLARSHIP_COPY.detailsPlaceholder}`}
+                        placeholder={SCHOLARSHIP_COPY.detailsPlaceholder}
+                        maxLength={10000}
+                        aria-invalid={invalid("scholarshipDetails")}
+                        value={draft.scholarshipDetails}
+                        onChange={(e) => {
+                          clearError("scholarshipDetails");
+                          const text = e.target.value;
+                          setDraft((d) => ({ ...d, scholarshipDetails: text }));
+                        }}
+                      />
+                    )}
+                    {errors.scholarshipDetails && (
+                      <div className="tcs-field-error">{errors.scholarshipDetails}</div>
+                    )}
+                  </div>
                 </>
               )}
 
-              {/* ------------------------------------------ 6. declaration (9a content until C3) */}
+              {/* ------------------------------------------ 6. declaration */}
               {current.key === "declaration" && (
                 <>
+                  <div className="tcs-declaration-text" tabIndex={0} aria-label="Declaration">
+                    {DECLARATION_SECTIONS.map((s) => (
+                      <Fragment key={s.heading}>
+                        <h4>{s.heading}</h4>
+                        {s.paragraphs.map((para, n) =>
+                          typeof para === "string" ? (
+                            <p key={n}>{para}</p>
+                          ) : (
+                            <p key={n} className="tcs-verse">
+                              {para.verse}
+                            </p>
+                          ),
+                        )}
+                      </Fragment>
+                    ))}
+                  </div>
                   <div className="tcs-field">
                     <div className="tcs-checkbox-field tcs-standalone">
                       <label>
@@ -1113,7 +1259,7 @@ function ApplicationForm({
                           }}
                         />
                         <span>
-                          I confirm that the information in this application is true and complete.{" "}
+                          {DECLARATION_COPY.agreement}{" "}
                           <span className="tcs-required" aria-hidden="true">
                             *
                           </span>
@@ -1126,25 +1272,50 @@ function ApplicationForm({
                       </div>
                     )}
                   </div>
-                  <PField
-                    id="signature"
-                    label="Sign by entering your full name:"
-                    required
-                    error={errors.signature}
-                  >
-                    <input
+
+                  <p className="tcs-block-heading" style={{ marginTop: "1.5rem" }}>
+                    {DECLARATION_COPY.mediaHeading}
+                  </p>
+                  <div className="tcs-declaration-text">
+                    <p>{DECLARATION_COPY.mediaText}</p>
+                  </div>
+                  <div className="tcs-field">
+                    <div className="tcs-checkbox-field tcs-standalone">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={draft.mediaConsent}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setDraft((d) => ({ ...d, mediaConsent: checked }));
+                          }}
+                        />
+                        <span>{DECLARATION_COPY.mediaAgreement}</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: "1.5rem" }}>
+                    <PField
                       id="signature"
-                      type="text"
-                      maxLength={255}
-                      aria-invalid={invalid("signature")}
-                      value={draft.signature}
-                      onChange={(e) => {
-                        clearError("signature");
-                        setDraft((d) => ({ ...d, signature: e.target.value }));
-                      }}
-                    />
-                  </PField>
-                  <div className="tcs-turnstile">
+                      label={DECLARATION_COPY.signature}
+                      required
+                      error={errors.signature}
+                    >
+                      <input
+                        id="signature"
+                        type="text"
+                        maxLength={255}
+                        aria-invalid={invalid("signature")}
+                        value={draft.signature}
+                        onChange={(e) => {
+                          clearError("signature");
+                          setDraft((d) => ({ ...d, signature: e.target.value }));
+                        }}
+                      />
+                    </PField>
+                  </div>
+                  <div className="tcs-turnstile" style={{ marginTop: "1.5rem" }}>
                     {verifyUnavailable ? (
                       <p className="tcs-field-error">
                         The security check couldn't load. {APPLICATION_OFFICE_MESSAGE}
