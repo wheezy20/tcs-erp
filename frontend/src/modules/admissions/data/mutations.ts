@@ -211,3 +211,10 @@ export async function setPublicIntakeOpen(open: boolean): Promise<void> {
   const { error } = await supabase.rpc("set_admissions_public_intake", { p_open: open });
   if (error) throw error;
 }
+
+/** Manager only (slice 8b RPC, made usable in slice 9a): opens or closes
+ * the public Application form. Audited as admissions_settings_changed. */
+export async function setPublicApplicationsOpen(open: boolean): Promise<void> {
+  const { error } = await supabase.rpc("set_admissions_public_applications", { p_open: open });
+  if (error) throw error;
+}

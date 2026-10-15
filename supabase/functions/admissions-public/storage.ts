@@ -10,9 +10,14 @@
 //               (Storage's fixed lifetime) and is bound to that one path.
 //   remove      DELETE /object/<bucket> with the paths as prefixes. A path
 //               with no file is not an error.
+//   readHead    GET /object/authenticated/<bucket>/<path> with a Range
+//               header for the first n bytes (206), or the start of a full
+//               body (200), reading no more than n bytes and cancelling the
+//               rest. 5 second timeout. Used by the application byte check.
 import type { StorageDeps } from "./handler.ts";
 
 export const ADMISSIONS_BUCKET = "admissions-documents";
+export const READ_HEAD_TIMEOUT_MS = 5000;
 
 export function makeStorage(
   fetchImpl: typeof fetch,
@@ -57,6 +62,36 @@ export function makeStorage(
         },
       );
       if (!res.ok) throw new Error(`remove answered ${res.status}`);
+    },
+    readHead: async (path, n) => {
+      const res = await fetchImpl(
+        `${supabaseUrl}/storage/v1/object/authenticated/${bucket}/${path}`,
+        {
+          method: "GET",
+          headers: {
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`,
+            Range: `bytes=0-${n - 1}`,
+          },
+          signal: AbortSignal.timeout(READ_HEAD_TIMEOUT_MS),
+        },
+      );
+      if ((res.status !== 206 && res.status !== 200) || !res.body) {
+        await res.body?.cancel().catch(() => {});
+        throw new Error(`read answered ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const out = new Uint8Array(n);
+      let got = 0;
+      while (got < n) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const take = Math.min(value.byteLength, n - got);
+        out.set(value.subarray(0, take), got);
+        got += take;
+      }
+      await reader.cancel().catch(() => {});
+      return out.subarray(0, got);
     },
   };
 }

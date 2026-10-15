@@ -127,7 +127,7 @@ export function phoneError(display: string): string | null {
     : "Enter the full number: country code and number, 8 to 15 digits after the +.";
 }
 
-const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+export const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export const REFERRAL_OPTIONS = [
   { value: "current_parent", label: "Current parent of TCS" },
@@ -170,7 +170,15 @@ export const OFFICE_MESSAGE =
 
 // ---------------------------------------------------------------- options
 
-export type PublicGrade = { id: string; name: string; position: number };
+/** requiredDocumentTypes: the documents a public application for this
+ * grade must include, fee proof first (slice 9a; the same database helper
+ * submit_application uses). The enquiry form ignores it. */
+export type PublicGrade = {
+  id: string;
+  name: string;
+  position: number;
+  requiredDocumentTypes: string[];
+};
 export type PublicCampus = { id: string; name: string; acceptedGradeIds: string[] };
 export type PublicOptions = {
   intakeOpen: boolean;
@@ -198,7 +206,9 @@ export function parsePublicOptions(raw: unknown): PublicOptions {
   if (!isRecord(raw)) return closed;
   const grades = Array.isArray(raw.grades)
     ? raw.grades.filter(
-        (g): g is PublicGrade =>
+        (
+          g,
+        ): g is { id: string; name: string; position: number; required_document_types?: unknown } =>
           isRecord(g) &&
           typeof g.id === "string" &&
           typeof g.name === "string" &&
@@ -229,7 +239,14 @@ export function parsePublicOptions(raw: unknown): PublicOptions {
   return {
     intakeOpen: raw.intake_open === true,
     applicationsOpen: raw.applications_open === true,
-    grades: grades.map((g) => ({ id: g.id, name: g.name, position: g.position })),
+    grades: grades.map((g) => ({
+      id: g.id,
+      name: g.name,
+      position: g.position,
+      requiredDocumentTypes: Array.isArray(g.required_document_types)
+        ? g.required_document_types.filter((d): d is string => typeof d === "string")
+        : [],
+    })),
     campuses,
     academicYears,
   };

@@ -8,8 +8,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  MAX_APPLICATION_BODY_BYTES,
   MAX_BODY_BYTES,
   MESSAGES,
+  safeApplicationFieldPath,
+  sniffKind,
   clientIp,
   handle,
   hmacHex,
@@ -666,6 +669,9 @@ function uploadHarness(opts: {
             removed.push(paths);
             if (opts.remove === "throw") throw new Error("remove");
           },
+          readHead: async () => {
+            throw new Error("not used by the upload actions");
+          },
         },
     defer: (work) => {
       deferred.push(work);
@@ -907,4 +913,288 @@ test("sweep: a failed delete leaves the claim to lapse; a failed claim deletes n
   const c = uploadHarness({ claim: { data: null, error: { code: "XX000" } } });
   await sweepExpiredUploads(c.deps);
   assert.deepEqual(c.removed, []);
+});
+
+// ---------------------------------------------------------------- application
+
+const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]);
+const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]);
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]);
+const HTML = new TextEncoder().encode("<!doctype html><script>");
+const RES_ID_2 = "5e55f3e0-0f96-4a4a-b017-097470f1f9a0";
+const RES_PATH_2 = `uploads/${RES_ID_2}/previous_report.png`;
+
+function applicationHarness(opts: {
+  ipOk?: boolean | "error";
+  globalOk?: boolean | "error";
+  turnstile?: TurnstileOutcome | "throw";
+  submit?: RpcResult | "throw";
+  heads?: Record<string, Uint8Array | "throw">;
+  noStorage?: boolean;
+}) {
+  const order: string[] = [];
+  const logs: string[] = [];
+  const submits: Record<string, unknown>[] = [];
+  const reads: string[] = [];
+  const deps: Deps = {
+    config: CONFIG,
+    verifyTurnstile: async () => {
+      order.push("turnstile");
+      if (opts.turnstile === "throw") throw new Error("timeout");
+      return opts.turnstile ?? { ...GOOD_TURNSTILE, action: "application" };
+    },
+    rpc: async (fn, args) => {
+      if (fn === "check_public_rate_limit") {
+        order.push(String(args.p_bucket));
+        const v =
+          args.p_bucket === "submit_ip"
+            ? (opts.ipOk ?? true)
+            : (opts.globalOk ?? true);
+        if (v === "error")
+          return { data: null, error: { code: "XX000", message: "boom" } };
+        return { data: v, error: null };
+      }
+      order.push(fn);
+      if (fn === "submit_application") {
+        submits.push(args);
+        if (opts.submit === "throw") throw new Error("network");
+        return opts.submit ?? { data: "APP-2026-0042", error: null };
+      }
+      throw new Error(`unexpected rpc ${fn}`);
+    },
+    log: (o) => logs.push(o),
+    storage: opts.noStorage
+      ? undefined
+      : {
+          signUpload: async () => {
+            throw new Error("not used");
+          },
+          remove: async () => {
+            throw new Error("not used");
+          },
+          readHead: async (path, n) => {
+            order.push("read");
+            reads.push(path);
+            assert.equal(n, 16);
+            const h = (opts.heads ?? { [RES_PATH]: PDF })[path];
+            if (h === undefined || h === "throw") throw new Error("no object");
+            return h.subarray(0, n);
+          },
+        },
+  };
+  return { deps, order, logs, submits, reads };
+}
+
+function appReq(payload: Record<string, unknown> = {}) {
+  return {
+    action: "application",
+    turnstile_token: TOKEN,
+    session_token: SESSION,
+    payload: {
+      documents: [
+        {
+          document_type: "application_fee_proof",
+          reservation_id: RES_ID,
+          path: RES_PATH,
+        },
+      ],
+      ...payload,
+    },
+  };
+}
+
+test("sniffKind: PDF strict at offset 0, JPEG, PNG; anything else unknown", () => {
+  assert.equal(sniffKind(PDF), "pdf");
+  assert.equal(sniffKind(JPEG), "jpeg");
+  assert.equal(sniffKind(PNG), "png");
+  assert.equal(sniffKind(HTML), "unknown");
+  assert.equal(sniffKind(new Uint8Array([0x20, ...PDF])), "unknown");
+  assert.equal(sniffKind(new Uint8Array([0x25, 0x50])), "unknown");
+  assert.equal(sniffKind(new Uint8Array([])), "unknown");
+  assert.equal(sniffKind(new Uint8Array([0xff, 0xd8])), "unknown");
+});
+
+test("application: submit_ip, Turnstile, submit_global, byte check, then submit_application; only the reference back", async () => {
+  const h = applicationHarness({});
+  const res = await handle(post(appReq()), h.deps);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await json(res), { reference: "APP-2026-0042" });
+  assert.deepEqual(h.order, [
+    "submit_ip",
+    "turnstile",
+    "submit_global",
+    "read",
+    "submit_application",
+  ]);
+  assert.deepEqual(h.submits, [
+    {
+      p_payload: appReq().payload,
+      p_session_token: SESSION,
+      p_sniffed: [{ reservation_id: RES_ID, path: RES_PATH, kind: "pdf" }],
+    },
+  ]);
+  // No IP of any form reaches the database.
+  assert.ok(!JSON.stringify(h.submits).includes(RAW_IP));
+  assert.deepEqual(h.logs, ["application_created"]);
+});
+
+test("application: the extension isn't trusted; the bytes are read and reported as they are", async () => {
+  const h = applicationHarness({ heads: { [RES_PATH]: HTML } });
+  await handle(post(appReq()), h.deps);
+  assert.deepEqual(h.submits[0].p_sniffed, [
+    { reservation_id: RES_ID, path: RES_PATH, kind: "unknown" },
+  ]);
+  const p = applicationHarness({ heads: { [RES_PATH]: PNG } });
+  await handle(post(appReq()), p.deps);
+  assert.equal(
+    (p.submits[0].p_sniffed as { kind: string }[])[0].kind,
+    "png",
+  );
+});
+
+test("application: a failed read is unknown and still goes to the database, which decides", async () => {
+  const h = applicationHarness({ heads: { [RES_PATH]: "throw" } });
+  const res = await handle(post(appReq()), h.deps);
+  assert.equal(res.status, 200);
+  assert.deepEqual(h.submits[0].p_sniffed, [
+    { reservation_id: RES_ID, path: RES_PATH, kind: "unknown" },
+  ]);
+});
+
+test("application: only reservation-shaped paths are read, at most four, never other bucket paths", async () => {
+  const docs = [
+    { document_type: "x", reservation_id: RES_ID, path: "receipts/a.pdf" },
+    { document_type: "x", reservation_id: RES_ID, path: RES_PATH_2 },
+    { document_type: "x", reservation_id: RES_ID_2, path: RES_PATH_2 },
+    "not an object",
+    { document_type: "x", reservation_id: RES_ID, path: RES_PATH },
+    { document_type: "x", reservation_id: "nope", path: RES_PATH },
+  ];
+  const h = applicationHarness({ heads: { [RES_PATH_2]: PNG } });
+  await handle(post(appReq({ documents: docs })), h.deps);
+  // The fifth entry is past the four the database could accept.
+  assert.deepEqual(h.reads, [RES_PATH_2]);
+  assert.deepEqual(h.submits[0].p_sniffed, [
+    { reservation_id: RES_ID_2, path: RES_PATH_2, kind: "png" },
+  ]);
+  const none = applicationHarness({});
+  await handle(post(appReq({ documents: "x" })), none.deps);
+  assert.deepEqual(none.reads, []);
+  assert.deepEqual(none.submits[0].p_sniffed, []);
+});
+
+test("application: Turnstile must be for the application action; a refusal reads and submits nothing", async () => {
+  for (const action of ["upload", "inquiry", undefined]) {
+    const h = applicationHarness({
+      turnstile: { ...GOOD_TURNSTILE, action },
+    });
+    const res = await handle(post(appReq()), h.deps);
+    assert.equal(res.status, 400);
+    assert.equal((await json(res)).error, MESSAGES.verify);
+    assert.ok(!h.order.includes("read"));
+    assert.ok(!h.order.includes("submit_application"));
+    assert.ok(!h.order.includes("submit_global"));
+  }
+  const t = applicationHarness({ turnstile: "throw" });
+  assert.equal((await handle(post(appReq()), t.deps)).status, 503);
+  assert.ok(!t.order.includes("submit_application"));
+});
+
+test("application: IP and global limits refuse before any read or submit", async () => {
+  const ip = applicationHarness({ ipOk: false });
+  const r1 = await handle(post(appReq()), ip.deps);
+  assert.equal(r1.status, 429);
+  assert.equal((await json(r1)).error, MESSAGES.appOffice);
+  assert.deepEqual(ip.order, ["submit_ip"]);
+  const g = applicationHarness({ globalOk: false });
+  assert.equal((await handle(post(appReq()), g.deps)).status, 429);
+  assert.deepEqual(g.order, ["submit_ip", "turnstile", "submit_global"]);
+  const e = applicationHarness({ ipOk: "error" });
+  assert.equal((await handle(post(appReq()), e.deps)).status, 503);
+});
+
+test("application: request shape: exact keys, a 64-hex session token, an object payload", async () => {
+  const bad = [
+    { ...appReq(), extra: 1 },
+    { ...appReq(), session_token: "abc" },
+    { ...appReq(), session_token: undefined },
+    { ...appReq(), payload: [] },
+    { ...appReq(), turnstile_token: "" },
+  ];
+  for (const body of bad) {
+    const h = applicationHarness({});
+    const res = await handle(post(body), h.deps);
+    assert.equal(res.status, 400);
+    assert.deepEqual(h.order, []);
+  }
+  // session_token is for the application action only.
+  const h = applicationHarness({});
+  const res = await handle(
+    post({ action: "inquiry", turnstile_token: TOKEN, session_token: SESSION, payload: {} }),
+    h.deps,
+  );
+  assert.equal(res.status, 400);
+});
+
+test("application: 64 KB body cap for the application, 32 KB still for the other actions", async () => {
+  const pad = (n: number) => "x".repeat(n);
+  const base = JSON.stringify(appReq({ scholarship_interest_details: "" })).length;
+  const fits = appReq({ scholarship_interest_details: pad(MAX_APPLICATION_BODY_BYTES - base) });
+  assert.equal(JSON.stringify(fits).length, MAX_APPLICATION_BODY_BYTES);
+  assert.equal((await handle(post(fits), applicationHarness({}).deps)).status, 200);
+  const over = appReq({ scholarship_interest_details: pad(MAX_APPLICATION_BODY_BYTES - base + 1) });
+  assert.equal((await handle(post(over), applicationHarness({}).deps)).status, 413);
+  const inquiry = {
+    action: "inquiry",
+    turnstile_token: TOKEN,
+    payload: { comments: pad(MAX_BODY_BYTES) },
+  };
+  const h = applicationHarness({});
+  assert.equal((await handle(post(inquiry), h.deps)).status, 413);
+  assert.deepEqual(h.order, []);
+});
+
+test("application: database refusals map to fixed answers; only a safe field path is passed on", async () => {
+  const cases: [RpcResult, number, string | null][] = [
+    [{ data: null, error: { code: "TCS22", message: "Child: enter a valid date of birth", details: "student.date_of_birth" } }, 400, "student.date_of_birth"],
+    [{ data: null, error: { code: "TCS22", message: "m", details: "guardians.1.phone" } }, 400, "guardians.1.phone"],
+    [{ data: null, error: { code: "TCS22", message: "m", details: "documents" } }, 400, "documents"],
+    [{ data: null, error: { code: "TCS22", message: "m", details: "student; drop table" } }, 400, null],
+    [{ data: null, error: { code: "TCS22", message: "m", details: "guardians.5.phone" } }, 400, null],
+  ];
+  for (const [submit, status, field] of cases) {
+    const h = applicationHarness({ submit });
+    const res = await handle(post(appReq()), h.deps);
+    assert.equal(res.status, status);
+    const body = await json(res);
+    assert.equal(body.field, field ?? undefined);
+  }
+  const closed = applicationHarness({ submit: { data: null, error: { code: "TCS03", message: "x" } } });
+  const c = await handle(post(appReq()), closed.deps);
+  assert.equal(c.status, 409);
+  assert.equal((await json(c)).error, MESSAGES.appClosed);
+  const limited = applicationHarness({ submit: { data: null, error: { code: "TCS29", message: "x" } } });
+  const l = await handle(post(appReq()), limited.deps);
+  assert.equal(l.status, 429);
+  assert.equal((await json(l)).error, MESSAGES.appOffice);
+  const odd = applicationHarness({ submit: { data: null, error: { code: "23505", message: "secret detail" } } });
+  const o = await handle(post(appReq()), odd.deps);
+  assert.equal(o.status, 500);
+  assert.equal((await json(o)).error, MESSAGES.appError);
+  assert.deepEqual(odd.logs, ["application_failed_23505"]);
+  for (const data of [null, 42, { reference: "APP-2026-0001" }, "INQ-2026-0001", "APP-2026-1"]) {
+    const h = applicationHarness({ submit: { data, error: null } });
+    assert.equal((await handle(post(appReq()), h.deps)).status, 500);
+  }
+  const thrown = applicationHarness({ submit: "throw" });
+  assert.equal((await handle(post(appReq()), thrown.deps)).status, 500);
+  const nostore = applicationHarness({ noStorage: true });
+  assert.equal((await handle(post(appReq()), nostore.deps)).status, 503);
+});
+
+test("safeApplicationFieldPath: only the application's field paths", () => {
+  for (const ok of ["guardians.0.email", "student.grade_id", "emergency_contact.phone", "health_info.medical_conditions_details", "campus_id", "declaration_agreed", "documents"])
+    assert.equal(safeApplicationFieldPath(ok), ok);
+  for (const no of ["students.0.grade_id", "guardians.2.email", "student.", "x", "", null, "student.A"])
+    assert.equal(safeApplicationFieldPath(no), null);
 });

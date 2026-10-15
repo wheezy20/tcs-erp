@@ -47,6 +47,24 @@
 //                   through the Storage API and marks them cleaned. A
 //                   failure leaves the claim to lapse and be retried.
 //
+// The application action (slice 9a checkpoint 2; D-9b, D-9c, D-9e, D-9i,
+// D-9j): steps 1 to 3 with a 64 KB body cap (application only; the others
+// keep 32 KB), then submit_ip (shared with enquiries, D-9l), Turnstile with
+// action "application", submit_global (only after Turnstile), then the
+// byte check, then submit_application.
+//
+//   byte check  for each document the payload names whose path has the
+//               reservation shape, the first 16 bytes are read from Storage
+//               and named pdf, jpeg, png or unknown (sniffKind). Any read
+//               failure is "unknown". This function only reports what the
+//               bytes are; submit_application decides, against the
+//               reservation's own path and extension, and refuses anything
+//               missing or unknown. Overwrite is off on every signed upload,
+//               so the object can't change after it is read.
+//   response    200 with only the APP reference, the same whether the
+//               family was new or matched, an enquiry was advanced or a
+//               possible duplicate was flagged. No IP is passed on (D-9i).
+//
 // This file has no Deno globals and no npm imports, so Node's test runner
 // can drive it with a fake verifier and fake RPCs (handler.test.ts).
 // index.ts wires the real ones. Secrets are passed in, never logged, and
@@ -54,6 +72,10 @@
 // unexpected database error, only its SQLSTATE.
 
 export const MAX_BODY_BYTES = 32 * 1024;
+/** The application carries health details and a long scholarship text. */
+export const MAX_APPLICATION_BODY_BYTES = 64 * 1024;
+export const SNIFF_BYTES = 16;
+export const MAX_APPLICATION_DOCUMENTS = 4;
 export const MAX_TOKEN_LENGTH = 2048;
 export const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
@@ -93,6 +115,8 @@ export const MESSAGES = {
   appClosed:
     "Online applications are closed at the moment. Please call the school office to apply.",
   fileRejected: "Only PDF, JPG or PNG files of 10 MB or less can be uploaded.",
+  appError:
+    "Something went wrong on our side. Please try again later, or call the school office to apply.",
 } as const;
 
 export type Config = {
@@ -127,6 +151,32 @@ export function safeFieldPath(
     : null;
 }
 
+// The payload paths submit_application names (slice 9a), e.g.
+// "guardians.1.phone", "student.date_of_birth" or "documents".
+const APPLICATION_FIELD_PATH =
+  /^(guardians|student|campus_id|emergency_contact|health_info|documents|wants_scholarship_info|scholarship_interest_details|media_consent_agreed|declaration_signature_name|declaration_agreed|guardians\.[01](\.[a-z_]{1,40})?|(student|emergency_contact|health_info)\.[a-z_]{1,40})$/;
+
+export function safeApplicationFieldPath(
+  details: string | null | undefined,
+): string | null {
+  return typeof details === "string" && APPLICATION_FIELD_PATH.test(details)
+    ? details
+    : null;
+}
+
+export type FileKind = "pdf" | "jpeg" | "png" | "unknown";
+
+/** What the leading bytes say a file is. PDF must start with %PDF- at
+ * offset 0 (strict: a stranger's file gets no leading junk). */
+export function sniffKind(bytes: Uint8Array): FileKind {
+  const starts = (sig: number[]) =>
+    bytes.length >= sig.length && sig.every((b, i) => bytes[i] === b);
+  if (starts([0x25, 0x50, 0x44, 0x46, 0x2d])) return "pdf";
+  if (starts([0xff, 0xd8, 0xff])) return "jpeg";
+  if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "png";
+  return "unknown";
+}
+
 export type StorageDeps = {
   /** Signs one upload to exactly this path, overwrite off. Resolves with
    * the upload token; throws on any error. */
@@ -134,6 +184,9 @@ export type StorageDeps = {
   /** Deletes these paths in the admissions bucket; throws on any error. A
    * path with no file is not an error. */
   remove: (paths: string[]) => Promise<void>;
+  /** Up to n leading bytes of the object at this path; throws on any
+   * error, including a missing object. */
+  readHead: (path: string, n: number) => Promise<Uint8Array>;
 };
 
 export type Deps = {
@@ -317,6 +370,12 @@ type ParsedRequest =
       documentType: string;
       extension: string;
       size: unknown;
+    }
+  | {
+      action: "application";
+      token: string;
+      sessionToken: string;
+      payload: Record<string, unknown>;
     };
 
 function turnstileToken(value: unknown): string | null {
@@ -344,6 +403,26 @@ function parseRequest(text: string): ParsedRequest | "unknown_action" | null {
   }
   if (!isObject(body)) return null;
   const b = body;
+  if (b.action === "application") {
+    if (
+      !onlyKeys(b, ["action", "turnstile_token", "session_token", "payload"])
+    )
+      return null;
+    const token = turnstileToken(b.turnstile_token);
+    if (
+      token === null ||
+      !isObject(b.payload) ||
+      typeof b.session_token !== "string" ||
+      !/^[0-9a-f]{64}$/.test(b.session_token)
+    )
+      return null;
+    return {
+      action: "application",
+      token,
+      sessionToken: b.session_token,
+      payload: b.payload,
+    };
+  }
   if (!onlyKeys(b, ["action", "turnstile_token", "payload"])) return null;
 
   if (b.action === "inquiry") {
@@ -416,9 +495,11 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     return respond(415, { error: MESSAGES.badRequest }, origin);
   }
 
+  // Read up to the application's cap; every other action is held to the
+  // smaller one once its action is known.
   let text: string | null;
   try {
-    text = await readCapped(req, MAX_BODY_BYTES);
+    text = await readCapped(req, MAX_APPLICATION_BODY_BYTES);
   } catch {
     deps.log("body_unreadable");
     return respond(400, { error: MESSAGES.badRequest }, origin);
@@ -432,6 +513,15 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     deps.log(parsed === null ? "bad_request" : "unknown_action");
     return respond(400, { error: MESSAGES.badRequest }, origin);
   }
+  if (
+    parsed.action !== "application" &&
+    new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES
+  ) {
+    deps.log("too_large");
+    return respond(413, { error: MESSAGES.badRequest }, origin);
+  }
+  if (parsed.action === "application")
+    return handleApplication(req, parsed, deps, config, origin);
   if (parsed.action === "upload_session")
     return handleUploadSession(req, parsed.token, deps, config, origin);
   if (parsed.action === "upload_url")
@@ -778,4 +868,146 @@ export async function sweepExpiredUploads(deps: Deps): Promise<void> {
   } catch {
     deps.log("sweep_failed");
   }
+}
+
+/** The {reservation_id, path, kind} report for each document the payload
+ * names with a reservation-shaped path, at most
+ * MAX_APPLICATION_DOCUMENTS. Anything else is left out, and the database
+ * refuses a document with no report. Reads run in parallel; a failed read
+ * is "unknown". */
+export async function sniffDocuments(
+  payload: Record<string, unknown>,
+  storage: StorageDeps,
+): Promise<{ reservation_id: string; path: string; kind: FileKind }[]> {
+  const docs = Array.isArray(payload.documents) ? payload.documents : [];
+  const wanted = docs
+    .slice(0, MAX_APPLICATION_DOCUMENTS)
+    .filter(
+      (d): d is { reservation_id: string; path: string } =>
+        isObject(d) &&
+        typeof d.reservation_id === "string" &&
+        UUID_ONLY.test(d.reservation_id) &&
+        typeof d.path === "string" &&
+        UPLOAD_PATH.test(d.path) &&
+        d.path.startsWith(`uploads/${d.reservation_id}/`),
+    );
+  return Promise.all(
+    wanted.map(async (d) => {
+      let kind: FileKind = "unknown";
+      try {
+        kind = sniffKind(await storage.readHead(d.path, SNIFF_BYTES));
+      } catch {
+        kind = "unknown";
+      }
+      return { reservation_id: d.reservation_id, path: d.path, kind };
+    }),
+  );
+}
+
+async function handleApplication(
+  req: Request,
+  parsed: Extract<ParsedRequest, { action: "application" }>,
+  deps: Deps,
+  config: Config,
+  origin: string,
+): Promise<Response> {
+  if (!deps.storage) {
+    deps.log("misconfigured");
+    return respond(503, { error: MESSAGES.appOffice }, origin);
+  }
+
+  let ipKey: string;
+  try {
+    ipKey = await hmacHex(config.ipHashKey, clientIp(req.headers));
+  } catch {
+    deps.log("ip_hash_failed");
+    return respond(503, { error: MESSAGES.appOffice }, origin);
+  }
+  const ipOk = await underLimit(deps, {
+    p_bucket: "submit_ip",
+    p_key_hash: ipKey,
+  });
+  if (ipOk === "error") {
+    deps.log("rate_limit_error");
+    return respond(503, { error: MESSAGES.appOffice }, origin);
+  }
+  if (!ipOk) {
+    deps.log("ip_limited");
+    return respond(429, { error: MESSAGES.appOffice }, origin);
+  }
+
+  let outcome: TurnstileOutcome;
+  try {
+    outcome = await deps.verifyTurnstile(parsed.token, config.turnstileSecret);
+  } catch {
+    deps.log("turnstile_unavailable");
+    return respond(503, { error: MESSAGES.verify }, origin);
+  }
+  if (!turnstilePassed(outcome, config, "application")) {
+    deps.log("turnstile_refused");
+    return respond(400, { error: MESSAGES.verify }, origin);
+  }
+
+  const globalOk = await underLimit(deps, { p_bucket: "submit_global" });
+  if (globalOk === "error") {
+    deps.log("rate_limit_error");
+    return respond(503, { error: MESSAGES.appOffice }, origin);
+  }
+  if (!globalOk) {
+    deps.log("global_limited");
+    return respond(429, { error: MESSAGES.appOffice }, origin);
+  }
+
+  const sniffed = await sniffDocuments(parsed.payload, deps.storage);
+
+  let result: RpcResult;
+  try {
+    result = await deps.rpc("submit_application", {
+      p_payload: parsed.payload,
+      p_session_token: parsed.sessionToken,
+      p_sniffed: sniffed,
+    });
+  } catch {
+    deps.log("application_error");
+    return respond(500, { error: MESSAGES.appError }, origin);
+  }
+  if (result.error) {
+    switch (result.error.code) {
+      case "TCS22": {
+        deps.log("application_invalid");
+        const field = safeApplicationFieldPath(result.error.details);
+        return respond(
+          400,
+          {
+            error: result.error.message ?? MESSAGES.badRequest,
+            ...(field ? { field } : {}),
+          },
+          origin,
+        );
+      }
+      case "TCS03":
+        deps.log("application_closed");
+        return respond(409, { error: MESSAGES.appClosed }, origin);
+      case "TCS29":
+        deps.log("application_email_limited");
+        return respond(429, { error: MESSAGES.appOffice }, origin);
+      default: {
+        const code = /^[0-9A-Z]{5}$/.test(result.error.code ?? "")
+          ? result.error.code
+          : "unknown";
+        deps.log(`application_failed_${code}`);
+        return respond(500, { error: MESSAGES.appError }, origin);
+      }
+    }
+  }
+  const reference = result.data;
+  if (
+    typeof reference !== "string" ||
+    !/^APP-[0-9]{4}-[0-9]{4,}$/.test(reference)
+  ) {
+    deps.log("application_bad_result");
+    return respond(500, { error: MESSAGES.appError }, origin);
+  }
+  deps.log("application_created");
+  return respond(200, { reference }, origin);
 }

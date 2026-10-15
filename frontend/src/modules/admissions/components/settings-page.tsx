@@ -39,6 +39,7 @@ import {
   deleteCapacity,
   setAcademicYearActive,
   setOfferTtlDays,
+  setPublicApplicationsOpen,
   setPublicIntakeOpen,
   updateCapacity,
 } from "@/modules/admissions/data/mutations";
@@ -141,28 +142,36 @@ function SectionMessage({ children, error }: { children: React.ReactNode; error?
 
 /* ---------------------------------------------------------------- public intake */
 
-/** Two independent switches (slice 8b). Public inquiries is
+/** Two independent switches. Public inquiries is
  * admissions_settings.public_intake_open, the slice 8 switch; public
- * applications has its column and Manager RPC but no form until slice 9,
- * so it is shown and can't be changed here yet. Manager writes; Auditor
- * reads. */
+ * applications is public_applications_open, usable since slice 9a (D-9k).
+ * Each change is audited (admissions_settings_changed). Manager writes;
+ * Auditor reads. */
 function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
   const switches = useLoad(getPublicSwitches, [], "Could not load the public switches.");
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<"inquiries" | "applications" | null>(null);
   const [busy, setBusy] = useState(false);
   const inquiriesOpen = switches.data?.inquiriesOpen === true;
+  const applicationsOpen = switches.data?.applicationsOpen === true;
 
-  async function change() {
+  async function change(which: "inquiries" | "applications") {
     setBusy(true);
     try {
-      await setPublicIntakeOpen(!inquiriesOpen);
-      toast.success(inquiriesOpen ? "Public inquiries closed" : "Public inquiries opened");
+      if (which === "inquiries") {
+        await setPublicIntakeOpen(!inquiriesOpen);
+        toast.success(inquiriesOpen ? "Public inquiries closed" : "Public inquiries opened");
+      } else {
+        await setPublicApplicationsOpen(!applicationsOpen);
+        toast.success(
+          applicationsOpen ? "Public applications closed" : "Public applications opened",
+        );
+      }
       await switches.reload();
     } catch (err) {
-      toast.error(getErrorMessage(err, "Could not change public inquiries."));
+      toast.error(getErrorMessage(err, `Could not change public ${which}.`));
     } finally {
       setBusy(false);
-      setConfirming(false);
+      setConfirming(null);
     }
   }
 
@@ -173,13 +182,31 @@ function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
       <Badge variant="outline">Closed</Badge>
     );
 
+  const dialog =
+    confirming === "applications"
+      ? {
+          title: applicationsOpen ? "Close public applications?" : "Open public applications?",
+          body: applicationsOpen
+            ? "The application form will show a closed page, and uploads and submissions are refused straight away."
+            : "Anyone with the link will be able to upload documents and send an application. Make sure the old admissions site is no longer taking applications, so there is only one intake.",
+          action: applicationsOpen ? "Close applications" : "Open applications",
+        }
+      : {
+          title: inquiriesOpen ? "Close public inquiries?" : "Open public inquiries?",
+          body: inquiriesOpen
+            ? "The enquiry form will show a closed page and refuse new submissions straight away."
+            : "Anyone with the link will be able to send an enquiry. Make sure the old admissions site is no longer taking enquiries, so there is only one intake.",
+          action: inquiriesOpen ? "Close inquiries" : "Open inquiries",
+        };
+
   return (
     <section className="card-surface overflow-hidden">
       <div className="border-b p-6">
         <h2 className="text-sm font-semibold">Public intake</h2>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Two separate switches. Closing one doesn't affect the other. Keep both closed while the
-          old admissions site is still taking enquiries, so there is only one intake.
+          old admissions site is still taking enquiries and applications, so there is only one
+          intake.
         </p>
         {switches.error && <p className="mt-2 text-sm text-destructive">{switches.error}</p>}
       </div>
@@ -199,7 +226,7 @@ function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
             <Button
               variant={inquiriesOpen ? "outline" : "default"}
               disabled={busy}
-              onClick={() => setConfirming(true)}
+              onClick={() => setConfirming("inquiries")}
             >
               {inquiriesOpen ? "Close public inquiries" : "Open public inquiries"}
             </Button>
@@ -212,28 +239,29 @@ function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
               {badge(switches.data?.applicationsOpen)}
             </div>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              The public application form arrives in a later slice. This switch can't be changed
-              until then.
+              Whether parents can use the application form at /apply. While closed, the form shows a
+              closed page, and uploads and submissions are refused.
             </p>
           </div>
           {canEdit && switches.data && (
-            <Button variant="outline" disabled>
-              Open public applications
+            <Button
+              variant={applicationsOpen ? "outline" : "default"}
+              disabled={busy}
+              onClick={() => setConfirming("applications")}
+            >
+              {applicationsOpen ? "Close public applications" : "Open public applications"}
             </Button>
           )}
         </div>
       </div>
-      <AlertDialog open={confirming} onOpenChange={(o) => !busy && setConfirming(o)}>
+      <AlertDialog
+        open={confirming !== null}
+        onOpenChange={(o) => !busy && !o && setConfirming(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {inquiriesOpen ? "Close public inquiries?" : "Open public inquiries?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {inquiriesOpen
-                ? "The enquiry form will show a closed page and refuse new submissions straight away."
-                : "Anyone with the link will be able to send an enquiry. Make sure the old admissions site is no longer taking enquiries, so there is only one intake."}
-            </AlertDialogDescription>
+            <AlertDialogTitle>{dialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>{dialog.body}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
@@ -241,10 +269,10 @@ function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
               disabled={busy}
               onClick={(e) => {
                 e.preventDefault();
-                void change();
+                if (confirming) void change(confirming);
               }}
             >
-              {inquiriesOpen ? "Close inquiries" : "Open inquiries"}
+              {dialog.action}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/select";
 import type { StaffRole } from "@/data/auth-store";
 import { listDocuments } from "@/modules/admissions/data/application-detail";
-import { openApplicationDocument } from "@/modules/admissions/data/documents";
+import { downloadApplicationDocument } from "@/modules/admissions/data/documents";
+import { FEE_PROOF, FEE_PROOF_NOTE, feeProofFirst } from "@/modules/admissions/document-files";
 import { setDocumentStatus } from "@/modules/admissions/data/mutations";
 import { useLoad } from "@/modules/admissions/hooks/use-load";
 import {
@@ -35,7 +36,7 @@ export function DocumentsPanel({
   role: StaffRole | undefined;
 }) {
   const docs = useLoad(
-    () => listDocuments(applicationId),
+    async () => feeProofFirst(await listDocuments(applicationId)),
     [applicationId],
     "Could not load documents.",
   );
@@ -43,13 +44,13 @@ export function DocumentsPanel({
   // Guards against a double click signing two links at once.
   const opening = useRef<string | null>(null);
 
-  async function view(documentId: string) {
+  async function download(documentId: string) {
     if (opening.current) return;
     opening.current = documentId;
     try {
-      await openApplicationDocument(documentId);
+      await downloadApplicationDocument(documentId);
     } catch (err) {
-      toast.error(getErrorMessage(err, "Could not open the document."));
+      toast.error(getErrorMessage(err, "Could not download the document."));
     } finally {
       opening.current = null;
     }
@@ -72,7 +73,8 @@ export function DocumentsPanel({
     <section className="card-surface p-6">
       <h2 className="text-sm font-semibold">Documents</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Stored privately. View opens a link that works for five minutes.
+        Stored privately. Files come from the public and are always downloaded, never opened in the
+        browser; each download link works for five minutes.
       </p>
 
       <div className="mt-5 space-y-2">
@@ -100,6 +102,9 @@ export function DocumentsPanel({
                     ? `Uploaded ${dateTime.format(new Date(doc.uploadedAt))}`
                     : "Required, not uploaded yet"}
                 </div>
+                {doc.documentType === FEE_PROOF && (
+                  <p className="mt-1 max-w-md text-xs text-muted-foreground">{FEE_PROOF_NOTE}</p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {targets.length > 0 ? (
@@ -128,8 +133,8 @@ export function DocumentsPanel({
                   </Badge>
                 )}
                 {doc.uploadedAt && (
-                  <Button variant="ghost" size="sm" onClick={() => view(doc.id)}>
-                    View <ExternalLink className="size-3.5" />
+                  <Button variant="ghost" size="sm" onClick={() => download(doc.id)}>
+                    Download <Download className="size-3.5" />
                   </Button>
                 )}
               </div>

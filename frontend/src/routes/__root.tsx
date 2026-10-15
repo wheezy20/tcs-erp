@@ -151,12 +151,14 @@ function RootComponent() {
   // is wrong for someone who was never meant to have a login in the
   // first place; every real check happens server-side in the RPCs the
   // page calls, not here.
-  // /inquiry is the public admissions Inquiry form (admissions slice 8): a
-  // parent has no account, and the Edge Function behind it does every check.
+  // /inquiry is the public admissions Inquiry form (admissions slice 8) and
+  // /apply the public Application form (slice 9a): a parent has no account,
+  // and the Edge Function behind each does every check.
   const isAuthFreeRoute =
     pathname === "/login" ||
     pathname === "/accept-invite" ||
     pathname === "/inquiry" ||
+    pathname === "/apply" ||
     pathname.startsWith("/onboarding/");
 
   return (

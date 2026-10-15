@@ -459,6 +459,68 @@ export type Database = {
           },
         ]
       }
+      application_match_flags: {
+        Row: {
+          application_id: string
+          created_at: string
+          differences: Json
+          family_matched: boolean
+          id: string
+          matched_application_id: string | null
+          outcome: string
+          student_matched: boolean
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          differences?: Json
+          family_matched: boolean
+          id?: string
+          matched_application_id?: string | null
+          outcome: string
+          student_matched: boolean
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          differences?: Json
+          family_matched?: boolean
+          id?: string
+          matched_application_id?: string | null
+          outcome?: string
+          student_matched?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_match_flags_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_match_flags_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_match_flags_matched_application_id_fkey"
+            columns: ["matched_application_id"]
+            isOneToOne: false
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_match_flags_matched_application_id_fkey"
+            columns: ["matched_application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       application_notes: {
         Row: {
           application_id: string
@@ -606,6 +668,7 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
+          submitted_application_id: string | null
           token_hash: string
         }
         Insert: {
@@ -613,6 +676,7 @@ export type Database = {
           created_at?: string
           expires_at: string
           id?: string
+          submitted_application_id?: string | null
           token_hash: string
         }
         Update: {
@@ -620,9 +684,25 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          submitted_application_id?: string | null
           token_hash?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "application_upload_sessions_submitted_application_id_fkey"
+            columns: ["submitted_application_id"]
+            isOneToOne: false
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_upload_sessions_submitted_application_id_fkey"
+            columns: ["submitted_application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       applications: {
         Row: {
@@ -4801,6 +4881,10 @@ export type Database = {
       _admissions_reference_year: { Args: { p_at?: string }; Returns: number }
       _admissions_seed_public_campus_labels: { Args: never; Returns: number }
       _admissions_sequence_text: { Args: { p_seq: number }; Returns: string }
+      _application_kind_for_extension: {
+        Args: { p_extension: string }
+        Returns: string
+      }
       _application_required_document_types: {
         Args: { p_grade_id: string }
         Returns: string[]
@@ -4871,6 +4955,10 @@ export type Database = {
         Args: { p_bank_name: string; p_created_by?: string }
         Returns: string
       }
+      _public_bool: {
+        Args: { p_field: string; p_key: string; p_label: string; p_obj: Json }
+        Returns: boolean
+      }
       _public_invalid: {
         Args: { p_field: string; p_message: string }
         Returns: undefined
@@ -4884,6 +4972,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      _public_phone_ok: { Args: { p_phone: string }; Returns: boolean }
       _public_rate_limit_hit: {
         Args: { p_bucket: string; p_key_hash: string }
         Returns: boolean
@@ -7378,6 +7467,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      submit_application: {
+        Args: { p_payload: Json; p_session_token: string; p_sniffed: Json }
+        Returns: string
       }
       submit_inquiry: { Args: { p_payload: Json }; Returns: string[] }
       submit_onboarding_form: {

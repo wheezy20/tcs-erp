@@ -4953,3 +4953,42 @@ Eyram reviewed checkpoint 1 and asked for one change before it ships. It is stil
 - **CLAUDE.md:** run the probe files before the Edge Function integration tests.
 
 Recorded in PORT-PLAN, slice 9 (D-9g and the checkpoint 1 section), and DESIGN.md (the caps bullet).
+
+## 2026-10-15: Admissions slice 9a checkpoint 2, submit, matching and /apply (built locally)
+
+Checkpoint 2 of slice 9a is built locally and uncommitted. It is not applied on hosted and not deployed. It covers the rest of 9a: the submit RPC, the match flags, the `application` action with the byte check, the plain `/apply` page, the staff Submission check panel and the Settings switch. The six-section form (9b) is still to come. Detail is in PORT-PLAN, slice 9, "Checkpoint 2 built 2026-10-15".
+
+- **Hosted state, as reported by Eyram on 2026-10-15.** Checkpoint 1 is committed as c822b56. Its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3. Checkpoint 2 is not applied on hosted and not deployed.
+- **Why the RPC takes the whole serializer shape.** The RPC accepts the full `ApplicationSerializer` payload now, so 9b is UI only and adds no rule the database doesn't enforce.
+- **Why the Edge Function reads bytes and the database decides.** The database can't read file bytes. The Edge Function reads the first 16 bytes of each document through the Storage API and reports the kind for each reservation id and path. `submit_application` compares that report with the extension and refuses a missing or mismatched one. A failed read goes through as `unknown`, and the database refuses it. The convention is in DESIGN.md.
+- **Why staff download and never view inline.** Parents' files are strangers' files. Staff open them only through a short-lived signed URL with a forced download. The file name is built only from the reference, the document type and the extension. The convention is in DESIGN.md.
+- **Decisions from Eyram, 2026-10-15** (recorded as D-9m to D-9p in PORT-PLAN):
+  - the match flags are readable like `application_documents`;
+  - a second Turnstile solve on submit, after the upload one;
+  - a repeat submit on a used session returns the same APP reference and writes and counts nothing, so a double click is not a second application;
+  - the family match prefers the family holding the same child (same name and date of birth), else the oldest.
+- **Why the email count sorts emails first.** Fix round 1, after code review: the per-email count takes its bucket row locks in sorted order, so two submissions sharing emails can't deadlock.
+- **Why the second database session test exists.** Break 15 (session row lock removed) was not caught by the Edge-level double click test, because the two requests never overlapped in the transaction. `submit.integration.test.ts` test 5 uses two database sessions on one upload session, and it catches the break.
+- **Accepted risks (reported 2026-10-15), recorded in PORT-PLAN:**
+  - per-email griefing: a valid solve plus files can make 5 successful submissions naming a victim's email and lock that email out for the day, bounded by `submit_ip` and `submit_global`;
+  - two submissions at the same moment for the same new child with disjoint guardian emails can create two families, which staff see as duplicates;
+  - an Edge nit: non-application bodies are parsed up to 64 KB before the 32 KB refusal.
+
+**Verification (local only):**
+
+- **Test-runner, fresh reset, end of pass:** overload check clean; types regen identical; anon-executable 170; all 44 probe files green; `handler.test.ts` 51 of 51; `integration.test.ts` 7 of 7; `upload.integration.test.ts` 7 of 7; `submit.integration.test.ts` 4 of 4 (before test 5 was added); lint 0 errors and 13 warnings (baseline); `tsc` clean; build ok; prettier clean; no service role key in the build; nothing staged.
+- **After test 5 was added** (main session, fresh reset): the submit probe file green and `submit.integration.test.ts` 5 of 5, after break 15 was restored and again after fix round 1; overload check clean and types identical.
+- **Vitest:** `npm test` 124, including the new `application-form`, `document-files` and `submission-check` files.
+- **Deliberate breaks:** 13 in this checkpoint (10 to 22), all caught. Twelve were caught by the probe file (A1 to A26) or the unit and integration tests; break 15 was caught by the two-session test. Three were not broken on purpose: the payload path check (redundant, since the document row uses the reservation path), the switch independence (no break was made), and the share lock (not a genuinely concurrent integrity point).
+- **Golden payroll suite:** skipped. No audit action, audit policy or payroll item changed.
+
+**Rollout (Eyram runs; none of it has been run here), in this order:**
+
+1. `npx supabase db push` (applies `20261025100000`).
+2. `npx supabase functions deploy admissions-public` (version 3 to 4; no new secrets).
+3. `frontend/scripts/deploy-production.sh` (never a bare `wrangler deploy`).
+4. The D-9k live test: open Public applications in Settings, make one real submission at `/apply`, check the Submission check panel and one download, then close the switch again.
+
+Public applications stay closed until step 4, and are closed again afterwards. The live-test application from step 4 needs cleaning up before real intake, together with the "ZZ Test Do Not Process" record from 8b.
+
+**Open after checkpoint 2:** the accepted risks above; 9b; checkpoint 1 open items (b) to (e), unchanged; the "ZZ Test Do Not Process" cleanup, unchanged.

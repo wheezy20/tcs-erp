@@ -252,7 +252,7 @@ export type ApplicationDocument = {
 };
 
 /** The storage path is deliberately not read here: it's fetched per click
- * by openApplicationDocument() and never kept. */
+ * by downloadApplicationDocument() and never kept. */
 export async function listDocuments(applicationId: string): Promise<ApplicationDocument[]> {
   const { data, error } = await supabase
     .from("application_documents")

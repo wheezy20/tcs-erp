@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is built locally and uncommitted (2026-10-14); it is not applied on hosted and not deployed. The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is built locally on 2026-10-15, uncommitted; it is not applied on hosted and not deployed. The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -42,7 +42,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 7c | Read-only Audit Log (`/audit-log`) and Accountant audit narrowing | committed (7a07d6a), migrations applied on hosted (reported 2026-10-14); frontend deploy not confirmed | 7b2 |
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | committed (c71b363, 6842848), migrations applied on hosted (reported by Eyram, 2026-10-14) | 7b |
 | 8b | Public enquiry form polish and two intake switches | committed (32eae11, c3943d8, 7d80735), migrations applied on hosted (reported by Eyram, 2026-10-14) | 8 |
-| 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) built locally, uncommitted, not applied on hosted, not deployed (2026-10-14); checkpoint 2 not started; split into 9a and 9b (2026-10-13) | 8 |
+| 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) committed as c822b56; migration `20261024100000` applied on hosted and `admissions-public` deployed on hosted at version 3 (reported by Eyram, 2026-10-15). 9a checkpoint 2 built locally 2026-10-15, uncommitted, not applied on hosted, not deployed. 9b not started; split into 9a and 9b (2026-10-13) | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
 | 11 | Public offer response page | not started | 8, 6b |
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | not started | 8 (and 6, 9, 10 for the emails it sends) |
@@ -1095,7 +1095,7 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 
 **Carry-forward to slice 10:** revisit routing draft saves through the Edge Function with the upload session token, instead of direct browser to database writes, so saves get a per-IP limit and the same session binding.
 
-**Checkpoint 1 built 2026-10-14 (local, uncommitted):** the upload backend. Not committed, not applied on hosted, not deployed. The checkpoint definition and the decisions behind it are in "Decided 2026-10-14" above.
+**Checkpoint 1 built 2026-10-14, committed as c822b56:** the upload backend. Migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (both reported by Eyram, 2026-10-15). The checkpoint definition and the decisions behind it are in "Decided 2026-10-14" above.
 
 - **Migration `20261024100000_admissions_application_uploads.sql`:**
   - Tables `application_upload_sessions` (`token_hash`, sha256 hex only; `expires_at`; `closed_at`) and `application_upload_reservations` (`session_id`; `document_type`, one of the four public types; `extension`, pdf, jpg, jpeg or png; `storage_path`, generated as `uploads/<reservation id>/<type>.<ext>`; `expires_at`, the session's; `consumed_at`; `cleanup_claimed_at`; `cleaned_at`; a check that a row is not both used and cleaned). RLS is on with no policies, and no API role has any privilege.
@@ -1134,7 +1134,7 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 - **(d) Sessions and cleaned reservation rows are never purged** (small growth). A purge belongs with slice 12's scheduled sweep.
 - **(e) The sweep runs on every solved `upload_session` request**, and each sweep is bounded at 20 deletes.
 
-**Cap change (2026-10-15, checkpoint 1 files, local, uncommitted):** migration `20261024100000` was changed in place (it is not applied anywhere). `_application_upload_capacity_check()` counts a reservation that is neither used nor cleaned only if its file is in the bucket at the reserved path (expired or not, since the file takes space until the sweep), or if it is unexpired, has no file yet and was made within the 30 minute window of `upload_open_reservations`. Used reservations never count. Empty reservations therefore can't hold the cap: one Turnstile solve can block it for at most 30 minutes.
+**Cap change (2026-10-15, checkpoint 1 files, committed in c822b56):** migration `20261024100000` was changed in place. `_application_upload_capacity_check()` counts a reservation that is neither used nor cleaned only if its file is in the bucket at the reserved path (expired or not, since the file takes space until the sweep), or if it is unexpired, has no file yet and was made within the 30 minute window of `upload_open_reservations`. Used reservations never count. Empty reservations therefore can't hold the cap: one Turnstile solve can block it for at most 30 minutes.
 
 - **Probes:** U4 now pins `upload_open_reservations=400/00:30:00`. U15 (400 fresh empty reservations block a session and a reservation), new U24 (400 reservations with files, live and expired, block both) and new U25 (1,000 empty reservations older than 30 minutes, live and expired, don't block; with 399 files the next fresh reservation is the 400th place) cover the rule.
 - **Deliberate break:** counting every unused reservation again is caught by U25. This adds one break to checkpoint 1 (9 in all), at Eyram's request.
@@ -1142,9 +1142,77 @@ Service-role value probes cover: Annex plus Grade 3 raises; Main plus Grade 3 pa
 
 **Checkpoint 2 requirement (recorded 2026-10-15):** staff must open application documents through signed URLs that force a download (attachment disposition), not an inline viewer.
 
-**Deploy for checkpoint 1 (Eyram runs, not run):** `npx supabase db push` (applies `20261024100000`), then `npx supabase functions deploy admissions-public`. No new secrets. No frontend change. Public applications stay closed, so nothing is reachable by parents until the switch is turned on.
+**Deploy for checkpoint 1 (reported by Eyram 2026-10-15):** migration `20261024100000` is applied on hosted and `admissions-public` is deployed on hosted at version 3. The planned commands were `npx supabase db push`, then `npx supabase functions deploy admissions-public`. No new secrets. No frontend change. Public applications stay closed, so nothing is reachable by parents until the switch is turned on.
 
-**Stops for Eyram's go before checkpoint 2** (`submit_application`, the match flags table, the `application` action with the byte check, the plain `/apply` page, the staff Submission check panel and the Settings switch).
+**Eyram gave the go for checkpoint 2 on 2026-10-15** (`submit_application`, the match flags table, the `application` action with the byte check, the plain `/apply` page, the staff Submission check panel and the Settings switch).
+
+**Checkpoint 2 built 2026-10-15 (local, uncommitted):** the rest of 9a. Not committed, not applied on hosted, not deployed. Checkpoint 1 is committed as c822b56. Checkpoint 2 is the submit RPC, the match flags table, the `application` action with the byte check, the plain `/apply` page, the staff Submission check panel and the Settings switch.
+
+- **Migration `20261025100000_admissions_application_submit.sql`:**
+  - `submit_application(p_payload jsonb, p_session_token text, p_sniffed jsonb)` returns text, the APP reference only. This replaces the draft signature `(p_payload, p_client_ip)`, because D-9i made the client IP unnecessary. Service-role only, and it starts with `_require_public_service_caller()`. It accepts the full `ApplicationSerializer` shape now, so 9b is UI only.
+  - Order of work inside the RPC:
+    1. The applications switch is read under a share lock. Only `public_applications_open` counts; the enquiries switch plays no part (TCS03).
+    2. Full payload validation: the slice 8b field rules and the D-9d phone rule; unknown keys refused; health details at most 2,000 characters; campus required, with the campus grade rules.
+    3. The session row is locked by token hash. A session already used returns that application's reference and writes and counts nothing (D-9o).
+    4. `application_email` is counted for each email. The emails are sorted first, so the bucket row locks are always taken in one order. Two submissions sharing any email are serialized by those locks, not by the session.
+    5. The session's reservations are locked in id order. Each document must be a reservation of this session, unused, not cleaned, unexpired, of the same type, at the exact path, present in `storage.objects`, and the Edge-reported kind for that reservation id and path must match the extension. Required types come from `_application_required_document_types` (fee proof for every grade, `proof_of_vaccination` where the grade needs it). Every document failure gives the same generic document message.
+  - Matching (D-9p, D-9j, D-9b):
+    - Family: among families with a guardian email match, the oldest one holding a child with the same name (case-insensitive) and date of birth; else the oldest such family; else a new family with the guardians.
+    - Student: name plus date of birth within that family. Never updated.
+    - Application: same academic year and grade. At `inquiry`, the oldest one is advanced (it keeps its INQ and gains an APP). Past `inquiry`, it is left untouched and a new application is created at `application`, with its own APP, flagged `possible_duplicate`. Otherwise a new application.
+    - Matched guardians are never added or changed.
+  - Always written: the emergency contact, a fresh health row, and `application_documents` rows at `pending_review`. `declaration_agreed_at` is set; `declaration_ip_address` stays null (D-9i).
+  - `application_upload_sessions.submitted_application_id` (on delete set null), with a check that it implies `closed_at`.
+- **New table `application_match_flags`:** one row per application (`application_id` unique), written only when a family matched. Columns: `family_matched`, `student_matched`, `outcome` (`new_application`, `inquiry_advanced` or `possible_duplicate`), `matched_application_id`, and `differences jsonb`. A check allows only guardian keys and whitelisted student keys in `differences`, so no health value can be stored. RLS select: Manager, Auditor, and Admissions Officer with the application in scope, the same as `application_documents`, with no health capability needed (D-9m). Select grant to `authenticated` only; no write grant for anyone.
+- **Helpers granted to nobody:** `_public_bool`, `_public_phone_ok`, `_application_kind_for_extension`.
+- **No new audit action,** no audit policy change and no payroll item changed, so the golden payroll suite was skipped.
+- **Edge Function `admissions-public`, action `application`:**
+  - Body cap of 64 KB for this action only; the other actions keep 32 KB. Keys: `action`, `turnstile_token`, `session_token`, `payload`.
+  - Order: `submit_ip` limit; Turnstile with action `application` (a second solve, after the `upload` one; D-9n); then `submit_global`.
+  - Then a 16-byte `Range` read of each document whose path has the reservation shape (at most 4), through `readHead` in `storage.ts` with a 5 second timeout. `sniffKind` returns `pdf` (strict `%PDF-` at offset 0), `jpeg`, `png` or `unknown`. A failed read is `unknown` and still goes to the database, which decides.
+  - Responses: 200 with `{reference}` only; 400 TCS22 with a field path allow-list; 409 TCS03; 429 TCS29 with the office message; 500 otherwise.
+- **Frontend:**
+  - `/apply` (`routes/apply.tsx`, `components/application-page.tsx`): one plain page with guardians, child, health, emergency contact, documents and declaration. Document slots come from the grade's `required_document_types`. Proof of payment is listed first, labelled "Proof of payment (bank deposit slip, GIP confirmation or mobile money receipt)". The route needs no sign-in (`__root.tsx`).
+  - `parsePublicOptions` reads `required_document_types` per grade. The shared `Field`, `Choice`, `Notice` and `Shell` moved to `components/public-form-parts.tsx`.
+  - Staff: a Submission check panel (`submission-check-panel.tsx`) on the application detail page. Fee proof first, with the note to match it against the bank or mobile money record before treating the fee as paid. It shows the match outcome, a link to an earlier application or "not in your scope", and the differences table.
+  - The documents panel and the panel's download use `createSignedUrl` with `{ download: name }`, so the file is an attachment and never opens inline. File names are built only from the reference, the document type and the extension. Fee proof is listed first.
+  - Settings: the Public applications switch is usable, for Manager only, behind a confirm dialog. Changes are audited by the existing `admissions_settings_changed` trigger (D-9k).
+- **Build choices by the main session (2026-10-15, not Eyram's gates):** the RPC takes the full serializer shape now; the PDF check is strict at offset 0; the 64 KB cap applies to `application` only.
+- **Decided by Eyram on 2026-10-15:** flags readable like `application_documents` (D-9m); a second Turnstile solve on submit (D-9n); a repeat submit on a used session returns the same APP reference (D-9o); the family match prefers the family holding the same child, else the oldest (D-9p).
+- **Tests (local):**
+  - Probe file `supabase/role-matrix/20261025100000_admissions_application_submit.sql`, A1 to A26.
+  - `handler.test.ts`: 51 tests (11 new).
+  - New `submit.integration.test.ts`, five tests: a real upload and byte check; HTML bytes sent as PDF refused, and PNG bytes sent as PDF refused; an Edge-level double click; the staff download link has `Content-Disposition` attachment; two database sessions racing on one upload session. Names are unique per run, so the file passes on a database it has run on.
+  - New vitest files `application-form.test.ts`, `document-files.test.ts` and `submission-check.test.ts`. `npm test`: 124.
+- **Verification (test-runner, fresh reset, end of pass):** overload check clean; types regen identical; anon-executable 170; all 44 probe files green; `handler.test.ts` 51 of 51; `integration.test.ts` 7 of 7; `upload.integration.test.ts` 7 of 7; `submit.integration.test.ts` 4 of 4; lint 0 errors and 13 warnings (baseline); `tsc` clean; build ok; prettier clean; no service role key in the build; nothing staged.
+  - After test 5 was added (main session, fresh reset): the submit probe file green and `submit.integration.test.ts` 5 of 5, both after break 15 was restored and again after fix round 1, with the overload check clean and types identical. The test also passes 5 of 5 on a database it has already run on.
+- **Deliberate breaks:** 13 in this checkpoint (10 to 22), all caught:
+  - 10: guard removed (A5).
+  - 11: fee proof dropped from the required list (A13, A26).
+  - 12: sniff comparison removed (A16).
+  - 13: `storage.objects` existence check removed (A15).
+  - 14: session binding removed (A14).
+  - 15: session row lock removed. Not caught at first by the Edge-level double click test, because the two requests never overlapped in the transaction. The two-database-session test (`submit.integration.test.ts`, test 5) was added and catches it: the second session is refused on the used reservation.
+  - 16: guardians overwritten on match (A20).
+  - 17: past-inquiry match advanced (A19, A21, A22).
+  - 18: snapshot check removed and health written (A20, A22).
+  - 19: flags policy widened to `true` (A6, A7).
+  - 20: `application_email` count removed (A10, A23).
+  - 21: Edge trusts the extension (handler tests).
+  - 22: staff signed URL without download (`document-files` test).
+  - Not broken on purpose: the payload path check (the document row uses the reservation path, so the check is redundant); the switch independence (no break was made); the share lock (not a genuinely concurrent integrity point).
+- **Code review:** no blocking findings. Fix round 1 changed the order of the email count: emails are sorted before the per-email count, to avoid a deadlock. Re-review: the fix is OK, and nothing new is blocking.
+- **Accepted risks (reported 2026-10-15):**
+  - (a) Per-email griefing. Someone with a valid solve and files can make 5 successful submissions naming a victim's email (as guardian 2, say) and lock that email out for the day. Only successful submissions count. Bounded by `submit_ip` and `submit_global` (D-9l).
+  - (b) Two submissions at the same moment for the same new child with disjoint guardian emails can create two families. Staff see the duplicates. Submissions sharing an email are serialized by the bucket row locks.
+  - (c) Edge nit, left: non-application bodies are parsed up to 64 KB before the 32 KB refusal.
+- **Rollout (Eyram runs; none run here), in this order:**
+  1. `npx supabase db push` (applies `20261025100000`).
+  2. `npx supabase functions deploy admissions-public` (version 3 to 4; no new secrets).
+  3. `frontend/scripts/deploy-production.sh` (never a bare `wrangler deploy`).
+  4. The D-9k live test: open Public applications in Settings, make one real submission at `/apply`, check the Submission check panel and one download, then close the switch again.
+  - Public applications stay closed until step 4, and are closed again afterwards.
+- **Open after checkpoint 2:** the accepted risks (a) to (c) above; 9b (the six-section form, optional document slots, scholarship and media consent inputs, nationality list); checkpoint 1 open items (b) to (e), unchanged; the "ZZ Test Do Not Process" cleanup from 8b, unchanged; the live-test application created in step 4 needs cleaning up before real intake.
 
 **Still open:**
 
@@ -1564,6 +1632,10 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-9c | Matched application in a stage other than `inquiry` | **Changed 2026-10-13:** never refuse on a match. Flag it for staff; the response is identical. The 2026-09-29 recommendation (refuse the same year and grade) is superseded. |
 | D-9d | Phone rule | **Revised 2026-10-14:** a plus sign and digits only, stored as sent. +233 needs exactly 9 digits (first not 0); another country code needs 8 to 15 digits in all. No spaces, dashes or letters. Replaces the same day's rule that removed spaces and dashes before checking. |
 | D-9e | Application-fee proof | **Decided 2026-10-14:** compulsory in both forms and in `submit_application`; a missing fee proof is refused with the generic document refusal, and no outstanding row is created. |
+| D-9m | Who may read the submission match flags | **Decided 2026-10-15:** readable like `application_documents`: Manager, Auditor, and Admissions Officer with the application in scope, with no health capability. No write grant for anyone. |
+| D-9n | Turnstile on submit | **Decided 2026-10-15:** a second Turnstile solve, action `application`, after the upload session's solve. |
+| D-9o | Repeat submit on a used session | **Decided 2026-10-15:** returns the same APP reference, and writes and counts nothing. |
+| D-9p | Which family a submission matches | **Decided 2026-10-15:** the oldest family with a guardian email match that holds a child with the same name and date of birth; else the oldest such family. |
 | D-10a | Draft TTL | 30 days; confirm the live value. |
 | D-10b | Draft purge | 30 days after expiry. |
 | D-11a | Offer page shows the child's name before response | First name and grade. |

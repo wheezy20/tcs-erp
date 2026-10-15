@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as AccountingRouteImport } from './routes/accounting'
 import { Route as AdmissionsRouteRouteImport } from './routes/admissions/route'
+import { Route as ApplyRouteImport } from './routes/apply'
 import { Route as BankingRouteImport } from './routes/banking'
 import { Route as EmployeesRouteImport } from './routes/employees'
 import { Route as EndOfDayRouteImport } from './routes/end-of-day'
@@ -97,6 +98,11 @@ const AccountingRoute = AccountingRouteImport.update({
 const AdmissionsRouteRoute = AdmissionsRouteRouteImport.update({
   id: '/admissions',
   path: '/admissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApplyRoute = ApplyRouteImport.update({
+  id: '/apply',
+  path: '/apply',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BankingRoute = BankingRouteImport.update({
@@ -436,6 +442,7 @@ export interface FileRoutesByFullPath {
   '/admissions': typeof AdmissionsRouteRouteWithChildren
   '/accept-invite': typeof AcceptInviteRoute
   '/accounting': typeof AccountingRouteWithChildren
+  '/apply': typeof ApplyRoute
   '/banking': typeof BankingRouteWithChildren
   '/employees': typeof EmployeesRouteWithChildren
   '/end-of-day': typeof EndOfDayRouteWithChildren
@@ -505,6 +512,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accept-invite': typeof AcceptInviteRoute
+  '/apply': typeof ApplyRoute
   '/inquiry': typeof InquiryRoute
   '/login': typeof LoginRoute
   '/reports': typeof ReportsRoute
@@ -568,6 +576,7 @@ export interface FileRoutesById {
   '/admissions': typeof AdmissionsRouteRouteWithChildren
   '/accept-invite': typeof AcceptInviteRoute
   '/accounting': typeof AccountingRouteWithChildren
+  '/apply': typeof ApplyRoute
   '/banking': typeof BankingRouteWithChildren
   '/employees': typeof EmployeesRouteWithChildren
   '/end-of-day': typeof EndOfDayRouteWithChildren
@@ -641,6 +650,7 @@ export interface FileRouteTypes {
     | '/admissions'
     | '/accept-invite'
     | '/accounting'
+    | '/apply'
     | '/banking'
     | '/employees'
     | '/end-of-day'
@@ -710,6 +720,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/accept-invite'
+    | '/apply'
     | '/inquiry'
     | '/login'
     | '/reports'
@@ -772,6 +783,7 @@ export interface FileRouteTypes {
     | '/admissions'
     | '/accept-invite'
     | '/accounting'
+    | '/apply'
     | '/banking'
     | '/employees'
     | '/end-of-day'
@@ -844,6 +856,7 @@ export interface RootRouteChildren {
   AdmissionsRouteRoute: typeof AdmissionsRouteRouteWithChildren
   AcceptInviteRoute: typeof AcceptInviteRoute
   AccountingRoute: typeof AccountingRouteWithChildren
+  ApplyRoute: typeof ApplyRoute
   BankingRoute: typeof BankingRouteWithChildren
   EmployeesRoute: typeof EmployeesRouteWithChildren
   EndOfDayRoute: typeof EndOfDayRouteWithChildren
@@ -899,6 +912,13 @@ declare module '@tanstack/react-router' {
       path: '/admissions'
       fullPath: '/admissions'
       preLoaderRoute: typeof AdmissionsRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/apply': {
+      id: '/apply'
+      path: '/apply'
+      fullPath: '/apply'
+      preLoaderRoute: typeof ApplyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/banking': {
@@ -1546,6 +1566,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdmissionsRouteRoute: AdmissionsRouteRouteWithChildren,
   AcceptInviteRoute: AcceptInviteRoute,
   AccountingRoute: AccountingRouteWithChildren,
+  ApplyRoute: ApplyRoute,
   BankingRoute: BankingRouteWithChildren,
   EmployeesRoute: EmployeesRouteWithChildren,
   EndOfDayRoute: EndOfDayRouteWithChildren,

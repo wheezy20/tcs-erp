@@ -17,6 +17,7 @@ import { DecisionOfferPanel } from "@/modules/admissions/components/decision-off
 import { DocumentsPanel } from "@/modules/admissions/components/documents-panel";
 import { HealthPanel } from "@/modules/admissions/components/health-panel";
 import { NotesPanel } from "@/modules/admissions/components/notes-panel";
+import { SubmissionCheckPanel } from "@/modules/admissions/components/submission-check-panel";
 import { GradeCell, StageBadge } from "@/modules/admissions/components/stage-badge";
 import { StageControls } from "@/modules/admissions/components/stage-controls";
 import { useAdmissionsAccess } from "@/modules/admissions/hooks/use-admissions-access";
@@ -105,6 +106,7 @@ function ApplicationDetail({ applicationId }: { applicationId: string }) {
             role={role}
             onChanged={afterPipelineChange}
           />
+          <SubmissionCheckPanel applicationId={app.id} />
           <NotesPanel applicationId={app.id} role={role} staffId={staffId} />
           <DocumentsPanel applicationId={app.id} role={role} />
         </div>

@@ -1,17 +1,11 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Choice, Field, Notice, Shell } from "@/modules/admissions/components/public-form-parts";
 import { TurnstileWidget } from "@/modules/admissions/components/turnstile-widget";
 import { getPublicAdmissionsOptions, submitInquiry } from "@/modules/admissions/data/public-intake";
 import { useLoad } from "@/modules/admissions/hooks/use-load";
@@ -114,24 +108,6 @@ export function InquiryPage() {
   );
 }
 
-function Shell({ children }: { children: ReactNode }) {
-  return (
-    <div className="mx-auto max-w-xl px-4 py-16 text-center text-sm text-muted-foreground">
-      {children}
-    </div>
-  );
-}
-
-function Notice({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="mx-auto max-w-xl px-4 py-16 text-center">
-      <img src="/tcs-logomark.png" alt="" className="mx-auto mb-6 h-12 w-12" />
-      <h1 className="text-lg font-semibold">{title}</h1>
-      <p className="mt-2 text-sm text-muted-foreground">{children}</p>
-    </div>
-  );
-}
-
 /** No confirmation email exists until slice 12, so this page is the
  * parent's only record of the reference. */
 function ThankYou({ references }: { references: string[] }) {
@@ -161,73 +137,6 @@ function ThankYou({ references }: { references: string[] }) {
         {many ? "them" : "it"} when you contact the school.
       </p>
     </div>
-  );
-}
-
-function Field({
-  id,
-  label,
-  required,
-  error,
-  hint,
-  children,
-}: {
-  id: string;
-  label: string;
-  required?: boolean;
-  error?: string;
-  hint?: string | null;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>
-        {label}
-        {required && (
-          <span className="ml-0.5 text-destructive" aria-hidden="true">
-            *
-          </span>
-        )}
-      </Label>
-      {children}
-      {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
-      {error && (
-        <p id={`${id}-error`} className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function Choice({
-  id,
-  value,
-  onChange,
-  placeholder,
-  items,
-  invalid,
-}: {
-  id: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  items: { value: string; label: string }[];
-  invalid?: boolean;
-}) {
-  return (
-    <Select value={value === "" ? undefined : value} onValueChange={onChange}>
-      <SelectTrigger id={id} aria-invalid={invalid || undefined}>
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        {items.map((i) => (
-          <SelectItem key={i.value} value={i.value}>
-            {i.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
 
