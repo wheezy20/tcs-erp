@@ -61,6 +61,8 @@ export async function downloadPayslipPdf(
   doc.setFontSize(9);
   doc.setTextColor(20);
   doc.text(`Employee: ${meta.staffName}`, margin, y);
+  doc.text(`Staff ID: ${meta.staffId}`, margin, y + 5);
+  y += 5;
   doc.text(
     `Position: ${[meta.position, meta.department].filter(Boolean).join(" · ") || "—"}`,
     margin,

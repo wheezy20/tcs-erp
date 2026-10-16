@@ -53,6 +53,13 @@ import {
   type PaymentMethod,
 } from "@/data/employees-store";
 import { activeNames, useDepartments, usePositions } from "@/data/org-lists-store";
+import {
+  classForPosition,
+  currentStaffNumber,
+  staffNumberDisplay,
+  staffNumberMatches,
+  unmappedPositionMessage,
+} from "@/data/staff-numbers";
 import { useStaff } from "@/data/staff-store";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -73,7 +80,7 @@ function EmployeesListPage() {
   const { staff: currentStaff } = useAuth();
   const canWrite = canWriteFinancials(currentStaff?.role);
   const isManager = currentStaff?.role === "Manager";
-  const { employees, configs, loading } = useEmployees();
+  const { employees, configs, staffNumbers, loading } = useEmployees();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | EmploymentStatus>("all");
 
@@ -86,11 +93,12 @@ function EmployeesListPage() {
         return (
           e.name.toLowerCase().includes(q) ||
           (e.position ?? "").toLowerCase().includes(q) ||
-          (e.department ?? "").toLowerCase().includes(q)
+          (e.department ?? "").toLowerCase().includes(q) ||
+          staffNumberMatches(currentStaffNumber(staffNumbers, e.id)?.number, q)
         );
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [employees, query, status]);
+  }, [employees, staffNumbers, query, status]);
 
   const pendingEmployees = employees.filter((e) => e.status === "Pending Approval");
   const pendingConfigs = configs.filter((c) => c.approvalStatus === "Pending Approval");
@@ -147,7 +155,7 @@ function EmployeesListPage() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, position or department"
+              placeholder="Search name, staff ID, position or department"
               className="h-10 rounded-xl pl-9"
               maxLength={80}
             />
@@ -176,6 +184,7 @@ function EmployeesListPage() {
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-5 py-3 font-medium">Name</th>
+                  <th className="px-5 py-3 font-medium">Staff ID</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium">Position</th>
                   <th className="px-5 py-3 text-right font-medium">Basic salary</th>
@@ -198,6 +207,7 @@ function EmployeesListPage() {
                   const activeCfg = currentConfigFor(configs, e.id);
                   const pendingCfg = activeCfg ? undefined : pendingConfigFor(configs, e.id);
                   const cfg = activeCfg ?? pendingCfg;
+                  const staffNumber = currentStaffNumber(staffNumbers, e.id);
                   return (
                     <tr key={e.id} className="group hover:bg-muted/40">
                       <td className="px-5 py-3">
@@ -209,6 +219,11 @@ function EmployeesListPage() {
                           {e.name}
                         </Link>
                         <p className="text-xs text-muted-foreground">{e.department ?? "—"}</p>
+                      </td>
+                      <td
+                        className={`px-5 py-3 tabular-nums ${staffNumber ? "" : "text-muted-foreground"}`}
+                      >
+                        {staffNumberDisplay(staffNumber)}
                       </td>
                       <td className="px-5 py-3">
                         <Badge variant={STATUS_TONE[e.status]}>{e.status}</Badge>
@@ -525,6 +540,9 @@ function NewEmployeeDetail({
   const { adjusting, setAdjusting, override, setOverride, reset } = useApprovalAdjustment(
     pay ?? { basicSalary: 0, paymentMethod: "Bank", bank: null, accountNo: null },
   );
+  // approve_employee refuses an unmapped position; say so before the click.
+  const { items: positions, loading: positionsLoading } = usePositions();
+  const unmapped = !positionsLoading && classForPosition(positions, emp.position) === null;
   return (
     <div className="space-y-3">
       <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-3">
@@ -538,8 +556,14 @@ function NewEmployeeDetail({
         />
       </dl>
       <p className="text-xs text-muted-foreground">
-        Approving the record also approves its bundled pay config, in one step.
+        Approving the record also approves its bundled pay config and issues the staff ID, in one
+        step.
       </p>
+      {unmapped && (
+        <p className="text-xs text-amber-600 dark:text-amber-500">
+          {unmappedPositionMessage(emp.position)} A Manager sets it under Payroll setup, Positions.
+        </p>
+      )}
       {pay && (
         <>
           <AdjustToggle
@@ -557,7 +581,7 @@ function NewEmployeeDetail({
         <Button
           size="sm"
           className="gap-1.5"
-          disabled={busy}
+          disabled={busy || unmapped}
           onClick={() => onApprove(adjusting ? override : null)}
         >
           <Check className="size-3.5" /> Approve

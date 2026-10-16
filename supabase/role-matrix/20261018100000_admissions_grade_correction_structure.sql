@@ -43,13 +43,15 @@ begin
   end loop;
 end $$;
 
--- probe: S2 the audit action list has exactly the 37 values
+-- probe: S2 the audit action list has exactly the 40 values
+-- (37 until 20261026100000_hr_staff_numbers added position_staff_class_changed,
+-- staff_number_issued and staff_number_retired)
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$ begin
   if (select array_agg(m[1] order by m[1]) from pg_constraint c,
         regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_]+)''::text', 'g') m
       where c.conname = 'audit_log_action_check')
-     is distinct from array['admissions_academic_year_changed', 'admissions_capabilities_changed', 'admissions_capacity_changed', 'admissions_settings_changed', 'application_decision_changed', 'application_document_status_changed', 'application_grade_corrected', 'application_offer_changed', 'application_stage_changed', 'discount_applied', 'employee_approved', 'employee_created', 'employee_reactivated', 'employee_rejected', 'employee_suspended', 'employees_imported', 'expense_voided', 'invoice_voided', 'pay_config_amended_and_approved', 'pay_config_approved', 'pay_config_exemptions_changed', 'pay_config_proposed', 'pay_config_rejected', 'payroll_run_approved', 'payroll_run_exclusion_added', 'payroll_run_exclusion_removed', 'payroll_run_rejected', 'payroll_run_submitted', 'return_processed', 'sale_voided', 'staff_advance_approved', 'staff_advance_change_approved', 'staff_advance_change_proposed', 'staff_advance_change_rejected', 'staff_advance_proposed', 'staff_advance_rejected', 'vat_override'] then
+     is distinct from array['admissions_academic_year_changed', 'admissions_capabilities_changed', 'admissions_capacity_changed', 'admissions_settings_changed', 'application_decision_changed', 'application_document_status_changed', 'application_grade_corrected', 'application_offer_changed', 'application_stage_changed', 'discount_applied', 'employee_approved', 'employee_created', 'employee_reactivated', 'employee_rejected', 'employee_suspended', 'employees_imported', 'expense_voided', 'invoice_voided', 'pay_config_amended_and_approved', 'pay_config_approved', 'pay_config_exemptions_changed', 'pay_config_proposed', 'pay_config_rejected', 'payroll_run_approved', 'payroll_run_exclusion_added', 'payroll_run_exclusion_removed', 'payroll_run_rejected', 'payroll_run_submitted', 'position_staff_class_changed', 'return_processed', 'sale_voided', 'staff_advance_approved', 'staff_advance_change_approved', 'staff_advance_change_proposed', 'staff_advance_change_rejected', 'staff_advance_proposed', 'staff_advance_rejected', 'staff_number_issued', 'staff_number_retired', 'vat_override'] then
     raise exception 'audit action list wrong';
   end if;
 end $$;

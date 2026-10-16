@@ -11,6 +11,7 @@ import { useCurrentBranch } from "@/data/branch-store";
 import { usePayroll } from "@/data/payroll-store";
 import { currentConfigFor, useEmployees } from "@/data/employees-store";
 import { useDocumentSettings } from "@/data/settings-store";
+import { currentStaffNumber, payslipStaffIdRow } from "@/data/staff-numbers";
 import { MONTHS } from "@/data/payroll-format";
 import { fetchPayslipAdvanceLines, type PayslipAdvanceLine } from "@/data/staff-advances-store";
 
@@ -24,7 +25,7 @@ function PayslipPage() {
   const { staff } = useAuth();
   const canView = canViewFinancials(staff?.role);
   const { payslips, runs, loading } = usePayroll();
-  const { employees, configs } = useEmployees();
+  const { employees, configs, staffNumbers, loading: employeesLoading } = useEmployees();
   const { name: branchName } = useCurrentBranch();
   const settings = useDocumentSettings();
   const [downloading, setDownloading] = useState(false);
@@ -54,7 +55,9 @@ function PayslipPage() {
     );
   }
 
-  if (loading) {
+  // Wait for the employees store too, so the Staff ID row never prints
+  // "Not issued" just because staff IDs haven't loaded yet.
+  if (loading || employeesLoading) {
     return <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>;
   }
 
@@ -76,6 +79,7 @@ function PayslipPage() {
   const meta: PayslipDocMeta = {
     periodLabel: run ? `${MONTHS[run.month - 1] ?? run.month} ${run.year}` : "—",
     staffName: payslip.employeeName,
+    staffId: payslipStaffIdRow(currentStaffNumber(staffNumbers, payslip.employeeId))[1],
     position: employee?.position ?? null,
     department: employee?.department ?? null,
     paymentMethod: config?.paymentMethod ?? "Bank",

@@ -42,15 +42,55 @@ import may slip past the import's duplicate check and create a
 double entry. No uniqueness constraints were added (Eyram, 2026-10-08);
 how to close the manual-path gap is not yet decided.
 
-**Staff IDs (format given by Eyram 2026-10-12, not built).** Format
-`ST26-01002`: ST means staff, 26 is the year, then a dash, then a two
-digit class code (01 admin, 02 teaching, 03 non teaching), then a three
-digit roll number (002 in the example). **Open question:** does the roll
-restart per year, per class, both, or neither? Not answered; nothing may
-assume it. Today the ERP generates no staff number: `employees` and
-`staff` are keyed by uuid only, the employee import template has no ID
-column, and the onboarding item "Staff Email & ID Issued" is derived
-from a linked login plus a school email, not from any ID value.
+**Staff IDs (built locally 2026-10-16, uncommitted, not on hosted).**
+Migration `20261026100000_hr_staff_numbers.sql` and its frontend are
+built and tested on the local stack only. Nothing is committed, pushed or
+applied on hosted. The frontend has not yet been tried in a browser.
+Plan and decisions approved by Eyram on 2026-10-16; they replace the
+2026-10-12 record (which had three classes and an open roll question).
+
+- **Format** `ST26-02002`: ST, the two digit calendar year (Africa/Accra)
+  the employee record was approved in the ERP, a dash, a two digit class,
+  and a three digit roll. Classes: 01 admin, 02 teaching, 03 kitchen,
+  04 janitorial, 05 transport.
+- **Roll** 001 to 999, restarting per year only, so one count runs across
+  every class: ST26-02002 is the second person approved in 2026, who is
+  teaching, not the second teacher. The 1000th approval in a year is
+  refused until the format is widened in a reviewed change.
+- **Issued by approval.** `approve_employee` issues the ID in the same
+  transaction. An employee whose position has no class can't be approved
+  ("Set a classification for position X first.").
+- **Class from the position.** Each position in Settings carries a class,
+  set by a Manager only. A deactivated position still gives its class.
+  The 16 seeded positions are mapped: 01 Administrator, Secretary,
+  Accountant, Bursar; 02 Head Teacher, Assistant Head Teacher, Class
+  Teacher, Subject Teacher, Teaching Assistant, ICT Coordinator, Librarian;
+  03 Kitchen Staff; 04 Cleaner, Security, Caretaker; 05 Driver.
+  `is_teaching` is separate and only picks the contract template, so ICT
+  Coordinator and Librarian are class 02 with the non-teaching contract.
+- **Kept for life.** A later position change keeps the old class;
+  suspension and reactivation keep the ID; someone who returns is
+  reactivated on their old record and keeps the old ID (a working rule
+  while the manual propose path has no duplicate check, see above).
+- **Correction.** A Manager can reissue an ID once, with a reason. The old
+  ID is retired and never reused; the new one stays in the original year,
+  takes the next roll and uses the current position's class.
+- **Readers:** Manager, Accountant and Auditor, the same as employees.
+- **Shown on** the employee list (column and search), the employee
+  profile (ID, history, Manager correction), the staff list and detail
+  (where the role can read it), the payslip view and PDF, and as the
+  `{{staff_id}}` merge field for HR letters and contracts. A template that
+  uses the field can't be generated until the employee has an ID.
+- **No backfill.** Dropped by Eyram on 2026-10-16. Hosted has no real
+  employees, so a backfill would only spend 2026 rolls on test records
+  and the first real staff member would not be 001. Anyone approved
+  before the migration shows "Not issued".
+- **Hosted rule for now:** test approvals happen locally only. See
+  CONSTRAINTS.md, the staff ID checklist item.
+
+Out of scope: ID cards and payroll exports, since neither exists yet. The onboarding item
+"Staff Email & ID Issued" is unchanged: it still reads a linked login and
+a school email, not the staff ID.
 
 - **Accounting** — chart of accounts, journal entries, ledger, trial
   balance, P&L, balance sheet, cash flow, bank reconciliation. Inherited

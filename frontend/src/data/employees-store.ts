@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabase";
 import { getSchoolBranchId } from "@/data/branch-store";
 import type { Database } from "@/lib/database.types";
+import type { StaffClassCode, StaffNumber } from "@/data/staff-numbers";
 
 // Employees = everyone TCS pays, independent of ERP login (20260909130000).
 // This store owns `employees`, `employee_pay_config` (every approval_status
@@ -20,6 +21,9 @@ import type { Database } from "@/lib/database.types";
 //   authenticated write policy at all.
 //   * employee_allowances: plain RLS-gated writes (Manager/Accountant),
 //     not approval-gated.
+//   * staff_numbers (20261026100000): read here, issued by approve_employee
+//     and corrected by correct_staff_number (Manager), never written
+//     directly. Helpers live in staff-numbers.ts.
 
 export type EmploymentStatus = "Pending Approval" | "Active" | "Suspended" | "Rejected";
 export type PayApprovalStatus = "Pending Approval" | "Active" | "Rejected";
@@ -102,6 +106,7 @@ export type EmployeeAllowance = {
 type EmployeeRow = Database["public"]["Tables"]["employees"]["Row"];
 type PayConfigRow = Database["public"]["Tables"]["employee_pay_config"]["Row"];
 type AllowanceRow = Database["public"]["Tables"]["employee_allowances"]["Row"];
+type StaffNumberRow = Database["public"]["Tables"]["staff_numbers"]["Row"];
 
 const num = (v: number | string | null | undefined) => Number(v ?? 0);
 
@@ -172,17 +177,39 @@ function mapAllowance(row: AllowanceRow): EmployeeAllowance {
   };
 }
 
+function mapStaffNumber(row: StaffNumberRow): StaffNumber {
+  return {
+    number: row.number,
+    employeeId: row.employee_id,
+    year: row.year,
+    classCode: row.class_code as StaffClassCode,
+    roll: row.roll,
+    issuedAt: row.issued_at,
+    retiredAt: row.retired_at,
+    retireReason: row.retire_reason,
+    replacedBy: row.replaced_by,
+  };
+}
+
 // ------------------------------------------------------------------ store
 
 type State = {
   employees: Employee[];
   configs: PayConfig[];
   allowances: EmployeeAllowance[];
+  staffNumbers: StaffNumber[];
   loading: boolean;
   error: string | null;
 };
 
-let state: State = { employees: [], configs: [], allowances: [], loading: true, error: null };
+let state: State = {
+  employees: [],
+  configs: [],
+  allowances: [],
+  staffNumbers: [],
+  loading: true,
+  error: null,
+};
 const listeners = new Set<() => void>();
 
 function setState(next: State) {
@@ -193,18 +220,24 @@ function setState(next: State) {
 let loadPromise: Promise<void> | null = null;
 
 async function load() {
-  const [employees, configs, allowances] = await Promise.all([
+  const [employees, configs, allowances, staffNumbers] = await Promise.all([
     supabase.from("employees").select("*").order("name"),
     supabase.from("employee_pay_config").select("*").order("effective_from", { ascending: false }),
     supabase.from("employee_allowances").select("*"),
+    supabase
+      .from("staff_numbers")
+      .select(
+        "number, employee_id, year, class_code, roll, issued_at, issued_by, retired_at, retired_by, retire_reason, replaced_by",
+      ),
   ]);
-  for (const r of [employees, configs, allowances]) {
+  for (const r of [employees, configs, allowances, staffNumbers]) {
     if (r.error) throw r.error;
   }
   setState({
     employees: (employees.data as EmployeeRow[]).map(mapEmployee),
     configs: (configs.data as PayConfigRow[]).map(mapConfig),
     allowances: (allowances.data as AllowanceRow[]).map(mapAllowance),
+    staffNumbers: (staffNumbers.data as StaffNumberRow[]).map(mapStaffNumber),
     loading: false,
     error: null,
   });
@@ -240,8 +273,8 @@ function getSnapshot() {
   return state;
 }
 
-/** Everyone TCS pays, their pay configs (all approval states) and standing
- * allowances. RLS scopes it to Manager / Accountant / Auditor; other roles
+/** Everyone TCS pays, their pay configs (all approval states), standing
+ * allowances and staff IDs (current and retired). RLS scopes it to Manager / Accountant / Auditor; other roles
  * get empty arrays. */
 export function useEmployees() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
@@ -392,6 +425,18 @@ export async function approveEmployee(id: string, override?: PayConfigOverride):
   });
   if (error) throw error;
   await reload();
+}
+
+/** Manager only, once per employee, with a reason. Retires the current ID
+ * and issues a new one in the original year (20261026100000). */
+export async function correctStaffNumber(employeeId: string, reason: string): Promise<string> {
+  const { data, error } = await supabase.rpc("correct_staff_number", {
+    p_employee_id: employeeId,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  await reload();
+  return data as string;
 }
 
 export async function rejectEmployee(id: string, reason: string): Promise<void> {

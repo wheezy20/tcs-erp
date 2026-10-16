@@ -770,8 +770,11 @@ depend on them holding true for every new table/function added.
   action may. `audit_log_select` relies on that prefix rule. Manager and Auditor read
   every row. The Accountant reads every row except those two prefixes (D-1b: the
   Accountant has no admissions rows). The 7c probe file
-  `20261019100000_audit_log_admissions_read.sql` (S1) classifies all 37 actions, so a
-  new action fails it until it is classified. `isAdmissionsAction` in
+  `20261019100000_audit_log_admissions_read.sql` (S1) classifies all 40 actions (9
+  admissions, 31 other; the staff ID slice, `20261026100000`, added
+  `staff_number_issued`, `staff_number_retired` and `position_staff_class_changed` as
+  other), so a new action fails it until it is classified. The 7b1 structure file
+  (S2) pins the exact list of 40, and `labels.ts` and its test count 40. `isAdmissionsAction` in
   `frontend/src/modules/audit/labels.ts` must stay in step with the SQL prefixes.
   This narrows the 2026-10-05 decision O-8 (see PORT-PLAN.md, slice 2).
 - **Admissions data tables: select-only with RLS through SECURITY DEFINER
@@ -865,6 +868,12 @@ depend on them holding true for every new table/function added.
   decision. Finance, payroll, sales, staff and number-counter tables are among them;
   the full list is in JOURNAL.md, 2026-10-13. Admissions tables hold TRUNCATE for
   `service_role` only.
+  Measured 2026-10-16 (staff ID slice, local): still 83 tables, now of 92. The two
+  new tables, `staff_numbers` and `staff_number_counters`, hold no TRUNCATE for any
+  API role. `positions` is on the sweep list by name: `authenticated` and
+  `service_role` hold TRUNCATE on it, and TRUNCATE skips the row trigger that guards
+  `staff_class`, renames and deletes. Grants unchanged (Eyram, 2026-10-16); see
+  CONSTRAINTS.md, "Known gap: TRUNCATE".
   History: the 2026-09-29 measurement found 15 tables. The 15th,
   `deposit_number_counters`, had RLS **off**, so `anon` and every staff
   role (Auditor included) could insert/update/delete it directly,
@@ -949,6 +958,76 @@ depend on them holding true for every new table/function added.
   event alone isn't enough); when it differs, the store clears and a load
   started for the old user is discarded by a generation counter. This prevents a slow previous-user load from completing
   late and polluting the current user's state.
+
+- **Staff ID numbers (HR, `20261026100000`, built locally 2026-10-16, not on
+  hosted).** The rules the schema and the screens depend on:
+  - **Format and roll.** `ST` + two digit year + `-` + two digit class + three
+    digit roll (`ST26-02002`). The year is the calendar year, in Africa/Accra, of
+    `employees.reviewed_at`, the approval. The roll comes from
+    `staff_number_counters`, one row per year, so it runs across every class and
+    restarts only with the year. Roll 999 is the last; the next approval that year
+    is refused. The counter row lock is held to commit, and `unique (year, roll)`
+    turns a lost update into a refusal, never a duplicate.
+  - **Issued by approval, never by the client.** `approve_employee` calls
+    `_issue_staff_number` last, after the pay config update, so the pay checks
+    report their own errors first (golden case V-SAL-3 depends on it). The whole
+    approval is one transaction, so a refused ID refuses the approval.
+  - **Class from the position, by exact name.** `_staff_class_for_employee`
+    matches `employees.position` to `positions.name` exactly, active or not: a
+    deactivated position still gives its class (Eyram, 2026-10-16). No match, or a
+    match with no class, refuses the approval with "Set a classification for
+    position X first." `is_teaching` stays separate; it only picks the contract
+    template.
+  - **Manager-only class, guarded by `current_user`, not by a setting.**
+    `set_position_staff_class` (Manager, SECURITY DEFINER) is the only writer.
+    `guard_position_staff_class` (SECURITY INVOKER on purpose) refuses a change of
+    `staff_class`, and a rename or delete of a position that has a class, unless
+    `current_user` is the owner of `set_position_staff_class`. Inside the definer
+    function `current_user` is that owner; a direct API write runs as `anon`,
+    `authenticated` or `service_role`, none of which can become it. A custom
+    setting would be bypassable, since any role may set one. The rename check
+    compares the name after `positions_uppercase`'s normalization because the
+    guard fires first. Rename procedure: a Manager clears the class, renames,
+    then sets it again. Accountant keeps add, toggle active and toggle teaching.
+    Before this, deleting a classed position was blocked by nothing
+    (`employees.position` has no foreign key).
+  - **A renamed position stops matching.** Even through the clear, rename, set
+    procedure, an employee whose `position` text still holds the old name no
+    longer matches; their next approval is refused with the clear message until
+    their position or the list is fixed.
+  - **Kept for life, corrected once.** Nothing changes an ID on a position
+    change, suspension or reactivation. `correct_staff_number` (Manager, with a
+    reason up to 500 characters, Active or Suspended only, once per employee)
+    retires the current ID and issues a new one in the **original year** with the
+    next roll and the **current** position's class. Correction is the only way a
+    class changes after approval. `staff_numbers` keeps every ID ever issued, so a
+    retired ID can never be issued again (primary key). Rows change only by
+    retiring and are never deleted, even by the definer functions
+    (`guard_staff_number_row`); `replaced_by` is a deferred foreign key so the
+    retire and the new insert fit one transaction.
+  - **Readers** match `employees_select`: Manager, Accountant, Auditor. Nobody
+    writes either table directly; the counters have no grant or policy at all.
+    Audit actions `staff_number_issued`, `staff_number_retired` (entity
+    `employees`, so they show in the employee History) and
+    `position_staff_class_changed`, readable by the Accountant like other HR
+    actions.
+  - **`{{staff_id}}` is refused, never blank.** `generate_employee_document`
+    checks the resolved template; if it contains `{{staff_id}}` the employee must
+    have a current ID ("Approve this employee first so a staff ID exists") and
+    `merge_data.staff_id` must equal it ("The staff ID in this document is out of
+    date. Reload the page and generate it again."), because the PDF is rendered in
+    the browser and the ID may have been corrected since the page loaded. The
+    profile shows the same refusal before the click. There is no placeholder
+    text. The database checks the merge data, not the uploaded PDF.
+  - **Payslips read the ID at display time.** No payslip column: the view and the
+    PDF read the employee's current ID when shown, so a reprint after a
+    correction shows the new ID. The payslip page waits for the employee data, so
+    it never prints "Not issued" only because IDs hadn't loaded.
+  - **No backfill.** Records approved before the migration have no ID and show
+    "Not issued" on screens. See CONSTRAINTS.md for the hosted rule.
+  - **Tests.** `supabase/role-matrix/20261026100000_hr_staff_numbers.sql`, 40
+    probes; 17 deliberate breaks, all caught; one two-session race run by hand
+    (JOURNAL, 2026-10-16); pure tests in `frontend/src/data/staff-numbers.test.ts`.
 
 ## Project layout
 

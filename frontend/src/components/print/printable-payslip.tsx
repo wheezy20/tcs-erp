@@ -7,6 +7,10 @@ import { iouDeductionRows } from "@/data/staff-advances-format";
 export type PayslipDocMeta = {
   periodLabel: string;
   staffName: string;
+  /** The employee's current staff ID, or "Not issued", read when the
+   * payslip is shown (no payslip column), so a reprint shows the current
+   * ID (20261026100000). */
+  staffId: string;
   position: string | null;
   department: string | null;
   paymentMethod: "Bank" | "Mobile Money";
@@ -95,6 +99,7 @@ export function PrintablePayslip({
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "14px" }}>
         <tbody>
           <Row label="Employee" value={meta.staffName} />
+          <Row label="Staff ID" value={meta.staffId} />
           <Row
             label="Position"
             value={[meta.position, meta.department].filter(Boolean).join(" · ") || "—"}

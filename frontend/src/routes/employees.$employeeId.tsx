@@ -44,6 +44,7 @@ import {
   approveEmployee,
   approvePayConfig,
   configHistoryFor,
+  correctStaffNumber,
   currentConfigFor,
   pendingConfigFor,
   proposePayConfigChange,
@@ -93,11 +94,24 @@ import {
   recordDocumentAcceptance,
   type GeneratedDocument,
 } from "@/data/generated-documents-store";
-import { listContractTemplates } from "@/data/contract-templates-store";
+import { listContractTemplates, type ContractTemplate } from "@/data/contract-templates-store";
+
+type GenerateKind = "Appointment Letter" | "Probation Letter" | "Contract";
 import { usePayroll, type AllowanceType } from "@/data/payroll-store";
 import { getSettings } from "@/data/settings-store";
 import { useStaff } from "@/data/staff-store";
 import { useStaffAdvances } from "@/data/staff-advances-store";
+import {
+  canCorrectStaffNumber,
+  classForPosition,
+  currentStaffNumber,
+  staffClassLabel,
+  staffIdMergeValue,
+  staffNumberDisplay,
+  staffNumberHistory,
+  unmappedPositionMessage,
+  type StaffNumber,
+} from "@/data/staff-numbers";
 import {
   buildDocumentMergeData,
   mergeTemplate,
@@ -120,7 +134,7 @@ function EmployeeProfilePage() {
   const { staff: currentStaff } = useAuth();
   const canWrite = canWriteFinancials(currentStaff?.role);
   const isManager = currentStaff?.role === "Manager";
-  const { employees, configs, allowances, loading } = useEmployees();
+  const { employees, configs, allowances, staffNumbers, loading } = useEmployees();
   const { allowanceTypes } = usePayroll();
   const { staff: roster } = useStaff();
   const canViewAdvances = canViewFinancials(currentStaff?.role);
@@ -145,6 +159,7 @@ function EmployeeProfilePage() {
   const history = configHistoryFor(configs, emp.id);
   const standing = standingAllowancesFor(allowances, emp.id);
   const login = roster.find((s) => s.employeeId === emp.id);
+  const staffNumber = currentStaffNumber(staffNumbers, emp.id);
   const staffName = (id: string | null) =>
     id ? (roster.find((s) => s.id === id)?.name ?? "Unknown") : null;
 
@@ -167,6 +182,9 @@ function EmployeeProfilePage() {
           }
         >
           {emp.status}
+        </Badge>
+        <Badge variant="outline" className="tabular-nums">
+          Staff ID: {staffNumberDisplay(staffNumber)}
         </Badge>
         {login && <Badge variant="outline">Login: {login.email}</Badge>}
       </div>
@@ -210,6 +228,7 @@ function EmployeeProfilePage() {
             key={`gendocs-${emp.id}`}
             employee={emp}
             payConfig={current}
+            staffNumber={staffNumber}
             canWrite={canWrite}
           />
 
@@ -253,6 +272,7 @@ function EmployeeProfilePage() {
 
         <div className="space-y-6">
           <StatusCard emp={emp} pending={pending} canWrite={canWrite} isManager={isManager} />
+          <StaffIdCard emp={emp} staffNumbers={staffNumbers} isManager={isManager} />
           <section className="card-surface p-6">
             <h2 className="text-sm font-semibold">Linked login</h2>
             {login ? (
@@ -1219,13 +1239,16 @@ function SubmissionReview({
 function GeneratedDocumentsSection({
   employee,
   payConfig,
+  staffNumber,
   canWrite,
 }: {
   employee: Employee;
   payConfig: PayConfig | undefined;
+  staffNumber: StaffNumber | undefined;
   canWrite: boolean;
 }) {
-  const { items: positions } = usePositions();
+  const { items: positions, loading: positionsLoading } = usePositions();
+  const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [documents, setDocuments] = useState<GeneratedDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatingKind, setGeneratingKind] = useState<string | null>(null);
@@ -1246,21 +1269,52 @@ function GeneratedDocumentsSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee.id]);
 
-  async function onGenerate(kind: "Appointment Letter" | "Probation Letter" | "Contract") {
+  // Loaded up front so a template that uses {{staff_id}} can say it's
+  // blocked before the click (generate_employee_document refuses it too).
+  useEffect(() => {
+    listContractTemplates()
+      .then(setTemplates)
+      .catch(() => setTemplates([]));
+  }, []);
+
+  function categoryFor(kind: GenerateKind): string {
+    if (kind !== "Contract") return kind;
+    const match = positions.find((p) => p.name === employee.position);
+    return match?.isTeaching ? "Contract-Teaching" : "Contract-Non-Teaching";
+  }
+
+  function staffIdBlock(kind: GenerateKind): string | null {
+    // Until positions load, a Contract's category can't be told apart.
+    if (positionsLoading) return null;
+    const template = templates.find((t) => t.category === categoryFor(kind));
+    if (!template) return null;
+    const check = staffIdMergeValue(template.htmlBody, staffNumber);
+    return check.ok ? null : check.message;
+  }
+
+  const blocked = {
+    "Appointment Letter": staffIdBlock("Appointment Letter"),
+    "Probation Letter": staffIdBlock("Probation Letter"),
+    Contract: staffIdBlock("Contract"),
+  };
+  const blockedMessage = Object.values(blocked).find((m) => m !== null) ?? null;
+
+  async function onGenerate(kind: GenerateKind) {
     setGeneratingKind(kind);
     try {
-      const templates = await listContractTemplates();
-      let category: string;
-      if (kind === "Contract") {
-        const match = positions.find((p) => p.name === employee.position);
-        category = match?.isTeaching ? "Contract-Teaching" : "Contract-Non-Teaching";
-      } else {
-        category = kind;
-      }
-      const template = templates.find((t) => t.category === category);
+      const fresh = await listContractTemplates();
+      const category = categoryFor(kind);
+      const template = fresh.find((t) => t.category === category);
       if (!template) throw new Error(`No template found for ${category}.`);
+      const staffId = staffIdMergeValue(template.htmlBody, staffNumber);
+      if (!staffId.ok) throw new Error(staffId.message);
 
-      const mergeData = buildDocumentMergeData(employee, payConfig, getSettings().company);
+      const mergeData = buildDocumentMergeData(
+        employee,
+        payConfig,
+        getSettings().company,
+        staffId.value,
+      );
       const html = mergeTemplate(template.htmlBody, mergeData);
       const pdfBlob = await renderMergedHtmlToPdfBlob(html);
       await generateEmployeeDocument(employee.id, kind, pdfBlob, mergeData);
@@ -1323,7 +1377,7 @@ function GeneratedDocumentsSection({
           <Button
             size="sm"
             variant="outline"
-            disabled={!!generatingKind}
+            disabled={!!generatingKind || blocked["Appointment Letter"] !== null}
             onClick={() => onGenerate("Appointment Letter")}
           >
             {generatingKind === "Appointment Letter"
@@ -1333,7 +1387,7 @@ function GeneratedDocumentsSection({
           <Button
             size="sm"
             variant="outline"
-            disabled={!!generatingKind}
+            disabled={!!generatingKind || blocked["Probation Letter"] !== null}
             onClick={() => onGenerate("Probation Letter")}
           >
             {generatingKind === "Probation Letter" ? "Generating…" : "Generate Probation Letter"}
@@ -1341,12 +1395,17 @@ function GeneratedDocumentsSection({
           <Button
             size="sm"
             variant="outline"
-            disabled={!!generatingKind}
+            disabled={!!generatingKind || blocked["Contract"] !== null}
             onClick={() => onGenerate("Contract")}
           >
             {generatingKind === "Contract" ? "Generating…" : "Generate Contract"}
           </Button>
         </div>
+      )}
+      {canWrite && blockedMessage && (
+        <p className="mt-2 text-xs text-amber-600 dark:text-amber-500">
+          {blockedMessage}. A template that uses {"{{staff_id}}"} can't be generated until then.
+        </p>
       )}
 
       <div className="mt-5 space-y-4">
@@ -2065,6 +2124,108 @@ function HistorySection({ employeeId, configIds }: { employeeId: string; configI
   );
 }
 
+/** The current staff ID, every ID the employee has held, and the one-time
+ * Manager correction (correct_staff_number, 20261026100000). */
+function StaffIdCard({
+  emp,
+  staffNumbers,
+  isManager,
+}: {
+  emp: Employee;
+  staffNumbers: StaffNumber[];
+  isManager: boolean;
+}) {
+  const current = currentStaffNumber(staffNumbers, emp.id);
+  const history = staffNumberHistory(staffNumbers, emp.id);
+  const canCorrect = isManager && canCorrectStaffNumber(staffNumbers, emp.id, emp.status);
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true);
+    try {
+      const next = await correctStaffNumber(emp.id, reason);
+      toast.success(`Staff ID corrected to ${next}`);
+      setOpen(false);
+      setReason("");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not correct the staff ID."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card-surface p-6">
+      <h2 className="text-sm font-semibold">Staff ID</h2>
+      <p className="mt-2 text-lg font-semibold tabular-nums">{staffNumberDisplay(current)}</p>
+      {current ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {staffClassLabel(current.classCode)} class, approved in {current.year}. Kept for life.
+        </p>
+      ) : (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {emp.status === "Pending Approval"
+            ? "Issued when a Manager approves this record."
+            : "This record was approved before staff IDs existed, or never approved."}
+        </p>
+      )}
+
+      {history.length > 1 && (
+        <ul className="mt-3 space-y-1 text-xs">
+          {history
+            .filter((h) => h.retiredAt !== null)
+            .map((h) => (
+              <li key={h.number} className="text-muted-foreground">
+                <span className="tabular-nums line-through">{h.number}</span> retired
+                {h.replacedBy ? `, replaced by ${h.replacedBy}` : ""}
+                {h.retireReason ? `: ${h.retireReason}` : ""}
+              </li>
+            ))}
+        </ul>
+      )}
+
+      {canCorrect && (
+        <Button size="sm" variant="outline" className="mt-4" onClick={() => setOpen(true)}>
+          Correct staff ID
+        </Button>
+      )}
+
+      <Dialog open={open} onOpenChange={(v) => !busy && setOpen(v)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Correct {emp.name}'s staff ID</DialogTitle>
+            <DialogDescription>
+              {current?.number} is retired and never reused. A new ID is issued in {current?.year}{" "}
+              with the next roll and the class of the current position (
+              {emp.position ?? "no position"}). This can be done once per employee and is audited.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="staff-id-reason">Reason</Label>
+            <Textarea
+              id="staff-id-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={500}
+              placeholder="e.g. Approved under the wrong position"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" disabled={busy} onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={busy || !reason.trim()} onClick={submit}>
+              {busy ? "Correcting…" : "Correct staff ID"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
+
 function StatusCard({
   emp,
   pending,
@@ -2079,6 +2240,9 @@ function StatusCard({
   const [busy, setBusy] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
   const [override, setOverride] = useState<PayOverride | null>(null);
+  // approve_employee refuses an unmapped position; say so before the click.
+  const { items: positions, loading: positionsLoading } = usePositions();
+  const unmapped = !positionsLoading && classForPosition(positions, emp.position) === null;
 
   async function act(fn: () => Promise<void>, ok: string) {
     setBusy(true);
@@ -2135,8 +2299,14 @@ function StatusCard({
                   {override && <AdjustPayFields value={override} onChange={setOverride} />}
                 </div>
               ))}
+            {unmapped && (
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                {unmappedPositionMessage(emp.position)} A Manager sets it under Payroll setup,
+                Positions.
+              </p>
+            )}
             <Button
-              disabled={busy}
+              disabled={busy || unmapped}
               onClick={() =>
                 act(
                   () =>

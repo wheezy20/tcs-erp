@@ -105,6 +105,8 @@ const ACTION_LABELS: Record<string, string> = {
   pay_config_amended_and_approved: "Pay change amended & approved",
   pay_config_rejected: "Pay change rejected",
   pay_config_exemptions_changed: "Statutory exemptions changed",
+  staff_number_issued: "Staff ID issued",
+  staff_number_retired: "Staff ID corrected",
 };
 
 export function actionLabel(action: string): string {
@@ -196,6 +198,13 @@ export function summarizeAuditEntry(
       }
       return lines;
     }
+    case "staff_number_issued":
+      return str(a.number) ? [`Staff ID: ${a.number}`] : [];
+    case "staff_number_retired":
+      return [
+        `${str(b.number) ?? "(none)"} → ${str(a.replaced_by) ?? "(none)"}`,
+        ...(str(a.reason) ? [`Reason: ${a.reason}`] : []),
+      ];
     default:
       return [];
   }

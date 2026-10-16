@@ -21,13 +21,13 @@ const ADMISSIONS = [
 ];
 
 describe("audit action labels", () => {
-  it("label all 37 actions, with no duplicate label", () => {
-    expect(AUDIT_ACTIONS).toHaveLength(37);
+  it("label all 40 actions, with no duplicate label", () => {
+    expect(AUDIT_ACTIONS).toHaveLength(40);
     const labels = AUDIT_ACTIONS.map(actionLabel);
-    expect(new Set(labels).size).toBe(37);
+    expect(new Set(labels).size).toBe(40);
   });
 
-  it("split into the 9 admissions actions and 28 others", () => {
+  it("split into the 9 admissions actions and 31 others", () => {
     expect(AUDIT_ACTIONS.filter(isAdmissionsAction).sort()).toEqual([...ADMISSIONS].sort());
   });
 
@@ -53,13 +53,13 @@ describe("audit log permissions", () => {
   });
 
   it("offer every action to Manager and Auditor", () => {
-    expect(actionFilterOptions("Manager")).toHaveLength(37);
-    expect(actionFilterOptions("Auditor")).toHaveLength(37);
+    expect(actionFilterOptions("Manager")).toHaveLength(40);
+    expect(actionFilterOptions("Auditor")).toHaveLength(40);
   });
 
-  it("offer the Accountant the 28 non-admissions actions, payroll and employee ones included", () => {
+  it("offer the Accountant the 31 non-admissions actions, payroll and employee ones included", () => {
     const options = actionFilterOptions("Accountant");
-    expect(options).toHaveLength(28);
+    expect(options).toHaveLength(31);
     expect(options.some(isAdmissionsAction)).toBe(false);
     expect(options).toContain("payroll_run_approved");
     expect(options).toContain("employee_approved");

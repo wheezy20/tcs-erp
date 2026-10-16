@@ -26,6 +26,9 @@ export type RefListItem = {
    * departments/qualifications, which have no such column. Drives
    * Contract generation's Teaching-vs-Non-Teaching auto-detection. */
   isTeaching?: boolean;
+  /** Only on `positions` (20261026100000): the staff ID class, 01 to 05,
+   * or null. Set only through setPositionStaffClass (Manager). */
+  staffClass?: string | null;
 };
 
 type Row = {
@@ -34,6 +37,7 @@ type Row = {
   position: number;
   is_active: boolean;
   is_teaching?: boolean;
+  staff_class?: string | null;
 };
 
 function mapRow(row: Row): RefListItem {
@@ -43,6 +47,7 @@ function mapRow(row: Row): RefListItem {
     position: row.position,
     isActive: row.is_active,
     isTeaching: row.is_teaching,
+    staffClass: row.staff_class,
   };
 }
 
@@ -146,6 +151,19 @@ export async function setPositionIsTeaching(id: string, isTeaching: boolean): Pr
     .from("positions")
     .update({ is_teaching: isTeaching })
     .eq("id", id);
+  if (error) throw error;
+  await positionsStore.reload();
+}
+
+/** Manager only (20261026100000). A trigger refuses a direct write of
+ * `staff_class`, and a direct rename or delete of a position that has a
+ * class: clear the class here first. */
+export async function setPositionStaffClass(id: string, staffClass: string | null): Promise<void> {
+  const { error } = await supabase.rpc("set_position_staff_class", {
+    p_position_id: id,
+    // The generated type can't express a nullable argument; null clears it.
+    p_class: staffClass as string,
+  });
   if (error) throw error;
   await positionsStore.reload();
 }

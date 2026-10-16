@@ -60,8 +60,13 @@ export function buildDocumentMergeData(
   employee: Employee,
   payConfig: PayConfig | undefined,
   company: CompanyDetails,
+  /** The current staff ID, or null. Never a placeholder: a template that
+   * uses {{staff_id}} is refused before this runs when there's no ID
+   * (staffIdMergeValue, and generate_employee_document). */
+  staffId: string | null,
 ): MergeData {
   return {
+    ...(staffId ? { staff_id: staffId } : {}),
     company_name: company.name,
     company_address: company.address,
     company_phone: company.phone,

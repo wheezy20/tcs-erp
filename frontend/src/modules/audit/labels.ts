@@ -1,5 +1,5 @@
 // Display labels for every audit_log action (the audit_log_action_check
-// list, 37 values as of 20261018110000). An action missing here still
+// list, 40 values as of 20261026100000). An action missing here still
 // shows, as its raw value.
 
 /** Admissions actions start with one of these, and no other action does
@@ -23,6 +23,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   employee_suspended: "Employee suspended",
   employee_reactivated: "Employee reactivated",
   employees_imported: "Employees imported",
+  staff_number_issued: "Staff ID issued",
+  staff_number_retired: "Staff ID retired",
+  position_staff_class_changed: "Position staff class changed",
   pay_config_proposed: "Pay config proposed",
   pay_config_approved: "Pay config approved",
   pay_config_amended_and_approved: "Pay config amended and approved",

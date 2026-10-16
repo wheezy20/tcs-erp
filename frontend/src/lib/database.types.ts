@@ -3318,6 +3318,7 @@ export type Database = {
           is_teaching: boolean
           name: string
           position: number
+          staff_class: string | null
         }
         Insert: {
           created_at?: string
@@ -3326,6 +3327,7 @@ export type Database = {
           is_teaching?: boolean
           name: string
           position?: number
+          staff_class?: string | null
         }
         Update: {
           created_at?: string
@@ -3334,6 +3336,7 @@ export type Database = {
           is_teaching?: boolean
           name?: string
           position?: number
+          staff_class?: string | null
         }
         Relationships: []
       }
@@ -4488,6 +4491,92 @@ export type Database = {
           },
         ]
       }
+      staff_number_counters: {
+        Row: {
+          next_roll: number
+          year: number
+        }
+        Insert: {
+          next_roll?: number
+          year: number
+        }
+        Update: {
+          next_roll?: number
+          year?: number
+        }
+        Relationships: []
+      }
+      staff_numbers: {
+        Row: {
+          class_code: string
+          employee_id: string
+          issued_at: string
+          issued_by: string | null
+          number: string
+          replaced_by: string | null
+          retire_reason: string | null
+          retired_at: string | null
+          retired_by: string | null
+          roll: number
+          year: number
+        }
+        Insert: {
+          class_code: string
+          employee_id: string
+          issued_at?: string
+          issued_by?: string | null
+          number: string
+          replaced_by?: string | null
+          retire_reason?: string | null
+          retired_at?: string | null
+          retired_by?: string | null
+          roll: number
+          year: number
+        }
+        Update: {
+          class_code?: string
+          employee_id?: string
+          issued_at?: string
+          issued_by?: string | null
+          number?: string
+          replaced_by?: string | null
+          retire_reason?: string | null
+          retired_at?: string | null
+          retired_by?: string | null
+          roll?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_numbers_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_numbers_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_numbers_replaced_by_fkey"
+            columns: ["replaced_by"]
+            isOneToOne: false
+            referencedRelation: "staff_numbers"
+            referencedColumns: ["number"]
+          },
+          {
+            foreignKeyName: "staff_numbers_retired_by_fkey"
+            columns: ["retired_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       statutory_rates: {
         Row: {
           created_at: string
@@ -4900,6 +4989,10 @@ export type Database = {
         Returns: Record<string, unknown>
       }
       _employee_import_yes_no: { Args: { p_text: string }; Returns: boolean }
+      _issue_staff_number: {
+        Args: { p_employee_id: string; p_year: number }
+        Returns: string
+      }
       _next_admissions_reference: {
         Args: { p_prefix: string; p_year: number }
         Returns: string
@@ -5068,6 +5161,11 @@ export type Database = {
         }
         Returns: string
       }
+      _staff_class_for_employee: {
+        Args: { p_employee_id: string }
+        Returns: string
+      }
+      _take_staff_roll: { Args: { p_year: number }; Returns: number }
       account_id_by_code: { Args: { p_code: string }; Returns: string }
       add_admissions_academic_year: {
         Args: { p_label: string }
@@ -5563,6 +5661,10 @@ export type Database = {
       correct_application_grade: {
         Args: { p_application_id: string; p_grade_id: string }
         Returns: Json
+      }
+      correct_staff_number: {
+        Args: { p_employee_id: string; p_reason: string }
+        Returns: string
       }
       create_account: {
         Args: {
@@ -7378,6 +7480,24 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "employee_pay_config"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_position_staff_class: {
+        Args: { p_class: string; p_position_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_teaching: boolean
+          name: string
+          position: number
+          staff_class: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "positions"
           isOneToOne: true
           isSetofReturn: false
         }

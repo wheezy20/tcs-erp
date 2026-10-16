@@ -4,6 +4,7 @@ import { ArrowLeft, Lock } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { useEmployees } from "@/data/employees-store";
+import { currentStaffNumber } from "@/data/staff-numbers";
 import { useStaff } from "@/data/staff-store";
 
 export const Route = createFileRoute("/staff/$staffId")({
@@ -16,7 +17,9 @@ export const Route = createFileRoute("/staff/$staffId")({
 function LoginAccountPage() {
   const { staffId } = Route.useParams();
   const { staff: roster, pendingIds, loading } = useStaff();
-  const { employees } = useEmployees();
+  // RLS returns no employees or staff IDs to roles outside Manager,
+  // Accountant and Auditor, so they see no linked record and no ID here.
+  const { employees, staffNumbers } = useEmployees();
 
   const member = roster.find((s) => s.id === staffId);
 
@@ -89,6 +92,11 @@ function LoginAccountPage() {
                 </Link>
                 {linkedEmployee.position ? ` · ${linkedEmployee.position}` : ""}.
               </p>
+              {currentStaffNumber(staffNumbers, linkedEmployee.id) && (
+                <p className="mt-2 text-sm tabular-nums">
+                  Staff ID: {currentStaffNumber(staffNumbers, linkedEmployee.id)?.number}
+                </p>
+              )}
               <p className="mt-2 text-xs text-muted-foreground">
                 Contact details and pay configuration are managed on the employee record.
               </p>

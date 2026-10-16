@@ -32,6 +32,7 @@ import {
   deletePosition,
   deleteQualification,
   setPositionIsTeaching,
+  setPositionStaffClass,
   updateDepartment,
   updatePosition,
   updateQualification,
@@ -41,6 +42,7 @@ import {
   type RefListItem,
 } from "@/data/org-lists-store";
 import { currency } from "@/data/dashboard";
+import { STAFF_CLASSES, staffClassLabel } from "@/data/staff-numbers";
 import { formatDate } from "@/data/settings-store";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -54,6 +56,7 @@ export const Route = createFileRoute("/payroll/pay-config")({
 function PayrollSetupPage() {
   const { staff: currentStaff } = useAuth();
   const canWrite = canWriteFinancials(currentStaff?.role);
+  const isManager = currentStaff?.role === "Manager";
   const { allowanceTypes, rates, bands, overtimeTaxRates, loading } = usePayroll();
   const { providers } = usePaymentProviders();
   const { items: positions } = usePositions();
@@ -110,7 +113,7 @@ function PayrollSetupPage() {
       <PaymentProvidersSection providers={providers} canWrite={canWrite} />
       <RefListSection
         title="Positions"
-        hint="Drives the position dropdown on the employee flow, and Contract generation's Teaching/Non-Teaching auto-detection. Stored uppercase."
+        hint="Drives the position dropdown on the employee flow, Contract generation's Teaching/Non-Teaching auto-detection, and the staff ID class (01 Admin, 02 Teaching, 03 Kitchen, 04 Janitorial, 05 Transport), which only a Manager sets. Approving someone whose position has no class is refused. A position with a class can't be renamed or deleted until a Manager clears its class. Stored uppercase."
         placeholder="e.g. Sports Coordinator"
         items={positions}
         canWrite={canWrite}
@@ -119,6 +122,9 @@ function PayrollSetupPage() {
         onDelete={deletePosition}
         showTeachingToggle
         onToggleTeaching={setPositionIsTeaching}
+        showStaffClass
+        canSetStaffClass={isManager}
+        onSetStaffClass={setPositionStaffClass}
       />
       <RefListSection
         title="Departments"
@@ -155,6 +161,9 @@ function RefListSection({
   onDelete,
   showTeachingToggle,
   onToggleTeaching,
+  showStaffClass,
+  canSetStaffClass,
+  onSetStaffClass,
 }: {
   title: string;
   hint: string;
@@ -166,6 +175,9 @@ function RefListSection({
   onDelete: (id: string) => Promise<void>;
   showTeachingToggle?: boolean;
   onToggleTeaching?: (id: string, isTeaching: boolean) => Promise<void>;
+  showStaffClass?: boolean;
+  canSetStaffClass?: boolean;
+  onSetStaffClass?: (id: string, staffClass: string | null) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -200,6 +212,9 @@ function RefListSection({
               onDelete={onDelete}
               showTeachingToggle={showTeachingToggle}
               onToggleTeaching={onToggleTeaching}
+              showStaffClass={showStaffClass}
+              canSetStaffClass={canSetStaffClass}
+              onSetStaffClass={onSetStaffClass}
             />
           ))}
         </div>
@@ -231,6 +246,9 @@ function RefListChip({
   onDelete,
   showTeachingToggle,
   onToggleTeaching,
+  showStaffClass,
+  canSetStaffClass,
+  onSetStaffClass,
 }: {
   item: RefListItem;
   canWrite: boolean;
@@ -238,8 +256,23 @@ function RefListChip({
   onDelete: (id: string) => Promise<void>;
   showTeachingToggle?: boolean;
   onToggleTeaching?: (id: string, isTeaching: boolean) => Promise<void>;
+  showStaffClass?: boolean;
+  canSetStaffClass?: boolean;
+  onSetStaffClass?: (id: string, staffClass: string | null) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const classLocked = Boolean(showStaffClass && item.staffClass);
+  async function setStaffClass(value: string) {
+    if (!onSetStaffClass) return;
+    setBusy(true);
+    try {
+      await onSetStaffClass(item.id, value === "" ? null : value);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not set the staff class."));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function toggle() {
     setBusy(true);
     try {
@@ -293,6 +326,35 @@ function RefListChip({
           {item.isTeaching ? "Teaching" : "Non-Teaching"}
         </button>
       )}
+      {showStaffClass &&
+        (canSetStaffClass ? (
+          <select
+            value={item.staffClass ?? ""}
+            disabled={busy}
+            onChange={(e) => setStaffClass(e.target.value)}
+            className="rounded-full border-0 bg-muted px-1.5 py-0.5 text-xs"
+            title="Staff ID class (Manager only)"
+            aria-label={`Staff ID class for ${item.name}`}
+          >
+            <option value="">No class</option>
+            {STAFF_CLASSES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} {c.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span
+            className={`rounded-full px-1.5 py-0.5 text-xs ${
+              item.staffClass ? "bg-muted text-muted-foreground" : "bg-amber-500/10 text-amber-600"
+            }`}
+            title="Staff ID class. Only a Manager can change it."
+          >
+            {item.staffClass
+              ? `${item.staffClass} ${staffClassLabel(item.staffClass)}`
+              : "No class"}
+          </span>
+        ))}
       {canWrite && (
         <>
           <button
@@ -303,7 +365,17 @@ function RefListChip({
           >
             {item.isActive ? "active" : "inactive"}
           </button>
-          <button type="button" disabled={busy} onClick={remove} className="text-destructive">
+          <button
+            type="button"
+            disabled={busy || classLocked}
+            onClick={remove}
+            className="text-destructive disabled:opacity-40"
+            title={
+              classLocked
+                ? "A Manager must clear the staff class before this can be deleted"
+                : undefined
+            }
+          >
             <Trash2 className="size-3" />
           </button>
         </>

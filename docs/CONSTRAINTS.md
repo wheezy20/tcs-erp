@@ -68,6 +68,51 @@ Things that shape how this gets built, not just what gets built.
 - [ ] Stored declaration version (backlog, 2026-10-15). Decide before real
       intake whether each application records which declaration text was
       agreed, since the privacy policy link changes that text.
+- [ ] Staff IDs on hosted (decided 2026-10-16, staff ID slice). Migration
+      `20261026100000_hr_staff_numbers.sql` is built locally only; it is not
+      committed, pushed or applied on hosted.
+      - **Test approvals happen locally only.** After the push, approving a
+        test employee on hosted issues a real 2026 ID and spends a roll, and
+        it can't be undone cleanly: `staff_numbers.employee_id` is `on delete
+        restrict`, an issued row is never deleted (a trigger refuses it, even
+        for the owner's functions), the audit log is append-only, and the
+        counter only moves forward. Any counter reset or ID removal needs a
+        reviewed hand script, the same gate as the admissions cleanup.
+      - **No backfill.** Test employees approved on hosted before the push stay
+        without an ID and show "Not issued".
+      - **Before the push, [E]:** run the read-only query below in the hosted
+        SQL editor. Any hosted position the migration doesn't classify is
+        unmapped after the push, and approving anyone in it is refused until a
+        Manager sets its class (Payroll setup, Positions). Not run anywhere yet.
+
+        ```sql
+        -- Read only. Hosted positions beside the 16 names the staff ID
+        -- migration classifies. Uses only columns that exist before the push.
+        with seeded(name, staff_class) as (values
+          ('ADMINISTRATOR', '01'), ('SECRETARY', '01'), ('ACCOUNTANT', '01'),
+          ('BURSAR', '01'), ('HEAD TEACHER', '02'), ('ASSISTANT HEAD TEACHER', '02'),
+          ('CLASS TEACHER', '02'), ('SUBJECT TEACHER', '02'),
+          ('TEACHING ASSISTANT', '02'), ('ICT COORDINATOR', '02'), ('LIBRARIAN', '02'),
+          ('KITCHEN STAFF', '03'), ('CLEANER', '04'), ('SECURITY', '04'),
+          ('CARETAKER', '04'), ('DRIVER', '05'))
+        select
+          p.name as hosted_position,
+          s.name as seeded_name,
+          s.staff_class as class_after_push,
+          p.is_active,
+          case
+            when p.name is null then 'seeded name not on hosted, nothing to map'
+            when s.name is null then 'UNMAPPED after push, a Manager must set its class'
+            else 'mapped'
+          end as result,
+          (select count(*) from public.employees e
+           where e.position = coalesce(p.name, s.name)) as employees_in_position
+        from public.positions p
+        full join seeded s on s.name = p.name
+        order by
+          case when s.name is null then 0 when p.name is null then 2 else 1 end,
+          coalesce(p.name, s.name);
+        ```
 - [x] **`deposit_number_counters` has RLS off** (`20260901100000`), and
       Supabase's default privileges give `anon` full table privileges on
       it. So anyone holding the public anon key, and every staff role
@@ -447,6 +492,13 @@ documented in DESIGN.md.
   decision. The measurement is in DESIGN.md (the anon surface
   convention, "Measured 2026-10-13"), and the full table list is in
   JOURNAL.md, 2026-10-13.
+  **On the sweep list by name: `positions`** (added 2026-10-16, staff ID
+  slice). `authenticated` and `service_role` hold TRUNCATE on it, and
+  TRUNCATE skips the row trigger that guards `staff_class` and refuses a
+  rename or delete of a classed position. Grants not changed (Eyram,
+  2026-10-16); it goes with the wider sweep. Measured locally 2026-10-16:
+  still 83 tables with TRUNCATE, now of 92; the two new staff ID tables
+  hold none.
 
 ## HR expansion beyond payroll (as of 20260919)
 

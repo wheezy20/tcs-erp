@@ -39,6 +39,7 @@ const MERGE_FIELDS = [
   "basic_salary",
   "payment_method",
   "qualifications",
+  "staff_id",
 ];
 
 function DocumentTemplatesPage() {
@@ -72,7 +73,9 @@ function DocumentTemplatesPage() {
         <p className="font-medium">Merge fields</p>
         <p className="mt-1 text-muted-foreground">
           Use <code>{"{{field_name}}"}</code> anywhere in the HTML below. Every field is available
-          to every template — categories differ only in which ones their prose actually uses.
+          to every template — categories differ only in which ones their prose actually uses. A
+          template that uses <code>{"{{staff_id}}"}</code> can only be generated for an employee who
+          has been approved and has a staff ID.
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {MERGE_FIELDS.map((f) => (

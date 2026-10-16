@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/data/auth-store";
 import { useEmployees } from "@/data/employees-store";
+import { currentStaffNumber } from "@/data/staff-numbers";
 import { useStaff } from "@/data/staff-store";
 
 export const Route = createFileRoute("/staff/")({
@@ -19,7 +20,9 @@ export const Route = createFileRoute("/staff/")({
 function LoginAccountsPage() {
   const { staff: currentStaff } = useAuth();
   const { staff: roster, pendingIds, loading } = useStaff();
-  const { employees } = useEmployees();
+  // RLS returns no employees or staff IDs to roles outside Manager,
+  // Accountant and Auditor, so they see no linked name and no ID here.
+  const { employees, staffNumbers } = useEmployees();
   const [query, setQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
 
@@ -134,6 +137,11 @@ function LoginAccountsPage() {
                         </Link>
                       ) : (
                         "—"
+                      )}
+                      {s.employeeId && currentStaffNumber(staffNumbers, s.employeeId) && (
+                        <p className="text-xs tabular-nums">
+                          {currentStaffNumber(staffNumbers, s.employeeId)?.number}
+                        </p>
                       )}
                     </td>
                     <td className="px-5 py-3">

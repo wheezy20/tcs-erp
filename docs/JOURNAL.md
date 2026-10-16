@@ -5091,3 +5091,37 @@ Eyram answered the points the C4 entry listed as not reported (reported by Eyram
 - **Status table fix.** The 7b2 and 7c rows said the frontend deploy was not confirmed. Eyram reported on 2026-10-14 that both frontends are live and checked, which the header already said, so the rows now match it.
 
 Still not reported: whether Public applications is closed again after the C3 check.
+
+## 2026-10-16: Staff ID numbers (HR) built locally, checkpoints 1 to 3
+
+Built on the local stack only. Nothing is committed, pushed, deployed or applied on hosted. The frontend has not yet been tried in a browser, by me or as reported by Eyram. Plan approved by Eyram on 2026-10-16 with changes; the decisions below replace the 2026-10-12 record. Full rules in DESIGN.md, "Staff ID numbers"; product summary in PLANNING.md; hosted rules in CONSTRAINTS.md.
+
+**Decisions (Eyram, 2026-10-16):**
+
+- Format `ST26-02002`: two digit approval year (Africa/Accra), two digit class (01 admin, 02 teaching, 03 kitchen, 04 janitorial, 05 transport, replacing "03 non teaching"), three digit roll 001 to 999 restarting per year only. The 1000th approval in a year is refused.
+- Class from the position; a Manager alone sets it (new permission, approved). Readers Manager, Accountant, Auditor (approved). A deactivated position keeps giving its class.
+- An unmapped position refuses the approval. Kept for life; one Manager correction with a reason, in the original year, with the next roll and the current position's class.
+- **Backfill dropped.** Hosted has no real employees, so a backfill would only spend 2026 rolls on test records and the first real staff member would not be 001. Records approved before the migration show "Not issued".
+- Test approvals happen locally only until go-live; cleanup notes in CONSTRAINTS and the PORT-PLAN cleanup plan.
+- After code review: a rename or delete of a position that has a class is refused (a rename swap could otherwise move a class without writing the column; a delete was blocked by nothing, since `employees.position` has no foreign key). Rename: clear, rename, set again.
+- `{{staff_id}}`: any template that uses it is refused until a current ID exists ("Approve this employee first so a staff ID exists"), with no placeholder text. An out-of-date ID in the merge data is refused too.
+- TRUNCATE on `positions`: grants unchanged; added by name to the wider sweep list.
+
+**Checkpoint 1, database.** Migration `20261026100000_hr_staff_numbers.sql`: `positions.staff_class` seeded for the 16 positions; `staff_numbers` and `staff_number_counters`; `_issue_staff_number`, `_take_staff_roll`, `_staff_class_for_employee` (granted to no API role); `set_position_staff_class` and `correct_staff_number` (Manager); `approve_employee` and `generate_employee_document` replaced with the same argument lists; the guard, immutability and audit triggers; three audit actions (40 in all). Two older probe files updated for the action list (7b1 S2 exact list, 7c S1 classification).
+
+- **Change from the plan:** the ID is issued at the end of `approve_employee`, after the pay config update. Issued first, golden case V-SAL-3 went red, because its employee has no position and the classification refusal came before the decimal places error it expects. The case's expected text was not changed.
+- **Race, by hand:** two sessions approved two employees in the same year with the year's counter row already committed; session B waited about 2.1 s on A's lock and took the next roll (ST26-01001, ST26-05002). With the lock removed (both the `for update` and the upsert, since `insert ... on conflict` alone also waits on A's uncommitted row), B failed on `unique (year, roll)`: a refusal, never a duplicate.
+
+**Checkpoint 2, frontend.** Employee list (Staff ID column, search by ID ignoring case and separators), employee profile (ID, history, one-time Manager correction dialog), approval panels (unmapped notice, Approve disabled), Payroll setup positions (Manager class select, delete disabled for classed positions), payslip view and PDF ("Staff ID" row read at display time), staff list and detail (only where RLS returns the ID), `{{staff_id}}` merge field and its refusal before the click, audit labels. Pure helpers in `frontend/src/data/staff-numbers.ts`.
+
+**Checkpoint 3, docs.** PLANNING, DESIGN, CONSTRAINTS (checklist item with the read-only hosted position query, TRUNCATE sweep note), PORT-PLAN cleanup plan row, this entry.
+
+**Verification (local):**
+
+- Hygiene at the start and end: overload check clean, types regenerated (120 lines added) and matching, anon-executable count 170 throughout, lint 0 errors and 13 warnings (baseline), `tsc` clean, `npm test` 183 tests (13 new, audit label counts 37 to 40), build ok.
+- Role matrix: the new file has 40 probes, all green; the full suite of 45 files green after checkpoint 2.
+- Deliberate breaks: 17, all caught (13 at checkpoint 1, 4 at checkpoint 2). Manager check on correction; read policy widened; no overwrite check; counter lock (race); roll per class; correction in the current year; 999 cap; second correction; retired ID reusable; class from `is_teaching`; revoke from public left out; class guard dropped; guard made SECURITY DEFINER; rename refusal; delete refusal; `{{staff_id}}` check; stale ID accepted. The checkpoint 1 report said 12 while its own table listed 13, so the total reported to Eyram as 16 is 17.
+- Golden payslip suite: green before the first edit, after checkpoint 1, and again at the end of checkpoint 3 on a fresh reset: all cases pass.
+- Code review: checkpoint 1 and checkpoint 2, no blocking findings. Fixed from review: the rename and delete bypass; the payslip page now waits for staff IDs to load; the generate pre-check waits for positions; the template check is an exact `strpos` match.
+
+**Not done / open:** the frontend has not been tried in a browser; the hosted position query has not been run; nothing is committed; Eyram runs the push and deploy when ready. The rendered PDF itself can't be checked by the database (it checks only the merge data), as with every generated document.

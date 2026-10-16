@@ -9,7 +9,7 @@
 -- Run: npx supabase db reset && ./scripts/seed-local-dev-staff.sh
 --      ./scripts/role-matrix.sh supabase/role-matrix/20261019100000_audit_log_admissions_read.sql
 
--- probe: S1 every action in the audit CHECK is classified: 9 admissions, 28 other
+-- probe: S1 every action in the audit CHECK is classified: 9 admissions, 31 other
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$
 declare
@@ -27,7 +27,9 @@ declare
     'payroll_run_exclusion_added', 'payroll_run_exclusion_removed',
     'staff_advance_proposed', 'staff_advance_approved', 'staff_advance_rejected',
     'staff_advance_change_proposed', 'staff_advance_change_approved',
-    'staff_advance_change_rejected', 'employees_imported'];
+    'staff_advance_change_rejected', 'employees_imported',
+    -- 20261026100000_hr_staff_numbers: HR actions, read like the employee ones.
+    'staff_number_issued', 'staff_number_retired', 'position_staff_class_changed'];
   v_def text;
   v_listed text[];
 begin
