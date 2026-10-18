@@ -177,6 +177,101 @@ export type Database = {
           },
         ]
       }
+      admissions_email_outbox: {
+        Row: {
+          application_ids: string[]
+          attempts: number
+          claim_token: string | null
+          claimed_at: string | null
+          created_at: string
+          event_key: string
+          id: string
+          kind: string
+          last_error_class: string | null
+          last_http_status: number | null
+          next_attempt_at: string
+          params: Json
+          provider_message_id: string | null
+          recipient_email: string | null
+          requeued_at: string | null
+          requeued_by: string | null
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          application_ids: string[]
+          attempts?: number
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          event_key: string
+          id?: string
+          kind: string
+          last_error_class?: string | null
+          last_http_status?: number | null
+          next_attempt_at?: string
+          params: Json
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          requeued_at?: string | null
+          requeued_by?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          application_ids?: string[]
+          attempts?: number
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          event_key?: string
+          id?: string
+          kind?: string
+          last_error_class?: string | null
+          last_http_status?: number | null
+          next_attempt_at?: string
+          params?: Json
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          requeued_at?: string | null
+          requeued_by?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admissions_email_outbox_requeued_by_fkey"
+            columns: ["requeued_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admissions_email_worker: {
+        Row: {
+          ceiling_reached_at: string | null
+          id: boolean
+          last_run_at: string | null
+          last_success_at: string | null
+          worker_url: string | null
+        }
+        Insert: {
+          ceiling_reached_at?: string | null
+          id?: boolean
+          last_run_at?: string | null
+          last_success_at?: string | null
+          worker_url?: string | null
+        }
+        Update: {
+          ceiling_reached_at?: string | null
+          id?: boolean
+          last_run_at?: string | null
+          last_success_at?: string | null
+          worker_url?: string | null
+        }
+        Relationships: []
+      }
       admissions_grades: {
         Row: {
           band: string | null
@@ -4965,11 +5060,21 @@ export type Database = {
         Args: { p_application_id: string; p_reveal_figures: boolean }
         Returns: string
       }
+      _admissions_email_params_ok: {
+        Args: { p_kind: string; p_params: Json }
+        Returns: boolean
+      }
+      _admissions_email_retry_delay: {
+        Args: { p_attempts: number }
+        Returns: string
+      }
       _admissions_grade_code: { Args: { p_grade: string }; Returns: string }
       _admissions_grade_id: { Args: { p_grade: string }; Returns: string }
+      _admissions_mask_email: { Args: { p_email: string }; Returns: string }
       _admissions_reference_year: { Args: { p_at?: string }; Returns: number }
       _admissions_seed_public_campus_labels: { Args: never; Returns: number }
       _admissions_sequence_text: { Args: { p_seq: number }; Returns: string }
+      _admissions_worker_kick: { Args: { p_job: string }; Returns: boolean }
       _application_kind_for_extension: {
         Args: { p_extension: string }
         Returns: string
@@ -4989,6 +5094,15 @@ export type Database = {
         Returns: Record<string, unknown>
       }
       _employee_import_yes_no: { Args: { p_text: string }; Returns: boolean }
+      _enqueue_admissions_emails: {
+        Args: {
+          p_application_id: string
+          p_event: string
+          p_family_id: string
+          p_typed_emails: string[]
+        }
+        Returns: undefined
+      }
       _issue_staff_number: {
         Args: { p_employee_id: string; p_year: number }
         Returns: string
@@ -5234,6 +5348,7 @@ export type Database = {
         Args: { p_student_id: string }
         Returns: boolean
       }
+      admissions_worker_secret: { Args: never; Returns: string }
       approve_employee: {
         Args: {
           p_account_no?: string
@@ -5460,6 +5575,17 @@ export type Database = {
       check_public_rate_limit: {
         Args: { p_bucket: string; p_key_hash?: string }
         Returns: boolean
+      }
+      claim_admissions_emails: {
+        Args: { p_daily_ceiling: number; p_limit: number }
+        Returns: {
+          attempts: number
+          claim_token: string
+          id: string
+          kind: string
+          params: Json
+          recipient_email: string
+        }[]
       }
       claim_expired_application_uploads: {
         Args: { p_limit: number }
@@ -6251,6 +6377,26 @@ export type Database = {
           token: string
         }[]
       }
+      get_admissions_email_health: {
+        Args: never
+        Returns: {
+          ceiling_reached_at: string
+          config_error: boolean
+          failed: number
+          last_run_at: string
+          last_success_at: string
+          suppressed: number
+          waiting: number
+        }[]
+      }
+      get_application_email_status: {
+        Args: { p_application_id: string }
+        Returns: {
+          emails: number
+          last_sent_at: string
+          status: string
+        }[]
+      }
       get_onboarding_context: {
         Args: { p_token: string }
         Returns: {
@@ -6311,12 +6457,41 @@ export type Database = {
         Args: { p_document_id: string }
         Returns: undefined
       }
+      list_admissions_emails: {
+        Args: { p_limit?: number; p_status?: string }
+        Returns: {
+          application_ids: string[]
+          attempts: number
+          created_at: string
+          id: string
+          kind: string
+          last_error_class: string
+          last_http_status: number
+          next_attempt_at: string
+          recipient_masked: string
+          references: string[]
+          requeued_at: string
+          sent_at: string
+          status: string
+        }[]
+      }
       list_staff_names: {
         Args: never
         Returns: {
           id: string
           name: string
         }[]
+      }
+      mark_admissions_email_result: {
+        Args: {
+          p_claim_token: string
+          p_error_class: string
+          p_http_status: number
+          p_id: string
+          p_outcome: string
+          p_provider_message_id: string
+        }
+        Returns: boolean
       }
       mark_enrolled: { Args: { p_application_id: string }; Returns: Json }
       match_statement_line: {
@@ -6939,6 +7114,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      purge_admissions_housekeeping: { Args: never; Returns: Json }
       receive_purchase_order: {
         Args: {
           p_lines: Json
@@ -7221,6 +7397,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      requeue_admissions_emails: { Args: { p_ids: string[] }; Returns: number }
       require_finance_writer: { Args: never; Returns: undefined }
       require_staff: {
         Args: never
@@ -7348,6 +7525,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_admissions_worker_url: { Args: { p_url: string }; Returns: undefined }
       set_application_document_status: {
         Args: { p_document_id: string; p_status: string }
         Returns: {
