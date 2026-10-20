@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is written locally on 2026-10-15, docs only, uncommitted. The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 built locally and uncommitted (2026-10-20); nothing from slice 12 is applied, deployed or set on hosted. The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -45,7 +45,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) committed as c822b56; migration `20261024100000` applied on hosted and `admissions-public` deployed on hosted at version 3 (reported by Eyram, 2026-10-15). 9a checkpoint 2 committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). 9b checkpoint C1 (look foundation and `/inquiry`) committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15); 9b checkpoint C2 (`/apply` six-step layout) committed as 8393551; 9b checkpoint C3 (`/apply` content) committed as 14582d0, deployed with C2 and checked on hosted by Eyram (reported by Eyram, 2026-10-15); C4 close-out written locally 2026-10-15, docs only, uncommitted (decided 2026-10-15; split into 9a and 9b on 2026-10-13) | 8 |
 | 10 | Application drafts: save/resume tokens | not started | 9 |
 | 11 | Public offer response page | not started | 8, 6b |
-| 12 | Transactional email (outbox, mailer, templates, resend-failed) | not started | 8 (and 6, 9, 10 for the emails it sends) |
+| 12 | Transactional email (outbox, mailer, templates, resend-failed) | C1 committed (a929511), C2 and C3 built locally and uncommitted (2026-10-20). Nothing applied or deployed on hosted. See "Slice 12 as built" | 8 (and 6, 9, 10 for the emails it sends) |
 | 13 | Lead capture (marketing-site endpoints) | not started | 8, 12 |
 | 14 | Bulk email + one-click unsubscribe | not started | 12, 13 |
 | 15 | Cutover, domain, TCS OS shutdown (nothing is imported) | not started | all |
@@ -64,6 +64,7 @@ Every gate here must be closed before the step it names. Each one is also listed
   - **Test applications from the 9b C3 hosted check (reported by Eyram, 2026-10-15).** The check included a second submission that produced the match panel (family matched by guardian email, child matched by name and date of birth, differences listed, record unchanged), so it made at least two applications, with their documents and files. The second was a new application for a family already on record, not an inquiry advancing.
 - **Stored declaration version (backlog, decided before go-live).** Q16 left declaration text versioning out of 9b. Before real intake, decide whether each application stores which declaration text the parent agreed to (for example a version key next to `declaration_agreed_at`), since the privacy policy link will change that text. See "Backlog from slice 9".
 - **Confirmation email or written acceptance (slice 15).** admissions.tcsch.edu.gh does not move to the ERP until a confirmation email exists (slice 12) or Eyram accepts the gap in writing (gate of 2026-10-14).
+- **Confirmation email go-live checks (slice 12).** Before real intake: confirm the live From address and verified domain in Resend (From stays `@mail.tcsch.edu.gh`); set `ADMISSIONS_STAFF_EMAIL` (the TCS OS address is unknown and not copied); keep `net` out of the hosted project's Exposed schemas, because pg_net briefly holds the worker secret header in `net.http_request_queue`; check the bounce rate after the first real week; bump the reference counters only if TCS OS issued a real reference before its intake closed. Also a CONSTRAINTS.md checklist item.
 
 ## Decisions recorded
 
@@ -1479,7 +1480,7 @@ The token functions are token-gated, so any caller holding the token succeeds.
   `declined` propagates to `offer_declined`. `accepted` doesn't move the stage (`models.py:484-511`).
 - Public route `/offer?token=…`.
 
-**Not included:** email.
+**Not included:** email. **Moved here from slice 12 (decided 2026-10-16):** the offer email, since it needs this page. It uses the slice 12 outbox and worker; a raw token in the outbox needs the D-12c decision first.
 
 **TCS OS files to read:** `views.py:261-294`; `models.py:448-511`; `templates/public/offer.html`; `docs/admissions/02-stack-and-schema.md:252-262`.
 
@@ -1550,6 +1551,197 @@ Service-role probes: a claim twice returns no row twice (idempotent); the fifth 
 
 **Size:** one table, three RPCs, one Edge Function, a cron job, templates and one small UI.
 
+### Slice 12 as built (2026-10-16 to 2026-10-20, local only)
+
+The "Delivers" list above is the original plan, kept for history. Slice 12 was planned again on 2026-10-16 and approved by Eyram with changes the same day and on 2026-10-18 and 2026-10-20. Nothing in this slice is applied, deployed or set on hosted. C1 is committed as a929511; C2 and C3 are uncommitted.
+
+**Decisions (Eyram, 2026-10-16, 2026-10-18 and 2026-10-20):**
+
+- **D-12a, provider.** Resend HTTP API, a separate ERP key ("tcs-erp-transactional", sending access only, limited to `mail.tcsch.edu.gh`), set only as a Supabase function secret.
+- **D-12b, queue.** Outbox written in the submit transaction, emptied by the `admissions-worker` Edge Function, called by pg_cron through pg_net. Sending straight from `admissions-public` was rejected: an email would be lost if Resend were down or the function stopped after the commit.
+- **D-12c, token links at rest.** Does not arise in this slice: no email carries a link with a token. The outbox stores no body at all, only params (below). Offer and draft emails, which carry tokens, are slices 11 and 10.
+- **D-12d, GoTrue SMTP for invites.** Out of this slice.
+- **D-12e, sender.** From `TCS Admissions <no-reply@mail.tcsch.edu.gh>` (the From address of a real TCS OS email Eyram received on 14 Oct; the bare `tcsch.edu.gh` is not a verified sending domain). Reply-To `admissions@tcsch.edu.gh`, a mailbox someone reads (reported by Eyram). Both are function secrets with no code default. Sign-off "Kind regards, / Admissions Office / Treasures Christian School".
+- **D-12f, content.** No names: "Dear Parent or Guardian", the reference with grade and academic year, several children listed as "Child N on your form". No health data, no document names, no links in a parent email. The application email keeps the TCS OS decision and fee sentence without the bank details. Subjects "We have received your enquiry" and "We have received your application". No em or en dash and never the word "inquiry" in a subject or body (code names keep it).
+- **D-12g, overview PDF.** Dropped from the enquiry email. TCS OS gates it behind a lead form, and a public link would bypass that. It returns with the PDF gate in slice 13.
+- **D-12h, recipients.** Typed guardian emails first, then every guardian email on record for the family, de-duplicated, at most 4. A typed address not on record gets the same email, so nothing reveals whether a family exists. The parent email is identical for a new family, a matched family and a possible duplicate; only the staff alert states the match.
+- **D-12i, limits.** At most 4 parent emails per address in 24 hours (`email_recipient_day` in `_public_rate_limit_rule`); more are stored as suppressed and never sent. A global daily ceiling, `MAIL_DAILY_CEILING`, a function secret Eyram sets from the real Resend plan limit, because the Resend account is shared with other domains (`updates.tcsch.edu.gh`, `erp.wilelikcompanyltd.com`).
+- **D-12j, retries.** A claim is an attempt. Waits of 1, 5, 15, 60 and 240 minutes; the sixth failure marks the email failed. A 400 or 422 fails at once.
+- **D-12k, retention.** Sent rows 90 days; failed, suppressed and expired rows 180 days; upload sessions 30 days after expiry.
+- **D-12l, visibility.** Manager and Auditor see the email page (masked recipients, no staff address) and the health strip; anyone who can see an application sees its confirmation status line; only a Manager can retry, and only failed emails.
+- **D-12m, worker.** A secret-gated public endpoint (`verify_jwt = false`). The secret is made in Vault by the migration and no person handles it. The worker uses the service role key from its function environment, only for the service-role-only functions, and never logs it (approved 2026-10-20).
+- **D-12n, maximum age (2026-10-20).** A queued email older than 48 hours when the worker claims it is marked expired and never sent (age counts from a Manager's retry when there is one). This stops a backlog going out all at once when `MAIL_MODE` is switched to live after the hosted tests, and stops late emails after a long outage.
+- **D-12o, staff alert address.** `ADMISSIONS_STAFF_EMAIL`, a function secret Eyram sets at rollout. The TCS OS address is unknown (nobody received the alert from Eyram's 14 Oct test) and is not copied.
+- **Moved out:** the offer email to slice 11 (it needs the `/offer` page); the draft resume email stays in slice 10; the PDF gate and lead staff alerts are slice 13. Bounce and complaint webhooks are deferred (a new public endpoint and a new gate). Invite emails are out.
+- **Recorded risk (accepted 2026-10-20).** Any request that carries a non-empty worker secret header causes one service-role database call (reading the expected secret) before the comparison. It is cheap and returns nothing, but it is a small amplification on a public endpoint.
+
+**C1, the database (committed as a929511):**
+
+- `20261027100000_admissions_email_outbox.sql`: `admissions_email_outbox` and the one-row `admissions_email_worker`, neither with any API privilege. `submit_inquiry` and `submit_application` re-created with one added line each, `perform public._enqueue_admissions_emails(...)`, after every write (checked by diffing against their previous definitions). The repeat submit of a used upload session (D-9o) returns before that line. A check (`_admissions_email_params_ok`) limits params to references, grade names and academic years, plus family_matched and outcome on the application staff alert. Unique (event_key, kind, recipient) with nulls not distinct. Worker functions (service role only, `_require_public_service_caller`): `claim_admissions_emails(limit, ceiling)` (advisory lock, skip locked, 5 minute lease), `mark_admissions_email_result` (claim token required), `admissions_worker_secret()`. Staff functions: `list_admissions_emails` and `get_admissions_email_health` (Manager, Auditor), `get_application_email_status` (anyone who can see the application), `requeue_admissions_emails` (Manager, recorded as `requeued_by` and `requeued_at` on the row; no new audit action). `set_admissions_worker_url` is callable by no API role; the URL must be https, except for the local Docker host names.
+- `20261027110000_admissions_scheduled_jobs.sql`: `pg_cron` and `pg_net`; `_admissions_worker_kick` (posts only when an email is due); `purge_admissions_housekeeping`; four jobs: `admissions-mail` every minute, `admissions-upload-sweep` every 15 minutes (the scheduled sweep D-9h left to this slice), `admissions-settle-offers` hourly (D-6l), `admissions-housekeeping` daily at 03:00. This closes checkpoint 1 item (d) (sessions and cleaned reservations purged).
+- Probes: `supabase/role-matrix/20261027100000_admissions_email_outbox.sql`, E1 to E23. Two-session claim race. 13 deliberate breaks, all caught.
+
+**C2, the worker (uncommitted):** `supabase/functions/admissions-worker/` (`handler.ts`, `index.ts`, `templates.ts` and their tests), `[functions.admissions-worker] verify_jwt = false`. Header missing or empty: 401 before any database call. Database secret missing or empty: 503. SHA-256 digests compared in constant time. `MAIL_MODE` unset or unknown is off; `live` always sends to `https://api.resend.com`; `test` works only against the local stack and a local fake provider, and refuses a key starting `re_`. Batches of 10, 0.5 s apart, `Idempotency-Key: outbox-<row id>`. Only an error class and the HTTP status are stored, never the provider's text. `admissions-public` is unchanged: the worker imports its sweep and `storage.ts` by relative path (the planned move to a shared folder was not needed). 7 deliberate breaks, all caught, 20 in the slice.
+
+**C3 (uncommitted):**
+
+- `20261027120000_admissions_email_expiry.sql` (D-12n): status `expired`; `claim_admissions_emails` expires old rows first, under the same lock; the list accepts the status; `get_admissions_email_health` gains an expired count (dropped and re-created, same grants); housekeeping keeps expired rows 180 days. Probes X1 to X4 in `supabase/role-matrix/20261027120000_admissions_email_expiry.sql`.
+- Frontend: `/admissions/emails` (Manager and Auditor; a health strip with waiting, failed, expired and address-limit counts and plain messages; a filter; expired rows struck through with "Expired, never sent" and a note that it will never be sent; Retry selected for a Manager, failed rows only). A confirmation status line on the application card. The sidebar link "Admissions Emails". The thank-you copy on `/inquiry` and `/apply` is now "You should receive a confirmation email shortly. If you do not see it within a few minutes, please check your spam folder or contact the school. Please still keep this reference number." ("these reference numbers" for several children).
+
+**Verification (local only, test-runner end pass, 2026-10-20):** fresh reset; overload check clean; types regen identical; anon-executable 170; all 46 probe files green; `admissions-public` handler 51 of 51, integration 7 of 7, upload 7 of 7, submit 6 of 6; worker handler and templates 32 of 32, worker integration 5 of 5 (fake provider on 127.0.0.1, no real email); lint 0 errors and 13 warnings (baseline); `tsc` clean; vitest 194 of 194; build ok; no service role key in `dist/client`; Prettier clean; nothing staged. A manual local run of the real wiring (pg_cron, pg_net, the local gateway, `supabase functions serve`, a fake provider) sent one email and marked it sent. Golden payroll suite not run: no audit action and no payroll item changed.
+
+**Not done:** nothing on hosted. The new staff page and status line have not been tried in a browser.
+
+### Rollout handover: staff ID and slice 12 together (Eyram runs every step; none run here)
+
+Do the steps in order. Stop at any step whose check doesn't match.
+
+**0. Before you start.**
+
+- C2 and C3 committed. `git status` clean, on `main`.
+- Resend dashboard: Domains shows `mail.tcsch.edu.gh` Verified (SPF, DKIM and the return-path MX all green). Note the plan's daily and monthly limits. API Keys: create "tcs-erp-transactional", sending access only, domain `mail.tcsch.edu.gh`. Keep the key on screen only until step 5.
+- Pick `MAIL_DAILY_CEILING`: the plan's daily limit minus what TCS OS, `updates.tcsch.edu.gh` and `erp.wilelikcompanyltd.com` may send the same day. On a 100 a day plan, 60 is a reasonable start.
+
+**1. Staff ID positions query (read only).** Run the query in CONSTRAINTS.md, "Staff IDs on hosted", in the hosted SQL editor. Note any row marked "UNMAPPED after push"; a Manager sets its class after step 4 (Payroll setup, Positions).
+
+**2. Backups.**
+
+- Dashboard, Database, Backups: confirm a backup from today exists.
+- A local data dump, kept outside the repo (it holds personal data, so keep it on an encrypted disk and delete it after the checks):
+
+  ```sh
+  npx supabase db dump --linked --data-only -f ~/tcs-backups/pre-slice-12-data.sql
+  npx supabase db dump --linked -f ~/tcs-backups/pre-slice-12-schema.sql
+  ```
+
+**3. Dry run.**
+
+```sh
+npx supabase db push --dry-run
+```
+
+It must list exactly these four, in this order, and nothing else:
+`20261026100000_hr_staff_numbers.sql`, `20261027100000_admissions_email_outbox.sql`, `20261027110000_admissions_scheduled_jobs.sql`, `20261027120000_admissions_email_expiry.sql`.
+
+**4. Push.**
+
+```sh
+npx supabase db push
+```
+
+Then in the SQL editor (read only):
+
+```sql
+select jobname, schedule, active from cron.job where jobname like 'admissions-%' order by jobname;
+-- 4 rows: admissions-housekeeping, admissions-mail, admissions-settle-offers, admissions-upload-sweep
+select count(*) from vault.secrets where name = 'admissions_worker_secret';   -- 1 (never select the value)
+select worker_url from public.admissions_email_worker;                        -- null
+select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');  -- 170
+```
+
+If `create extension pg_cron` was refused, enable pg_cron in Dashboard, Database, Extensions, and push again.
+
+**5. Function secrets.** The Resend key, with your read -rsp method (it never appears on screen, in the shell history or in a file):
+
+```sh
+read -rsp "Resend API key (tcs-erp-transactional): " K; echo
+npx supabase secrets set --env-file <(printf 'RESEND_API_KEY=%s\n' "$K"); unset K
+```
+
+If the CLI refuses the `/dev/fd` path, use a private temporary file instead and delete it at once:
+
+```sh
+read -rsp "Resend API key (tcs-erp-transactional): " K; echo
+D=$(mktemp -d) && chmod 700 "$D" && (umask 077; printf 'RESEND_API_KEY=%s\n' "$K" > "$D/k.env")
+npx supabase secrets set --env-file "$D/k.env"; rm -rf "$D"; unset K D
+```
+
+The others, with mail still off (example values; put in the real staff mailbox, ERP address and ceiling):
+
+```sh
+npx supabase secrets set \
+  MAIL_MODE=off \
+  MAIL_FROM='TCS Admissions <no-reply@mail.tcsch.edu.gh>' \
+  MAIL_REPLY_TO=admissions@tcsch.edu.gh \
+  ADMISSIONS_STAFF_EMAIL=admissions@tcsch.edu.gh \
+  ERP_BASE_URL=https://<the ERP staff app origin> \
+  MAIL_DAILY_CEILING=60
+npx supabase secrets list   # names and digests only
+```
+
+`ERP_BASE_URL` must be https and is only used for the link in staff alerts.
+
+**6. Worker URL (SQL editor).** No secret in it:
+
+```sql
+select public.set_admissions_worker_url('https://<project-ref>.supabase.co/functions/v1/admissions-worker');
+select worker_url from public.admissions_email_worker;
+```
+
+From now on the sweep is called every 15 minutes and the mail job whenever an email is due (it sends nothing while `MAIL_MODE=off`). Until step 7 those calls get a harmless 404.
+
+**7. Deploy the worker.** `admissions-public` is unchanged and is not redeployed.
+
+```sh
+npx supabase functions deploy admissions-worker --no-verify-jwt
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  "https://<project-ref>.supabase.co/functions/v1/admissions-worker" \
+  -H 'content-type: application/json' -d '{"job":"mail"}'
+# 401: refused without the secret, and nothing ran
+```
+
+**8. Check `net` is not exposed.** Dashboard, Project Settings, Data API, Exposed schemas: only `public` and `graphql_public` (never `net`). And from a terminal, with the public anon key:
+
+```sh
+curl -s "https://<project-ref>.supabase.co/rest/v1/http_request_queue?limit=1" \
+  -H "apikey: <anon key>" -H "Accept-Profile: net"
+# expected: an error saying the schema must be one of public, graphql_public (PGRST106)
+```
+
+**9. Frontend, last.**
+
+```sh
+cd frontend && ./scripts/deploy-production.sh
+```
+
+Never a bare `wrangler deploy` (CONSTRAINTS.md, "Deployment"). Both public switches stay closed.
+
+**10. Hosted test with your own address.** Every record made here joins the go-live cleanup list.
+
+1. Sign in as Manager. Admissions Emails shows the health strip with nothing waiting.
+2. Open Public inquiries, send one enquiry at `/inquiry` with your own email and the child name "ZZ Test Do Not Process", then close Public inquiries. The thank-you page shows the new sentence.
+3. Admissions Emails shows two rows Waiting (your confirmation and the staff alert). After 10 minutes the strip says sending may be switched off: that is right, mail is off.
+4. Switch mail on (secrets apply to the next run, no redeploy):
+
+   ```sh
+   npx supabase secrets set MAIL_MODE=live
+   ```
+
+5. Within about two minutes both rows show Sent. In your inbox: From "TCS Admissions <no-reply@mail.tcsch.edu.gh>", subject "We have received your enquiry", your INQ reference, Reply-To `admissions@tcsch.edu.gh`. "Show original": SPF pass, DKIM pass for `mail.tcsch.edu.gh`, DMARC pass; not in spam. The staff alert reaches `ADMISSIONS_STAFF_EMAIL` with the link to the ERP.
+6. Optionally the same with Public applications and `/apply` (fee proof file needed), then close Public applications again. The application page shows "Confirmation email: sent to 1 address."
+7. Decide where to leave mail: off until real intake opens, or live. Either is safe: anything queued while off and older than 48 hours expires instead of sending.
+
+**11. Reading the Resend log.** Resend dashboard, Emails: search by the recipient address. Each email shows its status (Delivered, Bounced, Complained, Suppressed) and its events; click one for the headers. The ERP stores Resend's id for each sent email: in the SQL editor,
+
+```sql
+select kind, status, provider_message_id, sent_at, last_error_class, last_http_status
+from public.admissions_email_outbox order by created_at desc limit 20;
+```
+
+The id matches the one in the Resend email's page. Every ERP email also carries a `kind` tag. A "Mail settings problem" message on the staff page means Resend answered 401 or 403: check the key and the domain.
+
+**12. Kill switch.**
+
+```sh
+npx supabase secrets set MAIL_MODE=off    # stop sending; emails wait as pending
+npx supabase secrets set MAIL_MODE=live   # resume
+```
+
+Off takes effect at the next run (a batch already in flight, at most 10 emails, finishes). While off, nothing is claimed; when switched back on, anything that waited more than 48 hours is expired, not sent. The staff page shows such emails as Waiting while mail is off and moves them to Expired on the first run after it is switched on; the health strip says so. To stop the scheduled calls entirely (mail and sweep), clear the URL: `select public.set_admissions_worker_url(null);`, and set it again with step 6.
+
+**13. After the rollout.** Staff ID test approvals happen locally only (CONSTRAINTS.md, "Staff IDs on hosted"). Tell me what was run and what you saw, so the docs can record it as reported.
+
 ## Slice 13 — Lead capture (marketing-site endpoints)
 
 **Delivers:**
@@ -1560,6 +1752,8 @@ Service-role probes: a claim twice returns no row twice (idempotent); the fifth 
 - A Manager and Auditor read list (no grade band applies, since `grade_interest` is free text).
 
 **Not included:** bulk sending to leads.
+
+**TCS OS leads (reported by Eyram, 2026-10-16):** real people exist in TCS OS as PDF gate leads, each with a consent to marketing flag (only some consented), and the PDF gate is in active use. Before TCS OS is retired, these leads and their consent flags must be moved to the ERP or deliberately kept. Bulk email (slice 14) must respect the consent and unsubscribe flags (Data Protection Act, 2012 (Act 843)). The overview PDF dropped from the slice 12 enquiry email returns here, behind the gate.
 
 **TCS OS files to read:** `models.py:668-738`; `serializers.py:421-495`; `views.py:94-123`; `tests.py:39-236`; `docs/admissions/02-stack-and-schema.md:710-746`.
 
@@ -1832,10 +2026,11 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-10a | Draft TTL | 30 days; confirm the live value. |
 | D-10b | Draft purge | 30 days after expiry. |
 | D-11a | Offer page shows the child's name before response | First name and grade. |
-| D-12a | Email provider | Resend HTTP API, with a new key in the existing Resend team (domains already verified). |
-| D-12b | Email queue | Outbox plus pg_cron plus pg_net, calling the mailer Edge Function. Enable both extensions on hosted. |
-| D-12c | Plaintext token links in the outbox | Blank after send; hide the body column from staff. |
-| D-12d | GoTrue production SMTP | Point it at Resend in the same session. |
+| D-12a | Email provider | **Decided 2026-10-16:** Resend HTTP API, a separate ERP key limited to `mail.tcsch.edu.gh`, as a function secret. |
+| D-12b | Email queue | **Decided 2026-10-16:** outbox in the submit transaction, the `admissions-worker` Edge Function, pg_cron and pg_net. |
+| D-12c | Plaintext token links in the outbox | Does not arise in slice 12: no body is stored and no email has a token link. Revisit for slices 10 and 11. |
+| D-12d | GoTrue production SMTP | **Decided 2026-10-16:** out of slice 12. |
+| D-12e to D-12o | Sender, content, PDF, recipients, limits, retries, retention, visibility, worker, maximum age, staff alert address | **Decided 2026-10-16 to 2026-10-20.** See "Slice 12 as built". |
 | D-13a | Marketing-site lead endpoints at cutover | Serve TCS OS's exact paths through the Worker; repoint the marketing site later. |
 | D-13b | Turnstile host names | Include the marketing origins. |
 | D-14a | Who may send bulk email | Manager. |
@@ -1984,7 +2179,8 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 | `public_rate_limits` rows | counters for `submit_ip`, `submit_global`, `inquiry_email`, `application_email`, `upload_ip`, `upload_global` | none readable (HMAC keys, counts) | **left.** Windows are 1 hour or 1 day and stop counting on their own; nothing purges them yet (checkpoint 1 item (d)) | none |
 | Reference counters | `INQ-2026` and `APP-2026` advanced by the tests | none | **left.** The first real reference continues the sequence, leaving a gap. Resetting would reuse references that the kept audit rows already name. Eyram's call; the recommendation is no reset | none |
 | Staff IDs (HR, `20261026100000`, added 2026-10-16) | none: the migration is built locally only and not applied on hosted. After the push, any employee approved on hosted gets a 2026 ID. Rule for now: test approvals happen locally only | employee names through `employee_id`; the ID itself is not personal | **left, by rule, not by script.** `staff_numbers.employee_id` is `on delete restrict` and a trigger refuses deleting any issued row, so a test employee who got an ID can't be deleted. The `staff_number_issued` audit rows are kept (append-only). `staff_number_counters` only moves forward; any reset or ID removal needs its own reviewed hand script | the delete trigger, the restrict key and the append-only audit log; see CONSTRAINTS.md, the staff ID checklist item |
-| Later slices (will exist) | slice 10 drafts and tokens, slice 11 offer tokens, slice 12 email outbox rows (and the Resend log, outside the database), slice 13 leads, slice 14 campaigns and unsubscribe rows | varies | each slice that adds a table adds a row here before the cleanup is run | to be planned with each slice |
+| `admissions_email_outbox` (slice 12) | none yet; every hosted test after the slice 12 rollout adds a confirmation row and a staff alert row (`application_ids` holds the test application ids, `params` their references) | the recipient email address and the references | deleted by the same script, matched by the test application ids | the Resend log keeps its own copy outside the database for its retention period |
+| Later slices (will exist) | slice 10 drafts and tokens, slice 11 offer tokens, slice 13 leads, slice 14 campaigns and unsubscribe rows | varies | each slice that adds a table adds a row here before the cleanup is run | to be planned with each slice |
 
 **Stop conditions (the script refuses, and Eyram decides separately):** a test record at `enrolled` or with a `student_id` (a STUDENT counter was used); an accepted offer; a target family that also holds a student with a non-test application; a guardian email of a target family that also appears in a non-test family; a file in the bucket attached to a non-test application; either public switch open.
 

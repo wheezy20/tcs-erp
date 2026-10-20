@@ -162,8 +162,8 @@ export function ApplicationPage() {
   );
 }
 
-/** No confirmation email exists until slice 12, so this page is the
- * parent's only record of the reference. */
+/** The reference, and the note that a confirmation email follows (slice
+ * 12). */
 function ThankYou({ reference, sentence }: { reference: string; sentence: string }) {
   return (
     <PublicNotice title={COPY.thankYouTitle}>

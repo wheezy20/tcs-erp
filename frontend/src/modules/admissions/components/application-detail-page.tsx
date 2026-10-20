@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
+import { cn } from "@/lib/utils";
 import {
   getApplicationDeclaration,
   getApplicationSummary,
@@ -21,6 +22,8 @@ import { SubmissionCheckPanel } from "@/modules/admissions/components/submission
 import { GradeCell, StageBadge } from "@/modules/admissions/components/stage-badge";
 import { StageControls } from "@/modules/admissions/components/stage-controls";
 import { useAdmissionsAccess } from "@/modules/admissions/hooks/use-admissions-access";
+import { getApplicationEmailStatus } from "@/modules/admissions/data/emails";
+import { applicationEmailLine } from "@/modules/admissions/emails";
 import { useLoad } from "@/modules/admissions/hooks/use-load";
 import { GENDER_LABELS, REFERRAL_LABELS, RELATIONSHIP_LABELS } from "@/modules/admissions/labels";
 import { isAdmissionsReadOnly, isApplicationId } from "@/modules/admissions/permissions";
@@ -146,7 +149,32 @@ function ApplicationCard({ app }: { app: ApplicationSummary }) {
         <Field label="Received" value={dateOnly.format(new Date(app.createdAt))} />
         <Field label="Last updated" value={dateOnly.format(new Date(app.updatedAt))} />
       </dl>
+      <ConfirmationEmailStatus applicationId={app.id} />
     </section>
+  );
+}
+
+/** One line on the parent confirmation email (slice 12), with no address.
+ * Anyone who can see the application sees it; the full log is on
+ * /admissions/emails for Managers and Auditors. */
+function ConfirmationEmailStatus({ applicationId }: { applicationId: string }) {
+  const res = useLoad(
+    () => getApplicationEmailStatus(applicationId),
+    [applicationId],
+    "Could not load the confirmation email status.",
+  );
+  if (res.error) return <p className="mt-4 border-t pt-4 text-xs text-destructive">{res.error}</p>;
+  if (!res.data) return null;
+  const line = applicationEmailLine(res.data);
+  return (
+    <p
+      className={cn(
+        "mt-4 border-t pt-4 text-sm",
+        line.tone === "problem" ? "text-destructive" : "text-muted-foreground",
+      )}
+    >
+      {line.text}
+    </p>
   );
 }
 

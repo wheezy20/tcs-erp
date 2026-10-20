@@ -133,9 +133,9 @@ export function InquiryPage() {
   );
 }
 
-/** No confirmation email exists until slice 12, so this page is the
- * parent's only record of the reference. The names are the ones the
- * parent typed, not anything the server sent back. */
+/** The reference, and the note that a confirmation email follows (slice
+ * 12). The names are the ones the parent typed, not anything the server
+ * sent back. */
 function ThankYou({ references, names }: { references: string[]; names: string }) {
   const many = references.length > 1;
   return (

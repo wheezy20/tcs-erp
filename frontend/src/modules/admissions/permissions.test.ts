@@ -7,6 +7,7 @@ import {
   canMoveToDocumentReview,
   canSeeUnbandedGrades,
   canViewAdmissions,
+  canViewAdmissionsEmails,
   canWriteAdmissions,
   documentStatusTargets,
   emptyListMessage,
@@ -175,5 +176,19 @@ describe("empty list message", () => {
     expect(emptyListMessage("Manager", false)).toBe("No applications yet.");
     expect(emptyListMessage("Auditor", false)).toBe("No applications yet.");
     expect(emptyListMessage("Admissions Officer", true)).toBe("No applications match.");
+  });
+});
+
+describe("canViewAdmissionsEmails", () => {
+  it("is Manager and Auditor only, like list_admissions_emails", () => {
+    const roles: StaffRole[] = [
+      "Manager",
+      "Auditor",
+      "Admissions Officer",
+      "Attendant",
+      "Accountant",
+    ];
+    expect(roles.filter((r) => canViewAdmissionsEmails(r))).toEqual(["Manager", "Auditor"]);
+    expect(canViewAdmissionsEmails(undefined)).toBe(false);
   });
 });

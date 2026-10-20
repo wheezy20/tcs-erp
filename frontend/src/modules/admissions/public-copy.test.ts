@@ -12,6 +12,7 @@ import {
   ENQUIRY_COPY,
   FEE_BOX,
   SCHOLARSHIP_COPY,
+  CONFIRMATION_EMAIL_NOTE,
   applicationThankYou,
   joinNames,
 } from "@/modules/admissions/public-copy";
@@ -59,6 +60,23 @@ describe("public form copy", () => {
     expect(FEE_BOX.intro).toContain("does NOT mean admission has been granted");
     expect(JSON.stringify(FEE_BOX)).not.toMatch(/e-?mail/i);
     expect(JSON.stringify(FEE_BOX)).not.toMatch(/\u2192|->/);
+  });
+
+  it("tells the parent a confirmation email is coming, in the wording decided on 2026-10-16", () => {
+    const note =
+      "You should receive a confirmation email shortly. If you do not see it within a few minutes, please check your spam folder or contact the school.";
+    expect(CONFIRMATION_EMAIL_NOTE).toBe(note);
+    expect(APPLICATION_COPY.keepReference).toBe(`${note} Please still keep this reference number.`);
+    expect(ENQUIRY_COPY.keepReference(false)).toBe(
+      `${note} Please still keep this reference number.`,
+    );
+    expect(ENQUIRY_COPY.keepReference(true)).toBe(
+      `${note} Please still keep these reference numbers.`,
+    );
+    for (const s of [APPLICATION_COPY.keepReference, ENQUIRY_COPY.keepReference(true)]) {
+      expect(s).not.toMatch(/won't receive|no confirmation/i);
+      expect(s).not.toMatch(DASHES);
+    }
   });
 
   it("carries the full declaration, word for word, and the media consent", () => {

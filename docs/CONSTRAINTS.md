@@ -68,9 +68,45 @@ Things that shape how this gets built, not just what gets built.
 - [ ] Stored declaration version (backlog, 2026-10-15). Decide before real
       intake whether each application records which declaration text was
       agreed, since the privacy policy link changes that text.
+- [ ] Confirmation email go-live checks (slice 12, decided 2026-10-16,
+      2026-10-18 and 2026-10-20). C1 is committed (a929511); C2 and C3 are
+      built locally and uncommitted; nothing is applied, deployed or set on hosted. The steps are
+      in PORT-PLAN, "Rollout handover: staff ID and slice 12 together".
+      - **`MAIL_MODE=live` only on the hosted project.** Live mode always
+        sends through Resend whatever database the function talks to, so a
+        local `functions serve` with live and a real key would send real
+        mail for local rows. Locally, mail is off or `test` (fake provider).
+      - **Kill switch.** `npx supabase secrets set MAIL_MODE=off` stops
+        sending at the next run; emails wait, and any that waited more than
+        48 hours expire instead of sending when mail is switched back on.
+      - **Recorded risk (accepted 2026-10-20).** A request to the worker
+        with any non-empty secret header costs one database call before the
+        secret is compared.
+      - **From address and domain.** Confirm in the Resend dashboard the
+        live From address and that its domain is verified. From is
+        `TCS Admissions <no-reply@mail.tcsch.edu.gh>`; the bare
+        `tcsch.edu.gh` is not a verified sending domain (reported by Eyram,
+        2026-10-16).
+      - **Staff alert address.** `ADMISSIONS_STAFF_EMAIL` is a function
+        secret Eyram sets at rollout. The TCS OS staff alert address is not
+        known and is not copied.
+      - **Exposed schemas must not include `net` on hosted** (Dashboard,
+        Settings, API). pg_net holds each queued call, including the worker
+        secret header, in `net.http_request_queue` for about a second, and
+        that table is readable by any database role.
+      - **Bounce rate.** Check it in Resend after the first real week of
+        intake.
+      - **Reference counter bump, only if needed.** When TCS OS intake
+        closes, read its highest INQ and APP numbers for the year. Every
+        TCS OS record so far is test or dummy data (reported by Eyram,
+        2026-10-16), so bump the ERP counters above them only if a real
+        reference was issued by then; the bump is a reviewed hand step that
+        only raises a counter.
 - [ ] Staff IDs on hosted (decided 2026-10-16, staff ID slice). Migration
-      `20261026100000_hr_staff_numbers.sql` is built locally only; it is not
-      committed, pushed or applied on hosted.
+      `20261026100000_hr_staff_numbers.sql` is committed (204aff9) and not
+      pushed or applied on hosted. It goes to hosted together with slice 12;
+      the steps are in PORT-PLAN, "Rollout handover: staff ID and slice 12
+      together".
       - **Test approvals happen locally only.** After the push, approving a
         test employee on hosted issues a real 2026 ID and spends a roll, and
         it can't be undone cleanly: `staff_numbers.employee_id` is `on delete

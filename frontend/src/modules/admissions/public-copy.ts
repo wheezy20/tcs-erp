@@ -4,6 +4,10 @@
 // for the house rule: no em or en dashes anywhere (public-copy.test.ts).
 // Labels that are tied to a field stay next to the field in the page.
 
+/** The thank-you pages' email sentence (slice 12, decided 2026-10-16). */
+export const CONFIRMATION_EMAIL_NOTE =
+  "You should receive a confirmation email shortly. If you do not see it within a few minutes, please check your spam folder or contact the school.";
+
 export const ENQUIRY_COPY = {
   pageTitle: "Admissions enquiry · TCS",
   title: "Admissions Enquiry",
@@ -34,11 +38,9 @@ export const ENQUIRY_COPY = {
     `Thank you! We've received your enquiry for ${names}. Our admissions team will be in touch soon.`,
   referenceOne: "Your reference number",
   referenceMany: "Your reference numbers",
-  /** No confirmation email until slice 12, so the page says so. */
+  /** Slice 12 sends a confirmation email (wording decided 2026-10-16). */
   keepReference: (many: boolean) =>
-    `Please keep ${many ? "these numbers" : "this number"}. You won't receive a confirmation email, so write ${
-      many ? "them" : "it"
-    } down or take a screenshot, and quote ${many ? "them" : "it"} when you contact the school.`,
+    `${CONFIRMATION_EMAIL_NOTE} Please still keep ${many ? "these reference numbers" : "this reference number"}.`,
 } as const;
 
 export const APPLICATION_COPY = {
@@ -79,8 +81,8 @@ export const APPLICATION_COPY = {
   thankYouTitle: "Thank you, we've received your application",
   thankYouBody: "The school will check your documents and contact you about the next steps.",
   referenceLabel: "Your application number",
-  keepReference:
-    "Please keep this number. You won't receive a confirmation email, so write it down or take a screenshot, and quote it when you contact the school.",
+  /** Slice 12 sends a confirmation email (wording decided 2026-10-16). */
+  keepReference: `${CONFIRMATION_EMAIL_NOTE} Please still keep this reference number.`,
 } as const;
 
 /** "Ama", "Ama and Kofi", "Ama, Kofi and Esi": the children's names as the

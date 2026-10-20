@@ -301,6 +301,13 @@ export function canViewAdmissionsSettings(role: Role): boolean {
   return role === "Manager" || role === "Auditor";
 }
 
+/** The admissions email log (slice 12): list_admissions_emails and
+ * get_admissions_email_health are Manager and Auditor only. Retry is
+ * Manager only (requeue_admissions_emails). */
+export function canViewAdmissionsEmails(role: Role): boolean {
+  return role === "Manager" || role === "Auditor";
+}
+
 /** Every settings write RPC is Manager only; the Auditor reads. */
 export function canEditAdmissionsSettings(role: Role): boolean {
   return role === "Manager";

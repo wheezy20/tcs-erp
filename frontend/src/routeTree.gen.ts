@@ -36,6 +36,7 @@ import { Route as AccountingProfitLossRouteImport } from './routes/accounting.pr
 import { Route as AccountingTrialBalanceRouteImport } from './routes/accounting.trial-balance'
 import { Route as AdmissionsIndexRouteImport } from './routes/admissions/index'
 import { Route as AdmissionsApplicationIdRouteImport } from './routes/admissions/$applicationId'
+import { Route as AdmissionsEmailsRouteImport } from './routes/admissions/emails'
 import { Route as AdmissionsSettingsRouteImport } from './routes/admissions/settings'
 import { Route as AuditLogIndexRouteImport } from './routes/audit-log/index'
 import { Route as BankingIndexRouteImport } from './routes/banking.index'
@@ -214,6 +215,11 @@ const AdmissionsIndexRoute = AdmissionsIndexRouteImport.update({
 const AdmissionsApplicationIdRoute = AdmissionsApplicationIdRouteImport.update({
   id: '/$applicationId',
   path: '/$applicationId',
+  getParentRoute: () => AdmissionsRouteRoute,
+} as any)
+const AdmissionsEmailsRoute = AdmissionsEmailsRouteImport.update({
+  id: '/emails',
+  path: '/emails',
   getParentRoute: () => AdmissionsRouteRoute,
 } as any)
 const AdmissionsSettingsRoute = AdmissionsSettingsRouteImport.update({
@@ -463,6 +469,7 @@ export interface FileRoutesByFullPath {
   '/accounting/profit-loss': typeof AccountingProfitLossRoute
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
   '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
+  '/admissions/emails': typeof AdmissionsEmailsRoute
   '/admissions/settings': typeof AdmissionsSettingsRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
@@ -524,6 +531,7 @@ export interface FileRoutesByTo {
   '/accounting/profit-loss': typeof AccountingProfitLossRoute
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
   '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
+  '/admissions/emails': typeof AdmissionsEmailsRoute
   '/admissions/settings': typeof AdmissionsSettingsRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
@@ -597,6 +605,7 @@ export interface FileRoutesById {
   '/accounting/profit-loss': typeof AccountingProfitLossRoute
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
   '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
+  '/admissions/emails': typeof AdmissionsEmailsRoute
   '/admissions/settings': typeof AdmissionsSettingsRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
@@ -671,6 +680,7 @@ export interface FileRouteTypes {
     | '/accounting/profit-loss'
     | '/accounting/trial-balance'
     | '/admissions/$applicationId'
+    | '/admissions/emails'
     | '/admissions/settings'
     | '/banking/history'
     | '/banking/reconcile'
@@ -732,6 +742,7 @@ export interface FileRouteTypes {
     | '/accounting/profit-loss'
     | '/accounting/trial-balance'
     | '/admissions/$applicationId'
+    | '/admissions/emails'
     | '/admissions/settings'
     | '/banking/history'
     | '/banking/reconcile'
@@ -804,6 +815,7 @@ export interface FileRouteTypes {
     | '/accounting/profit-loss'
     | '/accounting/trial-balance'
     | '/admissions/$applicationId'
+    | '/admissions/emails'
     | '/admissions/settings'
     | '/banking/history'
     | '/banking/reconcile'
@@ -1073,6 +1085,13 @@ declare module '@tanstack/react-router' {
       path: '/$applicationId'
       fullPath: '/admissions/$applicationId'
       preLoaderRoute: typeof AdmissionsApplicationIdRouteImport
+      parentRoute: typeof AdmissionsRouteRoute
+    }
+    '/admissions/emails': {
+      id: '/admissions/emails'
+      path: '/emails'
+      fullPath: '/admissions/emails'
+      preLoaderRoute: typeof AdmissionsEmailsRouteImport
       parentRoute: typeof AdmissionsRouteRoute
     }
     '/admissions/settings': {
@@ -1381,12 +1400,14 @@ declare module '@tanstack/react-router' {
 
 interface AdmissionsRouteRouteChildren {
   AdmissionsApplicationIdRoute: typeof AdmissionsApplicationIdRoute
+  AdmissionsEmailsRoute: typeof AdmissionsEmailsRoute
   AdmissionsSettingsRoute: typeof AdmissionsSettingsRoute
   AdmissionsIndexRoute: typeof AdmissionsIndexRoute
 }
 
 const AdmissionsRouteRouteChildren: AdmissionsRouteRouteChildren = {
   AdmissionsApplicationIdRoute: AdmissionsApplicationIdRoute,
+  AdmissionsEmailsRoute: AdmissionsEmailsRoute,
   AdmissionsSettingsRoute: AdmissionsSettingsRoute,
   AdmissionsIndexRoute: AdmissionsIndexRoute,
 }

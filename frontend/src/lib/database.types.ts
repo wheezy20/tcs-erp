@@ -5060,6 +5060,7 @@ export type Database = {
         Args: { p_application_id: string; p_reveal_figures: boolean }
         Returns: string
       }
+      _admissions_email_max_age: { Args: never; Returns: string }
       _admissions_email_params_ok: {
         Args: { p_kind: string; p_params: Json }
         Returns: boolean
@@ -6382,6 +6383,7 @@ export type Database = {
         Returns: {
           ceiling_reached_at: string
           config_error: boolean
+          expired: number
           failed: number
           last_run_at: string
           last_success_at: string
