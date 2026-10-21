@@ -190,6 +190,7 @@ export type Database = {
           kind: string
           last_error_class: string | null
           last_http_status: number | null
+          lead_id: string | null
           next_attempt_at: string
           params: Json
           provider_message_id: string | null
@@ -211,6 +212,7 @@ export type Database = {
           kind: string
           last_error_class?: string | null
           last_http_status?: number | null
+          lead_id?: string | null
           next_attempt_at?: string
           params: Json
           provider_message_id?: string | null
@@ -232,6 +234,7 @@ export type Database = {
           kind?: string
           last_error_class?: string | null
           last_http_status?: number | null
+          lead_id?: string | null
           next_attempt_at?: string
           params?: Json
           provider_message_id?: string | null
@@ -247,6 +250,13 @@ export type Database = {
             columns: ["draft_id"]
             isOneToOne: false
             referencedRelation: "application_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admissions_email_outbox_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "admissions_leads"
             referencedColumns: ["id"]
           },
           {
@@ -315,6 +325,51 @@ export type Database = {
         }
         Relationships: []
       }
+      admissions_leads: {
+        Row: {
+          bulk_email_unsubscribed_at: string | null
+          consent_to_marketing: boolean
+          created_at: string
+          email: string | null
+          grade_interest: string | null
+          id: string
+          name: string
+          phone: string | null
+          source: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          bulk_email_unsubscribed_at?: string | null
+          consent_to_marketing?: boolean
+          created_at?: string
+          email?: string | null
+          grade_interest?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          source: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          bulk_email_unsubscribed_at?: string | null
+          consent_to_marketing?: boolean
+          created_at?: string
+          email?: string | null
+          grade_interest?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          source?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: []
+      }
       admissions_reference_counters: {
         Row: {
           key: string
@@ -336,6 +391,7 @@ export type Database = {
           offer_ttl_days: number
           public_applications_open: boolean
           public_intake_open: boolean
+          public_leads_open: boolean
           updated_at: string
         }
         Insert: {
@@ -343,6 +399,7 @@ export type Database = {
           offer_ttl_days?: number
           public_applications_open?: boolean
           public_intake_open?: boolean
+          public_leads_open?: boolean
           updated_at?: string
         }
         Update: {
@@ -350,6 +407,7 @@ export type Database = {
           offer_ttl_days?: number
           public_applications_open?: boolean
           public_intake_open?: boolean
+          public_leads_open?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -5173,7 +5231,12 @@ export type Database = {
       }
       _admissions_grade_code: { Args: { p_grade: string }; Returns: string }
       _admissions_grade_id: { Args: { p_grade: string }; Returns: string }
+      _admissions_lead_retention: {
+        Args: never
+        Returns: Record<string, unknown>
+      }
       _admissions_mask_email: { Args: { p_email: string }; Returns: string }
+      _admissions_mask_phone: { Args: { p_phone: string }; Returns: string }
       _admissions_reference_year: { Args: { p_at?: string }; Returns: number }
       _admissions_seed_public_campus_labels: { Args: never; Returns: number }
       _admissions_sequence_text: { Args: { p_seq: number }; Returns: string }
@@ -5231,6 +5294,7 @@ export type Database = {
         Args: { p_draft_id: string }
         Returns: undefined
       }
+      _enqueue_lead_emails: { Args: { p_lead_id: string }; Returns: undefined }
       _issue_staff_number: {
         Args: { p_employee_id: string; p_year: number }
         Returns: string
@@ -5691,6 +5755,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      capture_lead: {
+        Args: { p_payload: Json; p_source: string }
+        Returns: boolean
       }
       change_decision: {
         Args: {
@@ -6538,6 +6606,10 @@ export type Database = {
           status: string
         }[]
       }
+      get_lead_alert: {
+        Args: { p_claim_token: string; p_outbox_id: string }
+        Returns: Json
+      }
       get_onboarding_context: {
         Args: { p_token: string }
         Returns: {
@@ -6618,6 +6690,24 @@ export type Database = {
           requeued_at: string
           sent_at: string
           status: string
+        }[]
+      }
+      list_admissions_leads: {
+        Args: { p_lead_id?: string; p_limit?: number; p_offset?: number }
+        Returns: {
+          bulk_email_unsubscribed_at: string
+          consent_to_marketing: boolean
+          created_at: string
+          email: string
+          grade_interest: string
+          id: string
+          name: string
+          phone: string
+          source: string
+          total_count: number
+          utm_campaign: string
+          utm_medium: string
+          utm_source: string
         }[]
       }
       list_staff_names: {
@@ -7639,6 +7729,7 @@ export type Database = {
           offer_ttl_days: number
           public_applications_open: boolean
           public_intake_open: boolean
+          public_leads_open: boolean
           updated_at: string
         }
         SetofOptions: {
@@ -7655,6 +7746,7 @@ export type Database = {
           offer_ttl_days: number
           public_applications_open: boolean
           public_intake_open: boolean
+          public_leads_open: boolean
           updated_at: string
         }
         SetofOptions: {
@@ -7671,6 +7763,24 @@ export type Database = {
           offer_ttl_days: number
           public_applications_open: boolean
           public_intake_open: boolean
+          public_leads_open: boolean
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "admissions_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_admissions_public_leads: {
+        Args: { p_open: boolean }
+        Returns: {
+          id: number
+          offer_ttl_days: number
+          public_applications_open: boolean
+          public_intake_open: boolean
+          public_leads_open: boolean
           updated_at: string
         }
         SetofOptions: {

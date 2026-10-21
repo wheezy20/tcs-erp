@@ -5225,3 +5225,17 @@ Docs only; nothing built, run or deployed. Two planning passes: the cutover crit
 **Waiting on Eyram:** the fees PDF; the Resend plan; the privacy policy; the Supabase plan; GCP billing through January 2027.
 
 **Next:** slice 13 C1, after Eyram reviews this docs diff.
+
+## 2026-10-21: Admissions slice 13 C1, the lead database (local only)
+
+Built locally and uncommitted; nothing applied on hosted. Detail in PORT-PLAN, "Slice 13 C1 as built".
+
+- **What it does.** A lead table for the marketing site's PDF gate, a third switch (`public_leads_open`, Manager only, audited, closed by default), `capture_lead` for the Edge Function, two outbox kinds (the PDF to the lead and a staff alert), the staff lead list, and lead retention in the daily housekeeping job.
+- **Why the alert reads its fields at send time.** The outbox keeps no lead details; `get_lead_alert` hands the worker only the grade, consent, source and lead id while it holds the claim (D-13g).
+- **Why lead mail has its own caps.** The confirmation cap now counts only confirmations, so PDFs and resume emails can't use up a family's 4 a day; lead mail is claimed after everything else and gets at most half the daily ceiling, so a burst of PDF requests can't starve application mail.
+- **Fix round 1.** From code review: held back lead mail now sets the ceiling marker on the staff health strip, and housekeeping no longer deletes a lead mid-send. The ceiling arithmetic went into the go-live gate: each lead is two emails, so 40 leads a day needs a ceiling of at least 160.
+- **Corrected in the docs.** Probe L4: the switch is readable by Manager and Auditor only, like the other admissions settings; the plan's Admissions Officer tick would have been an unapproved permission.
+- **Slice 14 carry-forward (Eyram).** Unsubscribed leads are deleted by retention, so slice 14 keeps a hash-only suppression list so an opt out is still honoured.
+- **Verification (local).** Fresh reset; no duplicate overloads; types regenerated (additions only); anon-executable 170; 52 of 52 probe files green; 16 deliberate breaks caught; worker integration 7 of 7; Edge unit tests 105; `tsc` clean; lint 0 errors and 13 warnings (baseline); vitest 216; build ok. Golden payroll suite not run (no payroll or audit action change).
+
+**Not done:** the commit; the hand race on the PDF cap (two sessions); C2 (Edge Function and worker attachment) and C3 (staff screens); everything on hosted.

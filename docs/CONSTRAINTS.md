@@ -162,7 +162,9 @@ Things that shape how this gets built, not just what gets built.
       2026-10-21, not built). Before the lead switch opens:
       - **Resend plan.** Check the daily limit and the attachment size
         limit (the fees PDF is about 4.9 MB), and raise
-        `MAIL_DAILY_CEILING` (60) to match. Never open the lead switch
+        `MAIL_DAILY_CEILING` (60) to match. Each lead is two emails and
+        lead mail gets half the ceiling, so 40 leads a day needs at least
+        160; at 60, only 15 leads a day are mailed and the rest expire. Never open the lead switch
         with mail off.
       - **Fees PDF.** Eyram supplies the current file; it is uploaded to the
         private `admissions-attachments` bucket and is never in any repo.
