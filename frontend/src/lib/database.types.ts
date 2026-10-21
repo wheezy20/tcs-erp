@@ -184,6 +184,7 @@ export type Database = {
           claim_token: string | null
           claimed_at: string | null
           created_at: string
+          draft_id: string | null
           event_key: string
           id: string
           kind: string
@@ -204,6 +205,7 @@ export type Database = {
           claim_token?: string | null
           claimed_at?: string | null
           created_at?: string
+          draft_id?: string | null
           event_key: string
           id?: string
           kind: string
@@ -224,6 +226,7 @@ export type Database = {
           claim_token?: string | null
           claimed_at?: string | null
           created_at?: string
+          draft_id?: string | null
           event_key?: string
           id?: string
           kind?: string
@@ -239,6 +242,13 @@ export type Database = {
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "admissions_email_outbox_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "application_drafts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "admissions_email_outbox_requeued_by_fkey"
             columns: ["requeued_by"]
@@ -461,6 +471,98 @@ export type Database = {
           {
             foreignKeyName: "application_documents_application_id_fkey"
             columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_draft_links: {
+        Row: {
+          created_at: string
+          draft_id: string
+          id: string
+          issued_for_claim: string | null
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          draft_id: string
+          id?: string
+          issued_for_claim?: string | null
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          draft_id?: string
+          id?: string
+          issued_for_claim?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_draft_links_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "application_drafts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_drafts: {
+        Row: {
+          consented_at: string
+          created_at: string
+          current_step: number
+          data: Json
+          email: string | null
+          expires_at: string
+          id: string
+          resume_emails: number
+          submitted_application_id: string | null
+          submitted_at: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          consented_at: string
+          created_at?: string
+          current_step?: number
+          data?: Json
+          email?: string | null
+          expires_at: string
+          id?: string
+          resume_emails?: number
+          submitted_application_id?: string | null
+          submitted_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          consented_at?: string
+          created_at?: string
+          current_step?: number
+          data?: Json
+          email?: string | null
+          expires_at?: string
+          id?: string
+          resume_emails?: number
+          submitted_application_id?: string | null
+          submitted_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_drafts_submitted_application_id_fkey"
+            columns: ["submitted_application_id"]
+            isOneToOne: false
+            referencedRelation: "admissions_application_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_drafts_submitted_application_id_fkey"
+            columns: ["submitted_application_id"]
             isOneToOne: false
             referencedRelation: "applications"
             referencedColumns: ["id"]
@@ -5076,6 +5178,27 @@ export type Database = {
       _admissions_seed_public_campus_labels: { Args: never; Returns: number }
       _admissions_sequence_text: { Args: { p_seq: number }; Returns: string }
       _admissions_worker_kick: { Args: { p_job: string }; Returns: boolean }
+      _application_draft_check_state: {
+        Args: { p_state: Json; p_step: number }
+        Returns: undefined
+      }
+      _application_draft_id: { Args: { p_token: string }; Returns: string }
+      _application_draft_lifetime: {
+        Args: never
+        Returns: Record<string, unknown>
+      }
+      _application_draft_new_link: {
+        Args: { p_claim: string; p_draft_id: string }
+        Returns: string
+      }
+      _application_draft_require_open: { Args: never; Returns: undefined }
+      _application_draft_state_ok: { Args: { p_state: Json }; Returns: boolean }
+      _application_draft_usable: {
+        Args: {
+          p_draft: Database["public"]["Tables"]["application_drafts"]["Row"]
+        }
+        Returns: undefined
+      }
       _application_kind_for_extension: {
         Args: { p_extension: string }
         Returns: string
@@ -5102,6 +5225,10 @@ export type Database = {
           p_family_id: string
           p_typed_emails: string[]
         }
+        Returns: undefined
+      }
+      _enqueue_application_draft_email: {
+        Args: { p_draft_id: string }
         Returns: undefined
       }
       _issue_staff_number: {
@@ -5843,6 +5970,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_application_draft: {
+        Args: {
+          p_consent: boolean
+          p_email: string
+          p_state: Json
+          p_step: number
+        }
+        Returns: Json
+      }
       create_bank_account: {
         Args: {
           p_account_number: string
@@ -6309,6 +6445,7 @@ export type Database = {
         }
       }
       delete_admissions_capacity: { Args: { p_id: string }; Returns: undefined }
+      delete_application_draft: { Args: { p_token: string }; Returns: boolean }
       delete_payslip: { Args: { p_payslip_id: string }; Returns: undefined }
       delete_product: { Args: { p_id: string }; Returns: undefined }
       discard_draft_document: {
@@ -6383,6 +6520,7 @@ export type Database = {
         Returns: {
           ceiling_reached_at: string
           config_error: boolean
+          draft_failed: number
           expired: number
           failed: number
           last_run_at: string
@@ -6391,6 +6529,7 @@ export type Database = {
           waiting: number
         }[]
       }
+      get_application_draft: { Args: { p_token: string }; Returns: Json }
       get_application_email_status: {
         Args: { p_application_id: string }
         Returns: {
@@ -6455,6 +6594,10 @@ export type Database = {
       }
       is_active_staff: { Args: never; Returns: boolean }
       is_valid_onboarding_token: { Args: { p_token: string }; Returns: boolean }
+      issue_application_draft_link: {
+        Args: { p_claim_token: string; p_outbox_id: string }
+        Returns: Json
+      }
       issue_employee_document: {
         Args: { p_document_id: string }
         Returns: undefined
@@ -7454,6 +7597,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      save_application_draft: {
+        Args: {
+          p_expected_version: number
+          p_send_email: boolean
+          p_state: Json
+          p_step: number
+          p_token: string
+        }
+        Returns: Json
+      }
       set_admissions_academic_year_active: {
         Args: { p_active: boolean; p_label: string }
         Returns: {
@@ -7770,6 +7923,15 @@ export type Database = {
       }
       submit_application: {
         Args: { p_payload: Json; p_session_token: string; p_sniffed: Json }
+        Returns: string
+      }
+      submit_application_from_draft: {
+        Args: {
+          p_draft_token: string
+          p_payload: Json
+          p_session_token: string
+          p_sniffed: Json
+        }
         Returns: string
       }
       submit_inquiry: { Args: { p_payload: Json }; Returns: string[] }
