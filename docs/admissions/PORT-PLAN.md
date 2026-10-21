@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is committed (C1 dcbff52, C2 3ec9468, C3 bebd811). Its three migrations are applied on hosted, `admissions-worker` and `admissions-public` are deployed, `PUBLIC_APPLY_BASE_URL` is set, the frontend is deployed, and the hosted test passed (reported by Eyram, 2026-10-21); see "Slice 10 rollout reported". The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is committed (C1 dcbff52, C2 3ec9468, C3 bebd811). Its three migrations are applied on hosted, `admissions-worker` and `admissions-public` are deployed, `PUBLIC_APPLY_BASE_URL` is set, the frontend is deployed, and the hosted test passed (reported by Eyram, 2026-10-21); see "Slice 10 rollout reported". Slice 13 is planned and approved with changes (2026-10-21), not started; see "Slice 13 plan". The cutover critical path and its decisions (2026-10-21) are under slice 15, "Cutover decisions". The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -44,11 +44,11 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 8b | Public enquiry form polish and two intake switches | committed (32eae11, c3943d8, 7d80735), migrations applied on hosted (reported by Eyram, 2026-10-14) | 8 |
 | 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) committed as c822b56; migration `20261024100000` applied on hosted and `admissions-public` deployed on hosted at version 3 (reported by Eyram, 2026-10-15). 9a checkpoint 2 committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). 9b checkpoint C1 (look foundation and `/inquiry`) committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15); 9b checkpoint C2 (`/apply` six-step layout) committed as 8393551; 9b checkpoint C3 (`/apply` content) committed as 14582d0, deployed with C2 and checked on hosted by Eyram (reported by Eyram, 2026-10-15); C4 close-out written locally 2026-10-15, docs only, uncommitted (decided 2026-10-15; split into 9a and 9b on 2026-10-13) | 8 |
 | 10 | Application drafts: save/resume tokens | committed (dcbff52, 3ec9468, bebd811); applied and deployed on hosted, hosted test passed (reported by Eyram, 2026-10-21) | 9 |
-| 11 | Public offer response page | not started | 8, 6b |
+| 11 | Public offer response page | not started; before cutover if it fits by about 20 Nov 2026, otherwise shortly after with the staff copy link hidden (decided 2026-10-21) | 8, 6b |
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | C1 committed (a929511), C2 and C3 committed (8a45e04). Migrations applied, `admissions-worker` deployed (version 1), secrets and worker URL set, frontend deployed, and a hosted test delivered both emails (reported by Eyram, 2026-10-20 and 2026-10-21). See "Slice 12 as built" and "Slice 12 rollout reported" | 8 (and 6, 9, 10 for the emails it sends) |
-| 13 | Lead capture (marketing-site endpoints) | not started | 8, 12 |
-| 14 | Bulk email + one-click unsubscribe | not started | 12, 13 |
-| 15 | Cutover, domain, TCS OS shutdown (nothing is imported) | not started | all |
+| 13 | Lead capture and the PDF gate (marketing site repointed to the Edge Function) | planned and approved with changes (2026-10-21), not started; see "Slice 13 plan" | 8, 12 |
+| 14 | Bulk email + one-click unsubscribe | not started; after cutover (2026-10-21) | 12, 13 |
+| 15 | Cutover, domain, TCS OS shutdown (nothing is imported except TCS OS leads, after cutover) | not started; go or no go on 1 Dec 2026, cutover planned for 2 Dec 2026 (see "Cutover decisions") | 11 (if it fits), 12, 13 |
 
 Slice 0 is independent of admissions and can run first or in parallel.
 
@@ -56,8 +56,8 @@ Slice 0 is independent of admissions and can run first or in parallel.
 
 Every gate here must be closed before the step it names. Each one is also listed in its slice below.
 
-- **Published privacy policy (decided 2026-10-15, slice 9b).** A privacy policy must be published before real admissions intake opens, and before admissions.tcsch.edu.gh moves to the ERP (slice 15). The policy is being written (reported by Eyram, 2026-10-15). When it exists, add one link in one place: the declaration copy constant. Until then the declaration is ported exactly as TCS OS has it, with no link. From slice 10 the policy must also describe saved applications (what is kept, 30 days after the last save and 60 days at most in all, and deletion from the emailed link); see CONSTRAINTS.md. Also a CONSTRAINTS.md checklist item.
-- **Saved applications go-live checks (slice 10, added 2026-10-21).** Before real intake: Resend click and open tracking off for `mail.tcsch.edu.gh` (the setting itself not reported; the hosted test's resume link was not rewritten, reported by Eyram, 2026-10-21, which indicates click tracking is off); the consent wording reviewed (drafted, not yet decided); the privacy policy describes saved applications (above). Done as reported by Eyram, 2026-10-21: the slice 10 hosted test, run in the handover order, passed; `PUBLIC_APPLY_BASE_URL` is set to `https://tcs-erp.weyramkodzo.workers.dev` (changes at cutover). Also CONSTRAINTS.md checklist items.
+- **Published privacy policy (decided 2026-10-15, slice 9b).** A privacy policy must be published before real admissions intake opens, and before admissions.tcsch.edu.gh moves to the ERP (slice 15). The policy is being written (reported by Eyram, 2026-10-15). When it exists, add one link in one place: the declaration copy constant. Until then the declaration is ported exactly as TCS OS has it, with no link. From slice 10 the policy must also describe saved applications (what is kept, 30 days after the last save and 60 days at most in all, and deletion from the emailed link); see CONSTRAINTS.md. From slice 13 (2026-10-21) it must also cover leads: what the PDF gate keeps, marketing consent, and the retention of D-13l (12 months without consent, 24 months with consent, deleted on unsubscribe). The marketing site may be repointed to the ERP before the policy exists; the policy must cover leads by cutover. Also a CONSTRAINTS.md checklist item.
+- **Saved applications go-live checks (slice 10, added 2026-10-21).** Before real intake: Resend click and open tracking off for `mail.tcsch.edu.gh` (done: both off, reported by Eyram, 2026-10-21); the consent wording reviewed (approved as drafted by Eyram, 2026-10-21); the privacy policy describes saved applications (above). Done as reported by Eyram, 2026-10-21: the slice 10 hosted test, run in the handover order, passed; `PUBLIC_APPLY_BASE_URL` is set to `https://tcs-erp.weyramkodzo.workers.dev` (changes at cutover). Also CONSTRAINTS.md checklist items.
 - **Go-live test data cleanup.** Every test record on hosted must be removed before real intake opens. The plan is in "Go-live test data cleanup plan" below (written 2026-10-15, plan only, nothing run). The records known so far:
   - **"ZZ Test Do Not Process" (slice 8b).** One test inquiry on hosted.
   - **Live-test application (slice 9a, rollout step 4).** The application created by the D-9k live test. The test was done and checked out (reported by Eyram, 2026-10-15).
@@ -65,9 +65,10 @@ Every gate here must be closed before the step it names. Each one is also listed
   - **Two test enquiries from the slice 12 hosted test (reported by Eyram, 2026-10-21),** with their outbox rows (a parent confirmation and a staff alert each).
   - **Slice 10 hosted test (reported by Eyram, 2026-10-21).** The test draft and its links (submitted, so its answers and email are already wiped; housekeeping deletes the row 30 days after submission); the test application with its document rows and files, and its parent confirmation and staff alert outbox rows; and the `draft_resume` outbox rows of that draft (the submit removes them unless one was being sent at that moment, so check for any left), plus the Resend log copy of the test resume email.
   - **Test applications from the 9b C3 hosted check (reported by Eyram, 2026-10-15).** The check included a second submission that produced the match panel (family matched by guardian email, child matched by name and date of birth, differences listed, record unchanged), so it made at least two applications, with their documents and files. The second was a new application for a family already on record, not an inquiry advancing.
-- **Stored declaration version (backlog, decided before go-live).** Q16 left declaration text versioning out of 9b. Before real intake, decide whether each application stores which declaration text the parent agreed to (for example a version key next to `declaration_agreed_at`), since the privacy policy link will change that text. See "Backlog from slice 9".
+- **Stored declaration version (decided 2026-10-21: stored, built with the privacy policy link).** Q16 left declaration text versioning out of 9b. Before real intake, decide whether each application stores which declaration text the parent agreed to (for example a version key next to `declaration_agreed_at`), since the privacy policy link will change that text. See "Backlog from slice 9".
+- **Lead capture go-live checks (slice 13, added 2026-10-21).** Before the lead switch opens: the Resend plan (daily limit and attachment size) checked and `MAIL_DAILY_CEILING` raised to match; mail live; the fees PDF uploaded; the ERP Turnstile widget hostnames and `ADMISSIONS_LEAD_ORIGINS` hold the marketing hosts; the three TCS OS leads read before the DNS flip (no file is kept). By cutover: the privacy policy covers leads. Before the go-live cleanup: leads are deleted only by an explicit id list (see "Slice 13 plan").
 - **Confirmation email or written acceptance (slice 15).** admissions.tcsch.edu.gh does not move to the ERP until a confirmation email exists (slice 12) or Eyram accepts the gap in writing (gate of 2026-10-14). A confirmation email now exists on hosted: Eyram's hosted test delivered one (reported by Eyram, 2026-10-21). The slice 12 go-live checks below are still open.
-- **Confirmation email go-live checks (slice 12).** Before real intake: confirm the live From address and verified domain in Resend (From stays `@mail.tcsch.edu.gh`); `ADMISSIONS_STAFF_EMAIL` is set (reported by Eyram, 2026-10-21; the TCS OS address is unknown and not copied); confirm `admissions@tcsch.edu.gh` is not on Resend's suppression list and that a test message reaches it quickly (added 2026-10-21, after the hosted test's first staff alert was suppressed); confirm by name that `net` is not in the hosted project's Exposed schemas (reported only as "2 of 2 schemas exposed"), because pg_net briefly holds the worker secret header in `net.http_request_queue`; SPF, DKIM and DMARC passed on the hosted test's parent email (reported by Eyram, 2026-10-21); check the bounce rate after the first real week; bump the reference counters only if TCS OS issued a real reference before its intake closed. Also a CONSTRAINTS.md checklist item.
+- **Confirmation email go-live checks (slice 12).** Before real intake: confirm the live From address and verified domain in Resend (From stays `@mail.tcsch.edu.gh`); `ADMISSIONS_STAFF_EMAIL` is set (reported by Eyram, 2026-10-21; the TCS OS address is unknown and not copied); confirm `admissions@tcsch.edu.gh` is not on Resend's suppression list and that a test message reaches it quickly (added 2026-10-21, after the hosted test's first staff alert was suppressed); confirm by name that `net` is not in the hosted project's Exposed schemas (reported only as "2 of 2 schemas exposed"), because pg_net briefly holds the worker secret header in `net.http_request_queue`; SPF, DKIM and DMARC passed on the hosted test's parent email (reported by Eyram, 2026-10-21); check the bounce rate after the first real week; bump the reference counters only if TCS OS issued a real reference before its intake closed (superseded 2026-10-21: the counters are always raised to 0101 at cutover, see "Cutover decisions"). Also a CONSTRAINTS.md checklist item.
 
 ## Decisions recorded
 
@@ -134,7 +135,7 @@ These come from reading the code. Where a doc and the code disagree, the plan fo
    - nobody but a superuser holds `can_decide`, `can_view_health_info` or `can_send_bulk_email`.
 
    With nothing to migrate (point 6), the live migration level no longer affects the port.
-6. **All TCS OS applications and inquiries are test data; nothing to migrate** (decided 2026-10-11). Still open: whether the 6 leads and 17 guardians who received TCS OS campaign emails are also test data. If any of them are real, their unsubscribe links are the only TCS OS data that would need handling at cutover.
+6. **All TCS OS applications and inquiries are test data; nothing to migrate** (decided 2026-10-11). Still open: whether the 6 leads and 17 guardians who received TCS OS campaign emails are also test data. If any of them are real, their unsubscribe links are the only TCS OS data that would need handling at cutover. **Answered 2026-10-21 (reported by Eyram):** all test data except three real PDF gate leads (one consented, two not, none unsubscribed). Their old unsubscribe links reach the static notice at the old path after cutover; the leads are imported after cutover (slice 13, "TCS OS lead import").
 7. **The inquiry form doesn't de-duplicate.** Only the Application path matches existing records (`serializers.py:251-330`). `InquirySerializer.create()` always creates a new Family, Guardians and Students.
 8. **An anonymous Application re-submission overwrites existing records.** A submission that matches on guardian email:
    - updates that guardian's fields (`serializers.py:264-272`);
@@ -155,7 +156,7 @@ These come from reading the code. Where a doc and the code disagree, the plan fo
 
     The port wraps generation in one transaction and mints a new token on every re-offer (**D-6b**).
 11. **The unsubscribe GET changes state** (`views.py:328-330`). Mail-security link scanners that prefetch GETs can unsubscribe people. See **D-14b**.
-12. **The marketing site posts cross-origin to TCS OS.** `https://tcsch.edu.gh` and `*.vercel.app` preview hosts POST to `/api/admissions/quick-interest/` and `/api/admissions/pdf-gate/admissions-overview/` (`02-stack-and-schema.md:731-746`). A redirect can't carry a cross-origin POST with CORS reliably. At cutover those two paths need to be served, or the marketing site repointed.
+12. **The marketing site posts cross-origin to TCS OS.** `https://tcsch.edu.gh` and `*.vercel.app` preview hosts POST to `/api/admissions/quick-interest/` and `/api/admissions/pdf-gate/admissions-overview/` (`02-stack-and-schema.md:731-746`). A redirect can't carry a cross-origin POST with CORS reliably. At cutover those two paths need to be served, or the marketing site repointed. **Resolved 2026-10-21 (D-13a):** the marketing site only calls the PDF gate, and it is repointed to the ERP Edge Function before cutover; quick interest is dropped.
 
 **ERP-side findings that shape the plan:**
 
@@ -1687,7 +1688,7 @@ The "Delivers" list above is the original plan, kept for history. Slice 12 was p
 - **D-12c, token links at rest.** Does not arise in this slice: no email carries a link with a token. The outbox stores no body at all, only params (below). Offer and draft emails, which carry tokens, are slices 11 and 10.
 - **D-12d, GoTrue SMTP for invites.** Out of this slice.
 - **D-12e, sender.** From `TCS Admissions <no-reply@mail.tcsch.edu.gh>` (the From address of a real TCS OS email Eyram received on 14 Oct; the bare `tcsch.edu.gh` is not a verified sending domain). Reply-To `admissions@tcsch.edu.gh`, a mailbox someone reads (reported by Eyram). Both are function secrets with no code default. Sign-off "Kind regards, / Admissions Office / Treasures Christian School".
-- **D-12f, content.** No names: "Dear Parent or Guardian", the reference with grade and academic year, several children listed as "Child N on your form". No health data, no document names, no links in a parent email. The application email keeps the TCS OS decision and fee sentence without the bank details. Subjects "We have received your enquiry" and "We have received your application". No em or en dash and never the word "inquiry" in a subject or body (code names keep it).
+- **D-12f, content.** No names: "Dear Parent or Guardian", the reference with grade and academic year, several children listed as "Child N on your form". No health data, no document names, no links in a parent email. The application email keeps the TCS OS decision and fee sentence without the bank details. Subjects "We have received your enquiry" and "We have received your application". No em or en dash and never the word "inquiry" in a subject or body (code names keep it). Exceptions to "no links" (2026-10-21): the slice 10 resume link, and the one plain link to `https://admissions.tcsch.edu.gh/inquiry` in the slice 13 PDF gate email, where "inquiry" appears only inside that URL.
 - **D-12g, overview PDF.** Dropped from the enquiry email. TCS OS gates it behind a lead form, and a public link would bypass that. It returns with the PDF gate in slice 13.
 - **D-12h, recipients.** Typed guardian emails first, then every guardian email on record for the family, de-duplicated, at most 4. A typed address not on record gets the same email, so nothing reveals whether a family exists. The parent email is identical for a new family, a matched family and a possible duplicate; only the staff alert states the match.
 - **D-12i, limits.** At most 4 parent emails per address in 24 hours (`email_recipient_day` in `_public_rate_limit_rule`); more are stored as suppressed and never sent. A global daily ceiling, `MAIL_DAILY_CEILING`, a function secret Eyram sets from the real Resend plan limit, because the Resend account is shared with other domains (`updates.tcsch.edu.gh`, `erp.wilelikcompanyltd.com`).
@@ -1925,6 +1926,115 @@ Service-role value probes are ported from TCS OS tests: a client-sent `source` i
 
 **Size:** one table, one RPC, two Edge Function actions, one list page.
 
+### Slice 13 plan (approved by Eyram with changes, 2026-10-21)
+
+The text above is the original plan, kept for history. Slice 13 was planned again on 2026-10-21 and approved by Eyram with changes the same day. Nothing is built yet. It is three checkpoints, each committed on its own. Re-estimated the same day after Eyram's findings (three real TCS OS leads, no real family records): still three checkpoints, with C1 smaller (no legacy unsubscribe hash, no `tcs_os_lead_id`, no import machinery, one source value), and still about 22 deliberate breaks, since none of the planned breaks guarded the dropped import columns.
+
+**What changed from the original plan:** quick interest is dropped (the marketing site never calls it); the ERP does not serve TCS OS's old `/api/admissions/pdf-gate/` path; the marketing site is repointed to the Edge Function instead (D-13a); lead capture gets its own switch; the PDF goes out as an attachment from a private bucket; the staff alert carries no contact details.
+
+**Decisions (Eyram, 2026-10-21):**
+
+- **D-13a, endpoint.** The marketing site (`~/projects/tcs-website`) is repointed to the `admissions-public` Edge Function, action `pdf_gate`, with the ERP Turnstile widget's site key. The ERP does not hold the TCS OS Turnstile secret and does not serve the old path. Supersedes the original recommendation above. The repoint happens before cutover (planned around 6 Nov 2026), and may happen before the privacy policy is published, because TCS OS takes these leads today without one; the policy must cover leads by cutover.
+- **D-13b, hosts.** The ERP Turnstile widget hostnames gain `tcsch.edu.gh`, `www.tcsch.edu.gh` and `tcsch.vercel.app`, exact hosts, no `*.vercel.app` pattern (anyone can host a page there).
+- **D-13c, origin lists.** A separate function secret `ADMISSIONS_LEAD_ORIGINS` holds the marketing origins. An origin on that list may call only `pdf_gate`; it is refused (403) for every other action. `ADMISSIONS_ALLOWED_ORIGINS` is unchanged. Cutting the marketing site off is one secret.
+- **D-13d, source values (settled 2026-10-21).** The table check allows only `pdf_gate_admissions_overview`: the three real TCS OS leads all came from the PDF gate, so `quick_interest_widget` is not needed.
+- **D-13e, closed response.** 409 with `{error, code: "closed"}` and "The Admissions Overview download is not available right now. Please contact the school office."
+- **D-13f, greeting.** "Dear Parent or Guardian" (D-12f). TCS OS's "Dear {first_name}" would print a stranger's typed name in an email from the school's domain.
+- **D-13g, staff alert (changed by Eyram).** The alert to `ADMISSIONS_STAFF_EMAIL` carries the grade of interest, the consent answer, the source and a link to the lead in the ERP (`ERP_BASE_URL/admissions/leads?lead=<lead id>`). No name, email or phone in the body, and no name in the subject. Staff open the ERP to see the contact details.
+- **D-13h, lead list access (changed by Eyram; a new permission).** Manager and Admissions Officer read all leads in full. No grade band scope applies to leads, because the grade of interest is mostly blank and free text. Auditor reads with email and phone masked. Attendant and Accountant have no access. No capability is needed.
+- **D-13i, unsubscribe columns (simplified 2026-10-21).** `consent_to_marketing` and `bulk_email_unsubscribed_at` only. No legacy unsubscribe hash and no `tcs_os_lead_id`: the import is three rows. No token is made at capture: a stored hash cannot rebuild a permanent link (the slice 3a carry-forward), so slice 14 designs the token for leads and guardians together.
+- **D-13j, limits (starting values, changed by Eyram).** 20 per hour per IP (`lead_ip`); 40 per day in all, counted only after Turnstile (`lead_global`); 2 PDF emails per address per day (`lead_email_day`), extras stored as suppressed with the same response; lead mail at most half the daily mail ceiling. TCS OS gathered three real leads in all, so these are ample; Eyram adjusts them from real ERP traffic. `MAIL_DAILY_CEILING` (60) is raised once Eyram confirms the Resend plan.
+- **D-13k, missing PDF.** If the file is missing, too large or not a PDF, nothing is sent: the row retries with error class `config` and the staff health strip says a required file is missing. This differs from TCS OS, which sends without the file; an email that says "attached" with nothing attached is worse than a delay.
+- **D-13l, retention (Eyram's decision).** Leads without marketing consent are deleted 12 months after capture; leads with consent 24 months after capture; any lead with `bulk_email_unsubscribed_at` set is deleted at the next housekeeping run. The privacy policy must state this. Consequence: a TCS OS lead already unsubscribed would be deleted at once after import, so the import skips those rows (same outcome, nothing kept).
+- **D-13m, erasure.** A reviewed SQL statement run by Eyram, as for drafts. No staff delete in this slice.
+- **D-13n, inquiry link.** The function secret `PDF_GATE_INQUIRY_URL`, set to `https://admissions.tcsch.edu.gh/inquiry` (not the workers.dev address) and validated by the worker: https, path exactly `/inquiry`, no query or fragment, not a local host. Until cutover the link still reaches TCS OS's enquiry form.
+- **D-13o, no de-duplication** of leads (TCS OS parity, D-8c precedent). Carry-forward to slice 14: de-duplicate by lowercased email, and any unsubscribed row unsubscribes the address.
+- **D-13p, hosted test.** On a temporary Vercel preview of the marketing site whose exact host is added to the widget and `ADMISSIONS_LEAD_ORIGINS` for the test and removed afterwards. Production stays on TCS OS until the test passes.
+- **Lead switch (Eyram).** `public_leads_open`, Manager only, audited, closed by default, independent of the public inquiries and public applications switches, because the marketing site points at the ERP weeks before intake opens.
+- **PDF gate email (Eyram).** The fees PDF attached as TCS OS does, plus exactly one plain link to `https://admissions.tcsch.edu.gh/inquiry`, with no token. This is the second exception to D-12f's "no links in a parent email" (the first is the slice 10 resume link).
+- **TCS OS leads** (three real rows) are imported after cutover by one reviewed SQL statement (see "TCS OS lead import" below). This is the one exception to "nothing is imported".
+
+**C1, database.** Migration `20261030100000_admissions_leads.sql`:
+
+- `admissions_leads`: `id`, `name` (1 to 255, no control characters), `email` (trimmed, lowercased, at most 254), `phone` (at most 32), `grade_interest` (at most 50), `source` (D-13d), `consent_to_marketing boolean not null default false`, `utm_source`, `utm_medium`, `utm_campaign` (at most 200 each), `bulk_email_unsubscribed_at`, `created_at` (the import sets it to the original date). Check: email or phone present, and email present for the PDF gate source. RLS on, no policy, no privilege for any API role.
+- `admissions_settings.public_leads_open boolean not null default false`; `set_admissions_public_leads(boolean)`, Manager only, refusing null and a no-change call; `audit_admissions_settings()` re-created with a third field branch. The audit action stays `admissions_settings_changed`, so the audit action list is unchanged. `get_public_admissions_options` is not changed.
+- Outbox: `lead_id` (cascade on lead delete); kinds `pdf_gate` and `lead_staff`; `event_key` `lead:<uuid>`; both lead kinds take params `{}`; a check ties the lead kinds to `lead_id`.
+- `lead_ip`, `lead_global` and `lead_email_day` in `_public_rate_limit_rule` (D-13j).
+- Private bucket `admissions-attachments`, PDF only, 10 MB limit, no policy for any role.
+
+Migration `20261030110000_admissions_lead_rpcs.sql`:
+
+- `capture_lead(p_source, p_payload)`, service role only. Order: the lead switch (TCS03 when closed), validation (TCS22 with a DETAIL naming the field), insert, `_enqueue_lead_emails`. Reads only known keys, so a client `source` is ignored. Consent is true only for the JSON boolean `true`. UTM: non-strings become empty, strings are cut to 200, never refused. Returns only `true`.
+- `_enqueue_lead_emails`, callable by nobody: the existing per-address advisory lock; a third PDF to one address in 24 hours is stored suppressed with an unchanged response; the staff alert always queues.
+- `_enqueue_admissions_emails` re-created so the parent cap of 4 counts only parent kinds: lead mail must not use up a real parent's confirmation allowance.
+- `claim_admissions_emails` re-created: lead kinds are claimed after other kinds, and only while lead mail sent in 24 hours is below half the ceiling.
+- `get_lead_alert(p_outbox_id, p_claim_token)`, service role only: returns the grade of interest, consent, source and lead id for a `lead_staff` row the caller holds a claim on (D-13g), null otherwise.
+- `list_admissions_leads(p_limit, p_offset, p_lead_id)`: Manager and Admissions Officer in full, Auditor masked, everyone else refused; newest first; limit capped at 500; `p_lead_id` shows one lead (the alert link); never returns the hash column.
+- `purge_admissions_housekeeping` re-created with a `leads_deleted` step (D-13l); retention numbers in one function.
+
+**C2, Edge Function and worker.**
+
+- `admissions-public`, action `pdf_gate`: exact origin (D-13c), POST and JSON, body at most 32 KB, `lead_ip`, Turnstile (action exactly `pdf_gate`, hostname allowed), `lead_global` after Turnstile, then `capture_lead` with the source set by the function. Payload keys allowlisted (`name`, `email`, `phone`, `grade_interest`, `consent_to_marketing`, `utm_*`); unknown keys dropped, not refused. Responses: 200 `{ok: true}`; 400 `{error, field}`; 409 closed (D-13e); 429 generic.
+- `admissions-worker`: templates `pdf_gate` (D-13f, one validated link, D-13n) and `lead_staff` (D-13g, values passed through `clean()`); `attachment.ts` reads `pdf-gate/admissions-overview-and-fees.pdf` from `admissions-attachments` (a constant path, never from a row), 10 MB cap, must start `%PDF-`, read once per run and only when a `pdf_gate` row is claimed; Resend body gains the attachment for `pdf_gate` only; send timeout 30 s for attachments; missing file per D-13k; nothing logs an address, a name or file content.
+
+**C3, staff screens and handover.** `/admissions/leads` (Manager, Admissions Officer, Auditor masked; `?lead=<id>` opens one lead); a third switch card in Admissions Settings (Manager edits, others read); the sidebar item "Admissions Leads"; kind labels on the email page; the rollout handover; the docs.
+
+**Role matrix (probe files named after the two migrations):**
+
+| Probe | anon | Att | Mgr | Acc | Aud | Officer |
+|---|---|---|---|---|---|---|
+| L1 structure: table RLS on, no policy, no privilege; bucket private; rate numbers; anon-executable count 170 | all | | | | | |
+| L2 `set_admissions_public_leads` | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
+| L3 one `admissions_settings_changed` row per flip, only `public_leads_open` | | | ✓ | | | |
+| L4 read `public_leads_open` | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ |
+| L5 independence: leads open with intake closed captures; leads closed with intake open refuses | all (service role) | | | | | |
+| L6 direct select on `admissions_leads` | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| R2 `capture_lead` as any JWT role | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| R10 `get_lead_alert` as any JWT role | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| R11 `list_admissions_leads` | ✗ | ✗ | ✓ full | ✗ | ✓ masked | ✓ full |
+| R16 requeue a failed `pdf_gate` row | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
+
+Service-role value probes (R3 to R9, R12 to R15), ported from TCS OS tests where they exist: source server-forced; email required for the PDF gate; consent default false and only `true` honoured; UTM cut to 200, null and absent accepted, not echoed; switch closed refuses and writes nothing; the third PDF to one address suppressed (case and spacing variants) and parent and lead caps kept apart; outbox constraints and the cascade; lead mail capped at half the ceiling with application mail still claimed; retention (D-13l), counted from `created_at`; a direct insert shaped like the import (original `created_at`, consent true) is accepted and makes no outbox row. The slice 10 and 12 probe files must still pass.
+
+**Anon surface:** HTTP `pdf_gate` on `admissions-public`, cross-origin. No new anon-executable function: the count stays 170. No anon table grant, policy or storage policy. **Confirmation gate.**
+
+**Confirmation gates crossed:** the anon surface above, including the marketing hosts in the Turnstile widget and `ADMISSIONS_LEAD_ORIGINS`; new permissions (the Manager-only lead switch, and lead personal data readable by Manager, Admissions Officer and Auditor masked, D-13h); the retention periods (D-13l); every production step in the handover.
+
+**Testing shape.** Each deliberate break runs only against the probe files meant to catch it; the full role matrix once at the end; overload check, seed check and types regen diff once at the start and once at the end. About 22 breaks (Eyram, 2026-10-21), kept to permissions, consent, the lead switch, the missing PDF refusal, the origin check and the per-address cap:
+
+- C1 (14): `capture_lead` without the service-caller guard; `source` read from the payload; consent coerced from a truthy value; switch check removed; `capture_lead` reading the inquiries switch; setter without the Manager check; audit branch missing; table select granted to `authenticated`; Auditor unmasked; list role allowlist widened to Attendant; `get_lead_alert` without the claim token check; address not lowercased (cap bypass); lead rows counted in the parent cap; retention deleting consented leads at 12 months.
+- C2 (8): Turnstile action not checked; `lead_global` counted before Turnstile; a marketing origin accepted for a non-lead action; origin check skipped for `pdf_gate`; missing file sent anyway; no `%PDF-` check; attachment on a non-`pdf_gate` kind; staff alert carrying name, email or phone.
+- Dropped as near duplicates or covered by value probes: UTM truncation, outbox lead check, the half-ceiling claim rule, oversize file (the PDF check covers the refusal path), link validation, a name in the greeting, a log line with an address, unknown keys forwarded, a lead id in the response, and the two UI-only gates (the server enforces both).
+
+One two-session race by hand: three simultaneous captures to one address give exactly two pending PDF rows and one suppressed. Golden payroll suite skipped: the audit trigger function changes, but the audit action list and nothing payroll uses are touched.
+
+**TCS OS lead import (simplified 2026-10-21).** TCS OS holds exactly three real leads, all from the PDF gate: one consented to marketing, two did not, none unsubscribed (reported by Eyram, 2026-10-21). Their names and contact details are real personal data and are never written into any repo file. There is no CSV export, no checksum, no file to keep and no legacy unsubscribe hash.
+
+- **Read the three rows** before the DNS flip (the TCS OS Django admin goes away at the flip), in the TCS OS admin or read only in its SQL editor: `begin read only; select name, email, phone, source, consent_to_marketing, bulk_email_unsubscribed_at, created_at from admissions_lead order by id; rollback;` (confirm the table name with `\dt *lead*`). Nothing is saved to a file.
+- **Import, after cutover, by one reviewed SQL statement** that Eyram fills in and runs in the ERP SQL editor (a hand data step, so a confirmation gate). Only this template lives in the docs; the values are typed into the editor and nowhere else:
+
+  ```sql
+  begin;
+  insert into public.admissions_leads (name, email, phone, source, consent_to_marketing, created_at)
+  values
+    ('<name 1>', '<email 1>', <phone 1 or null>, 'pdf_gate_admissions_overview', <true or false>, '<original created_at 1>'),
+    ('<name 2>', '<email 2>', <phone 2 or null>, 'pdf_gate_admissions_overview', <true or false>, '<original created_at 2>'),
+    ('<name 3>', '<email 3>', <phone 3 or null>, 'pdf_gate_admissions_overview', <true or false>, '<original created_at 3>');
+  -- expect: INSERT 0 3; then check the three rows (one consent true, two false, original dates) before commit
+  commit;
+  ```
+
+  It keeps each lead's original `created_at` and consent flag, and leaves `bulk_email_unsubscribed_at` null (none unsubscribed). A direct insert bypasses `capture_lead`, so no email and no outbox row are made. Retention (D-13l) counts from the original `created_at`.
+- **Old TCS OS unsubscribe links.** The three leads received TCS OS campaigns, so their emails hold TCS OS unsubscribe links. After cutover those reach the static notice at the old path (slice 15), which says how to stop emails. Their unsubscribe state in the ERP starts from the import (none unsubscribed), and slice 14 issues new links.
+
+**Rollout handover outline (Eyram runs every step; written in full at C3).** Check the Resend plan (daily limit, attachment size) and that `admissions@tcsch.edu.gh` is not suppressed; never open the lead switch with mail off. Backup. Deploy `admissions-worker` first (it must understand the new kinds), then `db push` (dry run lists exactly the two migrations), with read-only checks (switch false, no privilege on the table, bucket private, anon count 170). Upload the PDF to `admissions-attachments/pdf-gate/admissions-overview-and-fees.pdf`. Turnstile hostnames (D-13b, plus the temporary preview host). Secrets `ADMISSIONS_LEAD_ORIGINS` and `PDF_GATE_INQUIRY_URL`. Deploy `admissions-public` and check the preflight from `https://tcsch.edu.gh` (204) and a foreign origin (403). Deploy the frontend with `frontend/scripts/deploy-production.sh`. Open the lead switch. Hosted test on the preview (D-13p): the lead appears in the list (Manager and Officer full, Auditor masked), the email arrives with the PDF, the greeting and the one link are right, the staff alert has no contact details and its link opens the lead, a third request to one address sends no PDF, the closed switch shows the 409 message. Remove the preview host. Then the production marketing switch-over.
+
+**Marketing site change (described, not made), `~/projects/tcs-website/src/sections/Admissions.tsx`:** `PDF_GATE_ENDPOINT` becomes `https://<project-ref>.supabase.co/functions/v1/admissions-public`; the production `TURNSTILE_SITE_KEY` becomes the ERP widget's public site key (the dev test key stays; test on the preview host); the widget render adds `action: "pdf_gate"`; the request sends only `Content-Type: application/json` with body `{action: "pdf_gate", turnstile_token, payload: {name, email, consent_to_marketing}}`; any 2xx is success (toast unchanged), 429 keeps its message, 409 shows `body.error`, 400 reads `{error, field}` (field `name` or `email` goes to that field, otherwise the form message), and the widget resets on every failure. The hostname comment is updated. `vercel.json` is unchanged. Eyram deploys on Vercel. The old TCS OS endpoint keeps working until TCS OS shuts down, so a Vercel rollback is safe until then.
+
+**Cleanup plan changes.** Real leads will be on hosted before the go-live cleanup, so the cleanup deletes leads only by an explicit id list; it never touches a row not on the list (the three TCS OS leads are imported after cutover, so they are not yet on hosted when the cleanup runs); the dry run shows each listed lead. The "either public switch open" stop condition covers only the two intake switches; the lead switch may stay open. The lead's outbox rows go with it by the cascade.
+
+**Risks (candidates for acceptance at review):** a captcha farm can have the school mail the brochure to up to 40 strangers a day (capped further by half the mail ceiling), which can raise bounces and complaints on `mail.tcsch.edu.gh`, the domain parents' confirmations use; bounce webhooks are still deferred, so a mistyped address shows as Sent; replacing the PDF between two attempts of one email within 24 hours makes Resend refuse the retry with the same key; the marketing site's own origins can reach `pdf_gate` (only `pdf_gate`, D-13c); the site tells visitors to check their inbox even if mail is off, so the switch is never opened with mail off.
+
 ## Slice 14 — Bulk email and one-click unsubscribe
 
 **Delivers:**
@@ -1998,7 +2108,7 @@ The unsubscribe probe is token-gated and idempotent: a second call keeps the fir
 
 **Role matrix:** re-run every admissions probe file against the local stack as a final regression. No new functions.
 
-**Anon surface:** adds only the Worker's legacy-host routing (redirects, the unsubscribe proxy, and the slice 13 lead paths if D-13a). **Confirmation gate.**
+**Anon surface:** adds only the Worker's legacy-host routing (redirects, `410`s and a static notice at the old unsubscribe path). No lead paths: the marketing site is repointed instead (D-13a, 2026-10-21). **Confirmation gate.**
 
 **Decisions for Eyram:** D-15a through D-15f in the consolidated list.
 
@@ -2006,11 +2116,43 @@ The unsubscribe probe is token-gated and idempotent: a second call keeps the fir
 
 **Size:** one Worker routing change and a written runbook. The migration script is Eyram-reviewed and Eyram-run.
 
+### Cutover decisions (Eyram, 2026-10-21)
+
+From the critical path planning pass of 2026-10-21 (plan only). Go or no go on Tue 1 Dec 2026; cutover planned for the morning of Wed 2 Dec 2026.
+
+**What TCS OS does today for real families (found by reading `~/projects/tcs-os` and `~/projects/tcs-website`, read only):** the marketing site's PDF gate is the only path real people use. It posts to `https://admissions.tcsch.edu.gh/api/admissions/pdf-gate/admissions-overview/` with the TCS OS Turnstile widget's key; the email it sends links to TCS OS's `/inquiry`. Quick interest is not called anywhere on the marketing site, and the site does not link to `/inquiry` or `/apply`. TCS OS's `ALLOWED_HOSTS` is `admissions.tcsch.edu.gh` only (TCS OS `deployment.md`, step 7; Eyram confirms the live value), so once DNS points at the Worker, TCS OS answers no public request.
+
+**Critical path and order:** slice 13 (and the marketing repoint around 6 Nov); slice 15 C1 host routing (deployed early, inactive until DNS moves); slice 11 if it fits by about 20 Nov; the privacy policy link with the declaration version; the cleanup script; the full hosted test on the workers.dev host, 26 to 30 Nov; go or no go; cutover.
+
+**Classification:**
+
+- **Before cutover:** slice 13 (PDF gate only); slice 15 minimal (host routing: `/` 302 to `/inquiry`, `/admin` 302 to the staff host, old API paths `410`, staff paths off the admissions host, a static notice at `/api/admissions/unsubscribe/<token>/` saying how to stop emails); the privacy policy published and linked; the stored declaration version; the go-live cleanup; the open Resend and hosted checks; Turnstile hostnames and `ADMISSIONS_ALLOWED_ORIGINS` with `https://admissions.tcsch.edu.gh`; real staff accounts and capabilities; the counter bump.
+- **Shortly after:** slice 11 if it slips (before the first real offer; staff record replies with `record_offer_response` meanwhile, and the copy link on the offer panel is hidden, because `/offer` would not exist); the TCS OS lead import (within the 30 day read-only window); the bounce rate check.
+- **Can wait:** slice 14; quick interest; `app.tcsch.edu.gh`; bounce webhooks.
+
+**Decisions:**
+
+- **No WAF rule (D-15d decided).** The DNS flip itself stops TCS OS intake, because of `ALLOWED_HOSTS`. After the flip, Eyram checks the TCS OS project in its SQL editor for any record created after the flip (stale DNS caches).
+- **Cloud Run domain mapping kept until shutdown (changes runbook step 4).** Only the Cloudflare record changes at cutover. Rolling back is then detaching the Worker custom domain and restoring the DNS-only CNAME to `ghs.googlehosted.com`, while the Google certificate is still valid. The mapping is deleted at TCS OS shutdown (D-15f, 30 days).
+- **Staff host stays on workers.dev (D-15e).** `app.tcsch.edu.gh` waits until after cutover.
+- **Counter bump always (changes the "only if needed" item).** At cutover the ERP `INQ-2026` and `APP-2026` counters are raised so the next real references are 0101 or above, by a reviewed hand step that only raises a counter. Both systems use the same `INQ-YYYY-NNNN` and `APP-YYYY-NNNN` formats, so a DNS rollback could otherwise give two families the same reference. There are no real family records in TCS OS to migrate (reported by Eyram, 2026-10-21); the bump stays for DNS rollback safety only.
+- **Real host test on cutover day, then the cleanup once.** Cutover day: switches closed; DNS flip; smoke test the GET pages and redirects; `PUBLIC_APPLY_BASE_URL` set to `https://admissions.tcsch.edu.gh`; switches open briefly for one labelled enquiry and one labelled application on the real host (both emails checked); switches closed; the go-live cleanup, dry run then commit, including those two records; verification; intake opens. The cleanup runs once, after that test.
+- **TCS OS leads are imported** after cutover: three rows by one reviewed SQL statement (slice 13, "TCS OS lead import"). Read them before the flip, because the TCS OS admin goes away at the flip and the free TCS OS Supabase project may pause once its traffic stops.
+- **Slice 11:** before cutover if it fits by about 20 Nov, otherwise shortly after with the copy link hidden.
+- **Declaration version stored** (closes the backlog decision): each application records which declaration text was agreed. Built with the privacy policy link.
+- **Consent line approved as drafted** (the slice 10 save panel, `public-copy.ts`).
+
+**Fallback, lightest first:** close the ERP switches (seconds; parents see the office contact) and `MAIL_MODE=off` for mail trouble, then fix forward; roll back the Worker version for a bad frontend deploy (Eyram); DNS back to TCS OS (ERP switches closed first), realistic within about the first week. ERP records made before a DNS rollback stay in the ERP and staff keep processing them there on the workers.dev host; nothing syncs to TCS OS. Resume and offer links already emailed with the admissions host would then reach TCS OS and fail, so `PUBLIC_APPLY_BASE_URL` goes back to the workers.dev host and staff contact those parents. The PDF gate is unaffected, since it already points at the ERP.
+
+**Reported by Eyram (2026-10-21):** the `tcsch.edu.gh` zone is Active in the same Cloudflare account as the `tcs-erp` Worker, so the custom domain can attach; TCS OS holds no real enquiry or application, and no real family record needs migrating; its only real records are three PDF gate leads (one consented, two not, none unsubscribed); the 23 campaign recipients are test data except those three leads; Resend click and open tracking are both off for `mail.tcsch.edu.gh`.
+
+**Still waiting on Eyram (2026-10-21):** the fees PDF; the Resend plan; the privacy policy; the Supabase plan (backups and pausing for real health data); GCP billing through at least January 2027 (the rollback target).
+
 ---
 
 ## Links already sent to parents: how they keep resolving
 
-Since all TCS OS applications and inquiries are test data, offer and draft links do not need to keep resolving on the ERP. Unsubscribe links matter only if some of the 6 leads and 17 guardians who received campaigns are real (still open question).
+Since all TCS OS applications and inquiries are test data, offer and draft links do not need to keep resolving on the ERP. Unsubscribe links matter only if some of the 6 leads and 17 guardians who received campaigns are real. **Answered 2026-10-21 (reported by Eyram):** all test data except three real PDF gate leads (one consented, two not, none unsubscribed). Their old unsubscribe links reach the static notice at the old path after cutover; the leads are imported after cutover (slice 13, "TCS OS lead import").
 
 ### Exact TCS OS URL shapes, token formats and lifetimes (for reference)
 
@@ -2031,7 +2173,7 @@ Since all TCS OS applications and inquiries are test data, offer and draft links
    - Attach `admissions.tcsch.edu.gh` as a **custom domain on the ERP Worker**. The zone is already on Cloudflare (`deployment.md`: CNAME to `ghs.googlehosted.com`, and Turnstile allowed-domains).
    - The ERP's public routes use TCS OS's paths exactly: `/inquiry`, `/apply` (reads `?draft_token=`), `/offer` (reads `?token=`), and the server route `/api/admissions/unsubscribe/$token/`. So legacy links resolve with **no redirect at all**, query strings intact, and the RFC 8058 POST is answered directly with a `200`. Mail providers aren't required to follow redirects on POST.
    - `/` returns a 302 to `/inquiry`. `/admin/*` returns a 302 to the ERP staff host's `/admissions`.
-   - `/api/admissions/quick-interest/` and `/api/admissions/pdf-gate/admissions-overview/` are served, proxying to the `admissions-public` actions (D-13a).
+   - ~~`/api/admissions/quick-interest/` and `/api/admissions/pdf-gate/admissions-overview/` are served, proxying to the `admissions-public` actions.~~ Not served (D-13a, 2026-10-21): the marketing site is repointed instead, and both paths return `410` like the other old endpoints.
    - Every other old endpoint returns `410 Gone` with a short message: `inquiries/`, `applications/`, `upload-url/`, `application-drafts/*`, `offers/*/respond/`, `internal/*`, `/hr/*`, `/finance/*`. Those are only called by stale open TCS OS tabs, or by Cloud Tasks, which is shut down.
    - A pure Cloudflare Redirect Rule (host swap with the query kept) would work for the GETs, but not for the unsubscribe POST or the cross-origin lead POSTs. That's why serving is recommended over redirecting.
 
@@ -2092,9 +2234,9 @@ An alternative that avoids the service role: the Edge Function signs `HMAC(secre
 | 9 | none new (checkpoint 1 changes the return shape of `get_public_admissions_options()`, the approved gate; the anon-executable count stays 170) | `admissions-public`: `upload_session`, `upload_url` (checkpoint 1); `application` (checkpoint 2) | `open_application_upload_session`, `reserve_application_upload`, `claim_expired_application_uploads`, `finish_application_upload_cleanup` (checkpoint 1); `submit_application` (checkpoint 2) |
 | 10 | `get_application_draft(text)`, `save_application_draft(text, jsonb, int, text, boolean)` | `admissions-public`: `draft_create`, `draft_submit` | `create_application_draft`, `submit_application_draft` |
 | 11 | `get_offer_context(text)` | `admissions-public`: `offer_respond` | `respond_to_offer` |
-| 13 | — | `admissions-public`: `quick_interest`, `pdf_gate` (cross-origin, CORS allow-list) | `capture_lead` |
+| 13 | none new (the anon-executable count stays 170) | `admissions-public`: `pdf_gate` (cross-origin, `ADMISSIONS_LEAD_ORIGINS`; quick interest dropped 2026-10-21) | `capture_lead`, `get_lead_alert` |
 | 14 | `bulk_email_unsubscribe(text)` | Worker `GET` and `POST /api/admissions/unsubscribe/$token/` | — |
-| 15 | — | Worker host routing for `admissions.tcsch.edu.gh` (redirects, `410`s, lead-path proxy) | — |
+| 15 | none | Worker host routing for `admissions.tcsch.edu.gh` (redirects, `410`s; no lead-path proxy, D-13a) | none |
 
 Slice 12's mailer is secret-gated, not anon, but it's reviewed with the same rigour. There are no anon table grants, no anon storage policies (D-9a, decided), and no new anon select policy.
 
@@ -2180,8 +2322,22 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-12c | Plaintext token links in the outbox | Does not arise in slice 12: no body is stored and no email has a token link. Revisit for slices 10 and 11. |
 | D-12d | GoTrue production SMTP | **Decided 2026-10-16:** out of slice 12. |
 | D-12e to D-12o | Sender, content, PDF, recipients, limits, retries, retention, visibility, worker, maximum age, staff alert address | **Decided 2026-10-16 to 2026-10-20.** See "Slice 12 as built". |
-| D-13a | Marketing-site lead endpoints at cutover | Serve TCS OS's exact paths through the Worker; repoint the marketing site later. |
-| D-13b | Turnstile host names | Include the marketing origins. |
+| D-13a | Marketing-site lead endpoints at cutover | **Decided 2026-10-21:** repoint the marketing site to the `admissions-public` Edge Function (action `pdf_gate`) with the ERP widget's key, before cutover and before the privacy policy if need be; the old paths are not served. Quick interest dropped. |
+| D-13b | Turnstile host names | **Decided 2026-10-21:** exact hosts `tcsch.edu.gh`, `www.tcsch.edu.gh`, `tcsch.vercel.app`; no `*.vercel.app` pattern. |
+| D-13c | Origin lists | **Decided 2026-10-21, as recommended:** separate secret `ADMISSIONS_LEAD_ORIGINS`; those origins reach only `pdf_gate`. |
+| D-13d | `quick_interest_widget` source value | **Settled 2026-10-21:** not allowed; the three real TCS OS leads are all PDF gate leads. |
+| D-13e | Closed response | **Decided 2026-10-21, as recommended:** 409 `{error, code: "closed"}`. |
+| D-13f | PDF email greeting | **Decided 2026-10-21, as recommended:** "Dear Parent or Guardian". |
+| D-13g | Staff alert contents | **Decided 2026-10-21, changed by Eyram:** grade of interest, consent, source and a link to the lead in the ERP; no name, email or phone; no name in the subject. |
+| D-13h | Lead list access | **Decided 2026-10-21, changed by Eyram (a new permission):** Manager and Admissions Officer read all leads in full, no grade band scope; Auditor masked; Attendant and Accountant none. |
+| D-13i | Unsubscribe columns | **Decided 2026-10-21, simplified by Eyram:** consent and unsubscribed timestamp only; no legacy hash, no `tcs_os_lead_id`; slice 14 designs the token. |
+| D-13j | Lead limits | **Decided 2026-10-21, changed by Eyram (starting values):** 20 per hour per IP, 40 per day in all, 2 PDF emails per address per day, lead mail at most half the daily ceiling. Adjusted from real ERP traffic (TCS OS had three real leads). |
+| D-13k | Missing PDF | **Decided 2026-10-21, as recommended:** retry with a visible error; never send without the file. |
+| D-13l | Lead retention | **Decided 2026-10-21 (Eyram):** without consent 12 months, with consent 24 months, unsubscribed at the next housekeeping run. The privacy policy states this. |
+| D-13m | Lead erasure | **Decided 2026-10-21, as recommended:** a reviewed SQL statement run by Eyram. |
+| D-13n | Inquiry link in the PDF email | **Decided 2026-10-21:** one plain link to `https://admissions.tcsch.edu.gh/inquiry`, no token, from the validated secret `PDF_GATE_INQUIRY_URL`; the second exception to D-12f. |
+| D-13o | Lead de-duplication | **Decided 2026-10-21, as recommended:** none (TCS OS parity); slice 14 de-duplicates by email. |
+| D-13p | Hosted test of the marketing change | **Decided 2026-10-21, as recommended:** a temporary Vercel preview host, removed after the test. |
 | D-14a | Who may send bulk email | Manager. |
 | D-14b | Unsubscribe GET behaviour | Confirm button on GET; POST unsubscribes. |
 | D-14c | Bulk sending subdomain | `updates.tcsch.edu.gh`. |
@@ -2189,8 +2345,8 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-15a | Token migration versus TCS OS honouring tokens | **Dropped 2026-10-11:** nothing is imported, so no tokens move. Don't keep TCS OS alive for tokens. |
 | D-15b | Redirect mapping | Attach `admissions.tcsch.edu.gh` to the ERP Worker. Serve identical public paths, 302 `/` and `/admin`, 410 everything else. |
 | D-15c | Pending offers across the window | **Dropped 2026-10-11:** TCS OS offers are test data and aren't carried across. |
-| D-15d | Stopping TCS OS intake | A Cloudflare WAF rule blocking `POST /api/admissions/{inquiries,applications,upload-url,application-drafts,offers}*` (needs the record proxied), or a maintenance deploy of TCS OS by Eyram. |
-| D-15e | DNS and cutover sequence | As in the runbook, including `app.tcsch.edu.gh` for the ERP staff host (confirm the ERP's production host). |
+| D-15d | Stopping TCS OS intake | **Decided 2026-10-21:** no WAF rule. The DNS flip stops TCS OS intake, because TCS OS's `ALLOWED_HOSTS` is the admissions host only; a check for records made after the flip follows. |
+| D-15e | DNS and cutover sequence | **Decided 2026-10-21:** as in "Cutover decisions": the staff host stays on workers.dev; the Cloud Run domain mapping is kept until shutdown; a real host test on cutover day, then the cleanup once. |
 | D-15f | How long TCS OS stays read-only before shutdown | 30 days, covering one full draft TTL. Then delete the Cloud Run service, queues and secrets, and rotate or delete the TCS OS Resend key and Turnstile secret. |
 
 ## Slice 0 detail: reference payslip figures and coverage gaps
@@ -2280,7 +2436,7 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 
 - Nothing technical expires, so the runway is set by billing (the GCP trial above) and by the admissions season.
 - The academic year starts in September, and the forms offer 2027/2028 onward. That suggests the 2027/28 enquiry and application season runs roughly January to August 2027, so cutover should land in a quiet period, plausibly before January 2027, or after the season.
-- All TCS OS applications and inquiries are test data. Still open: whether the 6 leads and 17 guardians who received campaigns are test data (see point 6 under "Where the code contradicts the brief").
+- All TCS OS applications and inquiries are test data. Still open: whether the 6 leads and 17 guardians who received campaigns are test data (see point 6 under "Where the code contradicts the brief"). **Answered 2026-10-21 (reported by Eyram):** all test data except three real PDF gate leads (one consented, two not, none unsubscribed). Their old unsubscribe links reach the static notice at the old path after cutover; the leads are imported after cutover (slice 13, "TCS OS lead import").
 - The hr/finance migrations and the parity-test payroll may have been run against whatever database `backend/.env` points at.
 - Django 5.2 LTS and Python 3.12 force no upgrade before about April 2028.
 
@@ -2300,9 +2456,11 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 6. When does TCS's 2027/28 enquiry and application season really start, and what's the busiest stretch?
 7. Which host will the ERP staff app use? The TCS OS journal says `app.tcsch.edu.gh`; its deployment docs only mention `admissions.tcsch.edu.gh`.
 8. Who maintains the marketing site, and can its two widgets be repointed, or must the ERP serve those exact paths?
-9. Partly answered 2026-10-11: all TCS OS applications and inquiries are test data. Still open: are the 6 leads and 17 guardians who received TCS OS campaigns real or test data? That decides whether their unsubscribe links need handling at cutover.
+9. Partly answered 2026-10-11: all TCS OS applications and inquiries are test data. Still open: are the 6 leads and 17 guardians who received TCS OS campaigns real or test data? That decides whether their unsubscribe links need handling at cutover. **Answered 2026-10-21 (reported by Eyram):** all test data except three real PDF gate leads (one consented, two not, none unsubscribed). Their old unsubscribe links reach the static notice at the old path after cutover; the leads are imported after cutover (slice 13, "TCS OS lead import").
 
 ## Go-live test data cleanup plan (written 2026-10-15, plan only)
+
+**Changes decided 2026-10-21:** (1) real leads will be on hosted before the cleanup (the marketing site is repointed around 6 Nov), so leads and their outbox rows are deleted only by an explicit id list, never a row not on the list, and the "either public switch open" stop condition covers only the two intake switches (see "Slice 13 plan"); (2) the cleanup runs once, on cutover day, after the real host test, and that test's two records are on its list (see "Cutover decisions").
 
 **Status:** plan only. Nothing has been run, nothing has been written to any database, and nothing here has connected to hosted. Every step marked **[E]** is Eyram's. The run itself is a hand data migration on production, so it is a confirmation gate: the script is written, reviewed and dry-run before anything is committed.
 
@@ -2462,29 +2620,28 @@ D5 is written out in full in the script, with the same `<refs>`. The dry run als
   - a decision with a capacity warning;
   - an offer email, then accept, then mark enrolled (student ID assigned);
   - an expired offer that turns into `offer_declined`;
-  - a lead capture from a marketing-origin test page;
-  - a bulk campaign to test addresses, with one invalid address skipped;
-  - a one-click unsubscribe POST that returns 200;
+  - a PDF gate lead from the marketing site preview (slice 13, done in its own rollout);
+  - (slice 14 is after cutover, 2026-10-21: no bulk campaign or one-click unsubscribe test at cutover);
   - a capability matrix check with real dev accounts.
 - Test rows are deleted afterwards by the reviewed hand script in "Go-live test data cleanup plan" above, after the last hosted test and before intake opens. **[E]**
 
 **Sequence:**
 
 1. **[E] Prepare the ERP.** `npx supabase db push`; enable `pg_cron` and `pg_net`; `npx supabase functions deploy admissions-public admissions-mailer`; `npx supabase secrets set TURNSTILE_SECRET_KEY=… RESEND_API_KEY=… MAILER_SHARED_SECRET=… PUBLIC_BASE_URL=…`; add the Vault secret; deploy the frontend with `frontend/scripts/deploy-production.sh` (CONSTRAINTS.md, "Deployment"). That script currently passes only the two Supabase values into the build, so the slice that adds `VITE_TURNSTILE_SITE_KEY` must extend it to read that key from `frontend/.env.deploy` too. Leave `admissions_settings.public_intake_open = false`.
-2. **[E] Stop TCS OS intake** (D-15d). Block the creating POSTs. Staff stop using the TCS OS admin. Leave unsubscribe and GET pages working.
+2. **[E] Stop TCS OS intake** (D-15d, decided 2026-10-21). No WAF rule: the DNS flip in step 4 stops it. Staff stop using the TCS OS admin before the flip; afterwards Eyram checks the TCS OS project for records made after the flip.
 3. **[E] Set roles and grant capabilities** to the real staff (fifth-role decision, D-2g, D-4b) through Settings. **[E] Open intake:** set `public_intake_open = true`.
 4. **[E] DNS.**
-   - Remove the Cloud Run domain mapping for `admissions.tcsch.edu.gh`, and attach `admissions.tcsch.edu.gh` as a Worker custom domain.
-   - Point `app.tcsch.edu.gh` at the ERP Worker, if that's the ERP staff host (D-15e).
+   - Delete the Cloudflare CNAME for `admissions.tcsch.edu.gh` and attach it as a Worker custom domain. **Keep the Cloud Run domain mapping** until TCS OS shutdown (decided 2026-10-21), so rolling back is a DNS change.
+   - ~~Point `app.tcsch.edu.gh` at the ERP Worker.~~ Not at cutover: the staff host stays on workers.dev (D-15e, 2026-10-21).
    - Add both hosts to the Turnstile widget and to Supabase Auth `site_url` and `additional_redirect_urls` for the staff host.
    - Change the `PUBLIC_APPLY_BASE_URL` function secret (resume email links, slice 10) to `https://admissions.tcsch.edu.gh`, and make sure `ADMISSIONS_ALLOWED_ORIGINS` includes `https://admissions.tcsch.edu.gh` (added 2026-10-21). Resume links already sent keep working only while their old host still reaches the same Worker.
-   - Smoke-test the four legacy URL shapes, including `curl -X POST …/api/admissions/unsubscribe/<test-token>/` returning 200.
+   - Smoke-test the GET pages, `/` and `/admin` redirects, the `410`s and the unsubscribe notice; then the real host test and the cleanup, in the order in "Cutover decisions".
 5. **[E] Keep TCS OS read-only** for N days (D-15f): Cloud Run still up behind its `*.run.app` URL, with intake blocked. It's only for reference; it gets no traffic after the DNS flip.
 6. **[E] Shut down TCS OS:** delete the Cloud Run service, Cloud Tasks queues and Secret Manager secrets; rotate or delete the TCS OS Resend key and Turnstile secret; delete the TCS OS Supabase project when Eyram decides (the data is test data). Then update both repos' docs.
 
 **Open items for the runbook:**
 
-- Are the 6 leads and 17 guardians who received TCS OS campaigns real or test data?
+- Are the 6 leads and 17 guardians who received TCS OS campaigns real or test data? **Answered 2026-10-21 (reported by Eyram):** all test data except three real PDF gate leads (one consented, two not, none unsubscribed). Their old unsubscribe links reach the static notice at the old path after cutover; the leads are imported after cutover (slice 13, "TCS OS lead import").
 - Hosted Annex (2026-10-11): slices 3a and 3b are applied on hosted. Hosted has one branch, "Treasures Christian School" (created 2026-09-09), and no Annex row, so `seed.production.sql` has not been run there. Don't run that file on hosted: its first block would rename the existing branch to Main and re-seed expense categories and allowance types. Instead run `docs/admissions/hosted-annex-setup.sql` by hand in the SQL editor: it adds Annex (only if missing) and its two grade rules, and touches nothing else. [E]
 
 ---

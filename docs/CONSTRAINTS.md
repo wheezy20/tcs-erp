@@ -49,32 +49,37 @@ Things that shape how this gets built, not just what gets built.
 - [ ] A true 48×48 favicon (currently downscaled) and a dark-mode
       logomark variant are still outstanding — see docs/JOURNAL.md.
 - [ ] Admissions cutover (Phase 2, see PLANNING.md). All TCS OS applications
-      and inquiries are test data; nothing is hand-migrated. admissions.tcsch.edu.gh
+      and inquiries are test data; nothing is hand-migrated except TCS OS
+      leads (after cutover, decided 2026-10-21). admissions.tcsch.edu.gh
       is attached to this ERP. TCS OS is shut down only after cutover is
-      confirmed.
+      confirmed. Go or no go on 1 Dec 2026, cutover planned for 2 Dec 2026;
+      the critical path and its decisions are in PORT-PLAN, slice 15,
+      "Cutover decisions".
 - [ ] Published privacy policy (decided 2026-10-15, slice 9b). It must exist
       before real admissions intake opens and before admissions.tcsch.edu.gh
       moves to the ERP. The application declaration is ported without a link
       until then; once the policy is published, one link goes into the
       declaration copy constant. Recorded in PORT-PLAN, "Go-live gates still
-      open". Not yet written (reported by Eyram, 2026-10-15). From slice 10 (recorded 2026-10-21) the policy must also describe saved applications: what is kept (the answers entered, which may include details about the child, and the email address), kept for 30 days after the last save and for 60 days at most in all, then deleted; that the health questions, uploaded files, the declaration, the signature and media consent are not saved; and that a saved application can be deleted from the emailed link.
+      open". Not yet written (reported by Eyram, 2026-10-15). From slice 10 (recorded 2026-10-21) the policy must also describe saved applications: what is kept (the answers entered, which may include details about the child, and the email address), kept for 30 days after the last save and for 60 days at most in all, then deleted; that the health questions, uploaded files, the declaration, the signature and media consent are not saved; and that a saved application can be deleted from the emailed link. From slice 13 (decided 2026-10-21) it must also cover leads (what the PDF gate keeps, marketing consent) and state their retention: leads without consent deleted 12 months after capture, leads with consent 24 months after capture, and any lead deleted on unsubscribe. The marketing site may be repointed to the ERP before the policy exists; the policy must cover leads by cutover.
 - [ ] Go-live test data cleanup (planned 2026-10-15, slice 9b C4). Every test
       inquiry, application, file, family, upload session and saved application draft on hosted is
       removed before real intake opens, once, after the privacy policy, the
       confirmation email and the last hosted test. Eyram names each test
       record by reference; files go through the Storage API or the
       dashboard; audit rows are kept. Plan only, nothing run. See PORT-PLAN,
-      "Go-live test data cleanup plan".
-- [ ] Stored declaration version (backlog, 2026-10-15). Decide before real
-      intake whether each application records which declaration text was
-      agreed, since the privacy policy link changes that text.
+      "Go-live test data cleanup plan". Decided 2026-10-21: it runs once, on
+      cutover day, after the real host test, whose two records are on its
+      list; real leads are on hosted by then, so leads are deleted only by an
+      explicit id list, never a row not on the list.
+- [ ] Stored declaration version (backlog, 2026-10-15). Decided 2026-10-21:
+      each application records which declaration text was agreed, built
+      together with the privacy policy link, before real intake.
 - [ ] Saved applications (slice 10, recorded 2026-10-21). Built locally in
       C1 to C3 (dcbff52, 3ec9468, bebd811); applied, deployed and set on
       hosted (reported by Eyram, 2026-10-21; see PORT-PLAN, "Slice 10
       rollout reported"). Before real intake:
-      - **Consent wording review.** The consent line on the save panel is
-        drafted for Eyram's review and is not decided. It is in
-        `public-copy.ts`.
+      - [x] **Consent wording review.** The consent line on the save panel
+        in `public-copy.ts` is approved as drafted (Eyram, 2026-10-21).
       - **Privacy policy.** It must describe saved applications (the privacy
         policy item above).
       - **Erasure requests.** Recorded 2026-10-21 as the handling plan, not yet
@@ -118,15 +123,11 @@ Things that shape how this gets built, not just what gets built.
         NoSuchUser bounce, because the mailbox did not exist yet; the
         mailbox now works and the suppression was removed (reported by
         Eyram, 2026-10-21).
-      - [ ] **Resend click and open tracking off (slice 10, added
+      - [x] **Resend click and open tracking off (slice 10, added
         2026-10-21).** Resume emails carry a private link to a saved
         application; click tracking would rewrite it through Resend's
-        tracking host. Eyram checks that click and open tracking are off
-        for `mail.tcsch.edu.gh` in the Resend dashboard before resume emails
-        are used for real. The setting itself was not reported; in the
-        hosted test the resume link was not rewritten (reported by Eyram,
-        2026-10-21), which indicates click tracking is off. Open tracking
-        is not shown by that test.
+        tracking host. Both click and open tracking are off for
+        `mail.tcsch.edu.gh` (reported by Eyram, 2026-10-21).
       - [x] **Mail authentication.** SPF, DKIM and DMARC all showed PASS on
         the hosted test's delivered parent email (Gmail, "Show original";
         reported by Eyram, 2026-10-21).
@@ -151,12 +152,36 @@ Things that shape how this gets built, not just what gets built.
         that table is readable by any database role.
       - **Bounce rate.** Check it in Resend after the first real week of
         intake.
-      - **Reference counter bump, only if needed.** When TCS OS intake
-        closes, read its highest INQ and APP numbers for the year. Every
-        TCS OS record so far is test or dummy data (reported by Eyram,
-        2026-10-16), so bump the ERP counters above them only if a real
-        reference was issued by then; the bump is a reviewed hand step that
-        only raises a counter.
+      - **Reference counter bump, always (changed 2026-10-21).** At
+        cutover the ERP `INQ-2026` and `APP-2026` counters are raised so
+        the next real references are 0101 or above. Both systems use the
+        same reference formats, so a DNS rollback to TCS OS could
+        otherwise give two families the same reference. The bump is a
+        reviewed hand step that only raises a counter; Eyram runs it.
+- [ ] Lead capture and the PDF gate (slice 13, planned and approved
+      2026-10-21, not built). Before the lead switch opens:
+      - **Resend plan.** Check the daily limit and the attachment size
+        limit (the fees PDF is about 4.9 MB), and raise
+        `MAIL_DAILY_CEILING` (60) to match. Never open the lead switch
+        with mail off.
+      - **Fees PDF.** Eyram supplies the current file; it is uploaded to the
+        private `admissions-attachments` bucket and is never in any repo.
+      - **Turnstile and origins.** The ERP widget's hostnames include
+        `tcsch.edu.gh`, `www.tcsch.edu.gh` and `tcsch.vercel.app`, and
+        `ADMISSIONS_LEAD_ORIGINS` holds the same three origins. Exact hosts
+        only, no `*.vercel.app` pattern.
+      - **TCS OS leads (three real rows).** Read before the DNS flip in
+        the TCS OS admin or read only in its SQL editor, with no file kept;
+        imported after cutover by one reviewed SQL statement that keeps
+        each lead's original `created_at` and consent flag. Their names
+        and contact details never go into any repo file.
+      - **Retention and erasure.** Leads without consent 12 months, with
+        consent 24 months, unsubscribed at once (Eyram, 2026-10-21).
+        Erasure requests: a reviewed SQL statement run by Eyram.
+      - **Lead list access (a new permission, 2026-10-21).** Manager and
+        Admissions Officer read leads in full, Auditor masked, nobody else.
+      - **Privacy policy** covers leads by cutover (item above).
+      - **Bounce rate** checked in Resend after the first week of leads.
 - [ ] Staff IDs on hosted (decided 2026-10-16, staff ID slice). Migration
       `20261026100000_hr_staff_numbers.sql` is committed (204aff9) and was
       applied on hosted together with slice 12, and the frontend is
@@ -705,7 +730,15 @@ docs/JOURNAL.md.
   suite in `supabase/golden/`; the unconfirmed ones (non-taxable
   allowances, among others) are PENDING cases there, not assertions.
 - **No hand data migration.** All TCS OS applications and inquiries are
-  test data, so nothing is migrated. ERP reference counters start fresh.
+  test data, so nothing is migrated. ERP reference counters start fresh,
+  and are raised to 0101 at cutover (2026-10-21). **One exception
+  (decided 2026-10-21):** the three real TCS OS leads (PDF gate; one
+  consented, two not, none unsubscribed) are imported after cutover by
+  one reviewed SQL statement that keeps each lead's original
+  `created_at` and consent flag (PORT-PLAN, "Slice 13 plan"). TCS OS
+  holds no real enquiry, application or family record (reported by
+  Eyram, 2026-10-21), so nothing else is migrated; the counter bump
+  stays for DNS rollback safety only.
 - **admissions.tcsch.edu.gh must keep working until cutover.** It stays
   served by TCS OS's Cloud Run deployment until the ERP's admissions
   reaches parity. At cutover it becomes a **redirect** to this ERP's
@@ -713,16 +746,22 @@ docs/JOURNAL.md.
   OS applications and inquiries are test data (2026-10-11), offer and
   draft links don't need to keep resolving. Bulk-email unsubscribe links
   (RFC 8058 one-click POST included) matter only if some of the 6 leads
-  and 17 guardians who received campaigns are real, which is still
-  open. Separately, TCS OS's own journal records
-  that `app.tcsch.edu.gh` gets repointed from Cloud Run to this ERP.
-  Both are DNS/infra steps Eyram runs.
+  and 17 guardians who received campaigns are real. Answered
+  2026-10-21: all test data except the three real leads, whose old links
+  reach a static notice at the old path after cutover. Separately, TCS OS's own journal records
+  that `app.tcsch.edu.gh` gets repointed from Cloud Run to this ERP;
+  decided 2026-10-21 that the staff host stays on workers.dev at cutover.
+  The Cloud Run domain mapping is kept until TCS OS shutdown, so a
+  rollback is a DNS change. Both are DNS/infra steps Eyram runs.
 - TCS OS stays live and unmodified until cutover. **No dual-intake
   window (confirmed 2026-09-29):** TCS OS and this ERP never both
   accept real admissions submissions at the same time. The ERP's public
   admissions forms don't take real submissions until TCS OS's intake is
   switched off, and staff stop using the TCS OS admin at the same
-  point. Nothing is migrated, so no record ever needs reconciling. The port plan's cutover slice orders the steps.
+  point. Decided 2026-10-21: no WAF rule; the DNS flip itself stops TCS
+  OS intake, because its `ALLOWED_HOSTS` is the admissions host only.
+  Leads are not admissions submissions, so the marketing site's PDF gate
+  moves to the ERP weeks before cutover. Nothing is migrated, so no record ever needs reconciling. The port plan's cutover slice orders the steps.
 
 ## Ghana-specific context worth keeping in mind
 
