@@ -26,7 +26,7 @@ export const EMAIL_STATUS_LABELS: Record<EmailStatus, string> = {
 /** One line under the status, for the rows that need explaining. */
 export const EMAIL_STATUS_NOTES: Partial<Record<EmailStatus, string>> = {
   suppressed:
-    "This address already had 4 admissions emails in 24 hours, so this one was held back.",
+    "This address already had 4 confirmation emails in 24 hours, so this one was held back.",
   expired:
     "It waited more than 48 hours without being sent, so it was dropped and will never be sent.",
   failed: "Every attempt failed, or the address was refused. A Manager can retry it.",
@@ -37,7 +37,18 @@ export const EMAIL_KIND_LABELS: Record<string, string> = {
   inquiry_staff: "Enquiry staff alert",
   application_parent: "Application confirmation",
   application_staff: "Application staff alert",
+  pdf_gate: "Admissions Overview PDF",
+  lead_staff: "Lead staff alert",
 };
+
+/** The note under a status, worded for the email's kind: the PDF has its
+ * own limit of 2 a day per address (slice 13). */
+export function statusNote(kind: string, status: string): string | undefined {
+  if (status === "suppressed" && kind === "pdf_gate") {
+    return "This address already had 2 Admissions Overview emails in 24 hours, so this one was held back.";
+  }
+  return EMAIL_STATUS_NOTES[status as EmailStatus];
+}
 
 export const EMAIL_ERROR_LABELS: Record<string, string> = {
   network: "Network error",
@@ -45,7 +56,7 @@ export const EMAIL_ERROR_LABELS: Record<string, string> = {
   rate_limited: "Provider busy (rate limit)",
   provider_error: "Provider error",
   invalid_recipient: "Address or email refused",
-  config: "Mail settings problem",
+  config: "Mail settings problem or a required file missing",
   conflict: "Already being sent",
   other: "Other error",
 };
@@ -132,7 +143,7 @@ export function healthMessages(h: EmailHealth, now: Date): Array<{ tone: Tone; t
   if (h.configError) {
     out.push({
       tone: "problem",
-      text: "The email provider refused the mail settings (the key or the sending domain). Emails are waiting until this is fixed.",
+      text: "A mail setting is missing or was refused (the key, the sending domain or the enquiry link setting), or the Admissions Overview PDF is missing. The emails affected are waiting until this is fixed.",
     });
   }
   const sinceRun = minutesSince(h.lastRunAt, now);
@@ -153,7 +164,7 @@ export function healthMessages(h: EmailHealth, now: Date): Array<{ tone: Tone; t
   if (sinceCeiling !== null && sinceCeiling <= STALL_MINUTES) {
     out.push({
       tone: "waiting",
-      text: "The daily sending limit was reached. Waiting emails go out as the limit allows.",
+      text: "The daily sending limit, or the half of it kept for Admissions Overview emails, was reached. Waiting emails go out as the limit allows.",
     });
   }
   if (h.failed > 0) {
@@ -177,7 +188,7 @@ export function healthMessages(h: EmailHealth, now: Date): Array<{ tone: Tone; t
   if (h.suppressed > 0) {
     out.push({
       tone: "waiting",
-      text: `${plural(h.suppressed, "email was", "emails were")} held back because an address had 4 admissions emails in 24 hours.`,
+      text: `${plural(h.suppressed, "email was", "emails were")} held back because an address reached its daily limit.`,
     });
   }
   if (out.length === 0) {

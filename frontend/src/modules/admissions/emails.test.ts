@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   EMAIL_FILTERS,
+  EMAIL_KIND_LABELS,
+  EMAIL_STATUS_NOTES,
   EMAIL_STATUSES,
   EMAIL_STATUS_LABELS,
   applicationEmailLine,
   canRetryEmail,
   healthMessages,
   recipientLabel,
+  statusNote,
   statusTone,
   type EmailHealth,
 } from "@/modules/admissions/emails";
@@ -112,13 +115,14 @@ describe("healthMessages", () => {
       },
       NOW,
     );
-    expect(m[0].text).toContain("refused the mail settings");
+    expect(m[0].text).toContain("A mail setting is missing or was refused");
+    expect(m[0].text).toContain("Admissions Overview PDF is missing");
     expect(m.map((x) => x.text)).toEqual(
       expect.arrayContaining([
         "1 email failed. A Manager can retry them.",
         "2 emails expired: each waited more than 48 hours and was never sent.",
-        "1 email was held back because an address had 4 admissions emails in 24 hours.",
-        "The daily sending limit was reached. Waiting emails go out as the limit allows.",
+        "1 email was held back because an address reached its daily limit.",
+        "The daily sending limit, or the half of it kept for Admissions Overview emails, was reached. Waiting emails go out as the limit allows.",
       ]),
     );
   });
@@ -151,5 +155,21 @@ describe("saved application link emails (slice 10)", () => {
     expect(healthMessages({ ...HEALTHY, draftFailed: 1 }, NOW)[0].text).toMatch(
       /^1 saved application link email failed\./,
     );
+  });
+});
+
+describe("lead emails (slice 13)", () => {
+  it("labels the two lead kinds and keeps the staff alert's address hidden", () => {
+    expect(EMAIL_KIND_LABELS.pdf_gate).toBe("Admissions Overview PDF");
+    expect(EMAIL_KIND_LABELS.lead_staff).toBe("Lead staff alert");
+    expect(recipientLabel("lead_staff", null)).toBe("Staff alert address");
+    expect(recipientLabel("pdf_gate", "a•••@e•••.test")).toBe("a•••@e•••.test");
+  });
+
+  it("explains a held back PDF by its own limit of 2, and confirmations by theirs", () => {
+    expect(statusNote("pdf_gate", "suppressed")).toContain("2 Admissions Overview emails");
+    expect(statusNote("inquiry_parent", "suppressed")).toContain("4 confirmation emails");
+    expect(statusNote("pdf_gate", "failed")).toBe(EMAIL_STATUS_NOTES.failed);
+    expect(statusNote("pdf_gate", "sent")).toBeUndefined();
   });
 });

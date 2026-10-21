@@ -308,6 +308,19 @@ export function canViewAdmissionsEmails(role: Role): boolean {
   return role === "Manager" || role === "Auditor";
 }
 
+/** /admissions/leads (slice 13, D-13h): list_admissions_leads lets the
+ * Manager and the Admissions Officer read every lead in full and the
+ * Auditor read with email and phone masked; it refuses everyone else. */
+export function canViewAdmissionsLeads(role: Role): boolean {
+  return role === "Manager" || role === "Admissions Officer" || role === "Auditor";
+}
+
+/** The Auditor's view of a lead has email and phone masked by the database;
+ * the page says so. */
+export function leadContactsMasked(role: Role): boolean {
+  return role === "Auditor";
+}
+
 /** Every settings write RPC is Manager only; the Auditor reads. */
 export function canEditAdmissionsSettings(role: Role): boolean {
   return role === "Manager";

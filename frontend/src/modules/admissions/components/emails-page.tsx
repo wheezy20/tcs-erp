@@ -41,6 +41,7 @@ import {
   canRetryEmail,
   healthMessages,
   recipientLabel,
+  statusNote,
   statusTone,
   type EmailHealth,
   type EmailStatus,
@@ -376,9 +377,9 @@ function EmailLogRow({
             Next try {dateTime.format(new Date(row.nextAttemptAt))}
           </p>
         )}
-        {EMAIL_STATUS_NOTES[status] && (
+        {statusNote(row.kind, status) && (
           <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-            {EMAIL_STATUS_NOTES[status]}
+            {statusNote(row.kind, status)}
           </p>
         )}
         {error && <p className="mt-1 text-xs text-muted-foreground">{error}</p>}

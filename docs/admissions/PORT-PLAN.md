@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is committed (C1 dcbff52, C2 3ec9468, C3 bebd811). Its three migrations are applied on hosted, `admissions-worker` and `admissions-public` are deployed, `PUBLIC_APPLY_BASE_URL` is set, the frontend is deployed, and the hosted test passed (reported by Eyram, 2026-10-21); see "Slice 10 rollout reported". Slice 13 is planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 (Edge Function and worker) built locally, uncommitted; see "Slice 13 plan", "Slice 13 C1 as built" and "Slice 13 C2 as built". The cutover critical path and its decisions (2026-10-21) are under slice 15, "Cutover decisions". The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is committed (C1 dcbff52, C2 3ec9468, C3 bebd811). Its three migrations are applied on hosted, `admissions-worker` and `admissions-public` are deployed, `PUBLIC_APPLY_BASE_URL` is set, the frontend is deployed, and the hosted test passed (reported by Eyram, 2026-10-21); see "Slice 10 rollout reported". Slice 13 is planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 (staff screens and the rollout handover) built locally, uncommitted; see "Slice 13 plan", the three "as built" sections and "Slice 13 rollout handover". The cutover critical path and its decisions (2026-10-21) are under slice 15, "Cutover decisions". The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -46,7 +46,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 10 | Application drafts: save/resume tokens | committed (dcbff52, 3ec9468, bebd811); applied and deployed on hosted, hosted test passed (reported by Eyram, 2026-10-21) | 9 |
 | 11 | Public offer response page | not started; before cutover if it fits by about 20 Nov 2026, otherwise shortly after with the staff copy link hidden (decided 2026-10-21) | 8, 6b |
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | C1 committed (a929511), C2 and C3 committed (8a45e04). Migrations applied, `admissions-worker` deployed (version 1), secrets and worker URL set, frontend deployed, and a hosted test delivered both emails (reported by Eyram, 2026-10-20 and 2026-10-21). See "Slice 12 as built" and "Slice 12 rollout reported" | 8 (and 6, 9, 10 for the emails it sends) |
-| 13 | Lead capture and the PDF gate (marketing site repointed to the Edge Function) | planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 (Edge Function and worker) built locally, uncommitted; see "Slice 13 plan", "Slice 13 C1 as built" and "Slice 13 C2 as built" | 8, 12 |
+| 13 | Lead capture and the PDF gate (marketing site repointed to the Edge Function) | planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 (staff screens and the rollout handover) built locally, uncommitted; see "Slice 13 plan", the three "as built" sections and "Slice 13 rollout handover" | 8, 12 |
 | 14 | Bulk email + one-click unsubscribe | not started; after cutover (2026-10-21) | 12, 13 |
 | 15 | Cutover, domain, TCS OS shutdown (nothing is imported except TCS OS leads, after cutover) | not started; go or no go on 1 Dec 2026, cutover planned for 2 Dec 2026 (see "Cutover decisions") | 11 (if it fits), 12, 13 |
 
@@ -2027,7 +2027,7 @@ One two-session race by hand: three simultaneous captures to one address give ex
   It keeps each lead's original `created_at` and consent flag, and leaves `bulk_email_unsubscribed_at` null (none unsubscribed). A direct insert bypasses `capture_lead`, so no email and no outbox row are made. Retention (D-13l) counts from the original `created_at`.
 - **Old TCS OS unsubscribe links.** The three leads received TCS OS campaigns, so their emails hold TCS OS unsubscribe links. After cutover those reach the static notice at the old path (slice 15), which says how to stop emails. Their unsubscribe state in the ERP starts from the import (none unsubscribed), and slice 14 issues new links.
 
-**Rollout handover outline (Eyram runs every step; written in full at C3).** Check the Resend plan (daily limit, attachment size) and that `admissions@tcsch.edu.gh` is not suppressed; never open the lead switch with mail off. Backup. Deploy `admissions-worker` first (it must understand the new kinds), then `db push` (dry run lists exactly the two migrations), with read-only checks (switch false, no privilege on the table, bucket private, anon count 170). Upload the PDF to `admissions-attachments/pdf-gate/admissions-overview-and-fees.pdf`. Turnstile hostnames (D-13b, plus the temporary preview host). Secrets `ADMISSIONS_LEAD_ORIGINS` and `PDF_GATE_INQUIRY_URL`. Deploy `admissions-public` and check the preflight from `https://tcsch.edu.gh` (204) and a foreign origin (403). Deploy the frontend with `frontend/scripts/deploy-production.sh`. Open the lead switch. Hosted test on the preview (D-13p): the lead appears in the list (Manager and Officer full, Auditor masked), the email arrives with the PDF, the greeting and the one link are right, the staff alert has no contact details and its link opens the lead, a third request to one address sends no PDF, the closed switch shows the 409 message. Remove the preview host. Then the production marketing switch-over.
+**Rollout handover outline (superseded by "Slice 13 rollout handover" below, written at C3).** Check the Resend plan (daily limit, attachment size) and that `admissions@tcsch.edu.gh` is not suppressed; never open the lead switch with mail off. Backup. Deploy `admissions-worker` first (it must understand the new kinds), then `db push` (dry run lists exactly the two migrations), with read-only checks (switch false, no privilege on the table, bucket private, anon count 170). Upload the PDF to `admissions-attachments/pdf-gate/admissions-overview-and-fees.pdf`. Turnstile hostnames (D-13b, plus the temporary preview host). Secrets `ADMISSIONS_LEAD_ORIGINS` and `PDF_GATE_INQUIRY_URL`. Deploy `admissions-public` and check the preflight from `https://tcsch.edu.gh` (204) and a foreign origin (403). Deploy the frontend with `frontend/scripts/deploy-production.sh`. Open the lead switch. Hosted test on the preview (D-13p): the lead appears in the list (Manager and Officer full, Auditor masked), the email arrives with the PDF, the greeting and the one link are right, the staff alert has no contact details and its link opens the lead, a third request to one address sends no PDF, the closed switch shows the 409 message. Remove the preview host. Then the production marketing switch-over.
 
 **Marketing site change (described, not made), `~/projects/tcs-website/src/sections/Admissions.tsx`:** `PDF_GATE_ENDPOINT` becomes `https://<project-ref>.supabase.co/functions/v1/admissions-public`; the production `TURNSTILE_SITE_KEY` becomes the ERP widget's public site key (the dev test key stays; test on the preview host); the widget render adds `action: "pdf_gate"`; the request sends only `Content-Type: application/json` with body `{action: "pdf_gate", turnstile_token, payload: {name, email, consent_to_marketing}}`; any 2xx is success (toast unchanged), 429 keeps its message, 409 shows `body.error`, 400 reads `{error, field}` (field `name` or `email` goes to that field, otherwise the form message), and the widget resets on every failure. The hostname comment is updated. `vercel.json` is unchanged. Eyram deploys on Vercel. The old TCS OS endpoint keeps working until TCS OS shuts down, so a Vercel rollback is safe until then.
 
@@ -2060,6 +2060,272 @@ The Edge Function and worker checkpoint. C1 is committed as 1a76b6c. Nothing is 
 - **Deliberate breaks:** 6, all caught (22 in the slice with C1's 16): the Turnstile action, `lead_global` before Turnstile, a marketing origin on another action, the origin check skipped for `pdf_gate`, a missing file sent anyway, an attachment on another kind. Dropped as near duplicates: the `%PDF-` check (covered with the missing file), oversize, link validation, a name in the greeting, a log line with an address, unknown keys forwarded, a lead id in the response.
 - **Verification (local, 2026-10-21):** Edge unit tests 136 (admissions-public 62 and 11, worker 30, 18 and 15); strict `tsc` of the changed Edge files clean; on a fresh reset, integration admissions-public 7, upload 7, submit 6, draft 6, worker 7, lead 3 (fake provider, no real email); no duplicate overloads, types match, anon-executable 170. Prettier: the new files are formatted; the edited files have no more mismatches than their committed versions (the old ones left as decided). The full role matrix was not re-run: no SQL changed in C2. Golden payroll suite not run.
 - **Local `.env` unchanged:** local mail is off there, and the tests pass the lead origins and the enquiry link in directly.
+
+### Slice 13 C3 as built (2026-10-21, local only, uncommitted)
+
+The staff screens checkpoint. C1 is committed as 1a76b6c and C2 as 98ff213. Nothing is deployed or set on hosted.
+
+- **`/admissions/leads`** (`modules/admissions/components/leads-page.tsx`, route `routes/admissions/leads.tsx`): Manager and Admissions Officer see every field, the Auditor sees email and phone masked (by the database; the page says so), every other role gets the blocked panel and nothing loads. Columns: received, name, email, phone, grade of interest, marketing (agreed, none, or unsubscribed), source with any campaign details. 100 a page, newest first. `?lead=<id>` (only a lead id is accepted) shows the one lead from a staff alert's link, highlighted, with "Show all leads"; a lead deleted under retention shows a plain message. Pure labels in `leads.ts` with `leads.test.ts`; access in `permissions.ts` (`canViewAdmissionsLeads`, `leadContactsMasked`); data in `data/leads.ts`.
+- **Admissions Settings:** a third switch card, "Lead capture", with a confirm dialog that says to check mail is live and the PDF is in place before opening (the website tells visitors to check their inbox). Manager changes it; the Auditor reads it. The section text says the three switches are independent and lead capture is not intake.
+- **Admissions Emails:** labels "Admissions Overview PDF" and "Lead staff alert"; a held back PDF is explained by its own limit of 2 a day (confirmations keep 4); the config message and error label now also cover a missing enquiry link setting or a missing PDF; the ceiling message mentions the half kept for Admissions Overview emails.
+- **Sidebar:** "Admissions Leads" for Manager, Admissions Officer and Auditor.
+- **Generated:** `routeTree.gen.ts` regenerated by the router plugin (the build), not hand-edited.
+- **Docs:** DESIGN.md gains five conventions (the marketing origin list, and that marketing hosts never go on the staff list; masked lead reads; the fixed attachment path; lead mail caps; independent switches). CONSTRAINTS.md: the lead capture item records the origin rule.
+- **Verification (test-runner end of slice pass, 2026-10-21):** fresh reset; no duplicate overloads; types identical; anon-executable 170; 52 of 52 probe files; Edge unit tests 136; integration 7, 7, 6, 6, 7 and 3 (fake provider, no real email); `tsc` clean; lint 0 errors and 13 warnings (baseline); vitest 225 (9 new); build ok; no service role key in `dist/client`; Prettier clean on the C3 files; no dashes added. No new deliberate breaks (the slice's 22 ran in C1 and C2). Golden payroll suite not run.
+- **Code review:** no blocking findings in the code. Fix round 1 changed only the handover (the PDF upload without "Create folder", `secrets unset` as the cut-off, the import's stop conditions and date offsets, the marketing snippet).
+
+### Slice 13 rollout handover (Eyram runs every step; none run here)
+
+Do the steps in order. Stop at any step whose check doesn't match. Nothing in this section has been run on hosted. `<project-ref>` is the hosted project's ref.
+
+**0. Before you start.**
+
+- C3 committed; `git status` clean, on `main`.
+- **Bucket check: done** (reported by Eyram, 2026-10-21): no `admissions-attachments` bucket on hosted, so the C1 migration creates it and resets nothing.
+- **Resend plan.** Confirm the plan's daily limit, and that its attachment size limit is above the PDF (about 4.9 MB). The account also sends for `updates.tcsch.edu.gh` and other domains, so the ERP's ceiling must leave room for them.
+- `MAIL_MODE` is live on hosted (reported 2026-10-21). The hosted test in step 10 sends real email, to your own address and the staff mailbox only.
+- `admissions@tcsch.edu.gh` (`ADMISSIONS_STAFF_EMAIL`) is not on Resend's suppression list.
+- Click and open tracking are off for `mail.tcsch.edu.gh` (reported 2026-10-21).
+- The current Admissions Overview and Fees PDF is ready on your machine, at most 10 MB, never in any repo.
+
+**1. Backups.** Dashboard, Database, Backups: a backup from today exists.
+
+**2. Deploy the worker first.** It reads the two new email kinds safely, and until the migrations are applied there are none.
+
+```sh
+npx supabase functions deploy admissions-worker --no-verify-jwt
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  "https://<project-ref>.supabase.co/functions/v1/admissions-worker" \
+  -H 'content-type: application/json' -d '{"job":"mail"}'
+# 401: refused without the secret
+```
+
+**3. Database.**
+
+```sh
+npx supabase db push --dry-run
+```
+
+It must list exactly these two, in this order, and nothing else: `20261030100000_admissions_leads.sql`, `20261030110000_admissions_lead_rpcs.sql`. Then:
+
+```sh
+npx supabase db push
+```
+
+Read-only checks in the SQL editor:
+
+```sql
+select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');   -- 170 locally; on hosted, the same as before the push (no new anon function)
+select public_leads_open from public.admissions_settings where id = 1;              -- false
+select count(*) from public.admissions_leads;                                        -- 0
+select has_table_privilege('anon', 'public.admissions_leads', 'select'),
+       has_table_privilege('authenticated', 'public.admissions_leads', 'select');   -- f, f
+select public, file_size_limit, allowed_mime_types
+from storage.buckets where id = 'admissions-attachments';           -- f, 10485760, {application/pdf}
+select jobname from cron.job where jobname like 'admissions-%' order by jobname;    -- the same 4 jobs
+```
+
+**4. Upload the fees PDF to the fixed path.** The worker reads exactly `admissions-attachments/pdf-gate/admissions-overview-and-fees.pdf` and nothing else.
+
+1. On your machine, make a folder named exactly `pdf-gate` and put the file in it, named exactly `admissions-overview-and-fees.pdf` (lower case, hyphens).
+2. Dashboard, Storage, bucket `admissions-attachments`: drag the local `pdf-gate` folder into the bucket's root. Don't use "Create folder": the dashboard makes a folder by uploading an empty placeholder file, which this PDF-only bucket refuses.
+3. If the drag and drop doesn't work, upload with one call instead (the key is typed, never stored in shell history or a file):
+
+```sh
+read -rsp 'Service role key: ' SRK; echo
+curl -s -w '\n%{http_code}\n' -X POST \
+  "https://<project-ref>.supabase.co/storage/v1/object/admissions-attachments/pdf-gate/admissions-overview-and-fees.pdf" \
+  -H "Authorization: Bearer $SRK" -H "apikey: $SRK" -H 'Content-Type: application/pdf' \
+  --data-binary @pdf-gate/admissions-overview-and-fees.pdf
+unset SRK
+# 200, with a Key naming the path
+```
+
+4. Check in the SQL editor (ignore a `.emptyFolderPlaceholder` row if one appears):
+
+```sql
+select name, (metadata->>'size')::int as bytes, metadata->>'mimetype' as type
+from storage.objects where bucket_id = 'admissions-attachments';
+-- one row: pdf-gate/admissions-overview-and-fees.pdf, about 4.9 million bytes, application/pdf
+```
+
+5. The bucket is private: this must not return the file (expect 400 or 404, "Bucket not found" or "Object not found"):
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' \
+  "https://<project-ref>.supabase.co/storage/v1/object/public/admissions-attachments/pdf-gate/admissions-overview-and-fees.pdf"
+```
+
+To replace the PDF later: delete the old file in the dashboard, then upload the new one with the same name in the same folder. Don't replace it while PDF emails are waiting to retry (Resend refuses a retry whose content changed under the same idempotency key within 24 hours).
+
+**5. Function secrets.**
+
+```sh
+npx supabase secrets set \
+  ADMISSIONS_LEAD_ORIGINS='https://tcsch.edu.gh,https://www.tcsch.edu.gh,https://tcsch.vercel.app' \
+  PDF_GATE_INQUIRY_URL='https://admissions.tcsch.edu.gh/inquiry'
+npx supabase secrets list   # names only
+```
+
+- Exact origins, comma-separated, https, no path, no trailing slash, no wildcard. One bad entry refuses the whole lead list (the PDF gate only).
+- **Never add the marketing hosts to `ADMISSIONS_ALLOWED_ORIGINS`.** An origin on both lists passes both gates, so the marketing site could then post enquiries, applications, uploads and drafts (DESIGN.md, "Marketing origins have their own list"). `ADMISSIONS_ALLOWED_ORIGINS` is not changed in this rollout.
+- `PDF_GATE_INQUIRY_URL` stays on the admissions host even before cutover (it reaches TCS OS's enquiry form until the DNS flip).
+- **`MAIL_DAILY_CEILING`: raise to 200 only once you have confirmed the Resend plan allows it** (with room for the other domains on the account):
+
+```sh
+npx supabase secrets set MAIL_DAILY_CEILING=200
+```
+
+  Each lead is two emails and lead mail gets half the ceiling, so 200 mails up to 50 leads a day, above the `lead_global` limit of 40. At today's 60 only 15 leads a day are mailed; the rest show as the ceiling reached and expire after 48 hours.
+
+**6. Deploy the public function.**
+
+```sh
+npx supabase functions deploy admissions-public --no-verify-jwt
+curl -si -X OPTIONS "https://<project-ref>.supabase.co/functions/v1/admissions-public" \
+  -H 'Origin: https://www.tcsch.edu.gh' -H 'Access-Control-Request-Method: POST' \
+  -H 'Access-Control-Request-Headers: content-type' | head -5
+# 204, with access-control-allow-origin: https://www.tcsch.edu.gh
+curl -s -o /dev/null -w '%{http_code}\n' -X OPTIONS \
+  "https://<project-ref>.supabase.co/functions/v1/admissions-public" -H 'Origin: https://x.vercel.app'
+# 403
+```
+
+**7. Frontend.**
+
+```sh
+cd frontend && ./scripts/deploy-production.sh
+```
+
+Never a bare `wrangler deploy` (CONSTRAINTS.md, "Deployment"). Then, signed in as Manager: Admissions Leads opens and says "No leads yet"; Admissions Settings shows "Lead capture" closed.
+
+**8. The ERP Turnstile widget.** Cloudflare dashboard, Turnstile, the ERP widget (the one whose site key is `VITE_TURNSTILE_SITE_KEY` in `frontend/.env.deploy`; not the TCS OS widget the marketing site uses today), Hostname management: add `tcsch.edu.gh`, `www.tcsch.edu.gh` and `tcsch.vercel.app`. Keep the existing ERP hosts.
+
+**9. The marketing site change on a temporary Vercel preview** (in `~/projects/tcs-website`, described here, made by you; see "Marketing site change" below for the exact edits).
+
+1. On a new branch, make the edits below and push the branch; Vercel builds a preview. Note its exact host, for example `tcs-website-git-erp-leads-<team>.vercel.app`.
+2. Add that exact host to the ERP Turnstile widget (step 8) and, temporarily, to the lead list:
+
+```sh
+npx supabase secrets set \
+  ADMISSIONS_LEAD_ORIGINS='https://tcsch.edu.gh,https://www.tcsch.edu.gh,https://tcsch.vercel.app,https://<preview host>'
+```
+
+3. Production `tcsch.edu.gh` is unchanged and still posts to TCS OS during the test.
+
+**10. Open the lead switch and test on the preview, with your own address.** Every lead made here joins the go-live cleanup list, by id.
+
+1. Admissions Settings, "Open lead capture", confirm.
+2. On the preview's admissions page, fill the Admissions Overview form with your name and your own email, tick the marketing box, complete the check, submit. The success message shows.
+3. Within about two minutes, in your inbox, "Your TCS Admissions Overview and Fees" from `TCS Admissions <no-reply@mail.tcsch.edu.gh>`: "Dear Parent or Guardian", the PDF attached as `TCS-Admissions-Overview-and-Fees.pdf` and it opens, exactly one link, `https://admissions.tcsch.edu.gh/inquiry`, not rewritten by Resend when hovered, no dashes. Gmail "Show original": SPF, DKIM and DMARC pass.
+4. In the staff mailbox, "New lead: Admissions Overview download": grade "not given", marketing "yes", the source, and a link; no name, email or phone anywhere. The link opens Admissions Leads with that one lead highlighted.
+5. Admissions Leads as Manager: your lead, full email. As an Admissions Officer (if a hosted Officer account exists): full email. As Auditor: email and phone partly hidden.
+6. Admissions Emails: "Admissions Overview PDF" and "Lead staff alert", both Sent.
+7. Submit twice more with the same address: the second still sends the PDF, the third doesn't (Admissions Emails shows it as "Not sent, address limit" with the note about 2 Admissions Overview emails); every submission still makes a lead and a staff alert.
+8. Close lead capture and submit once more: the form shows "The Admissions Overview download is not available right now. Please contact the school office." and no lead is made. Reopen it.
+9. Remove the preview host: re-set `ADMISSIONS_LEAD_ORIGINS` to the three production origins (step 5) and remove the preview host from the Turnstile widget.
+10. Note the test leads' ids for the go-live cleanup: `select id, created_at from public.admissions_leads order by created_at;`.
+
+**11. Switch the production marketing site over (planned around 6 Nov 2026).** Merge the branch and let Vercel deploy production. Then submit once from `https://www.tcsch.edu.gh` with your own address and check the PDF and the alert arrive (another test lead for the cleanup list). From this moment TCS OS gets no new leads. Rolling back is a Vercel rollback, safe while TCS OS still runs.
+
+**12. Import the three real TCS OS leads** (decided 2026-10-21: one reviewed SQL statement; planned for after cutover, but it can run any time after step 3, as long as the rows are read from TCS OS before the DNS flip). Their names and contact details are typed only into the SQL editor, never into a file.
+
+1. Read the three rows in the TCS OS project, read only: `begin read only; select name, email, phone, source, consent_to_marketing, bulk_email_unsubscribed_at, created_at from admissions_lead order by id; rollback;` (confirm the table name with `\dt *lead*`). Expect three rows, each with source `pdf_gate_admissions_overview`, an email, and no unsubscribe date. Stop if any row has another source (for example `quick_interest_widget`), a blank email or an unsubscribe date: the ERP table refuses the first two, and an unsubscribed lead would be deleted at once by retention.
+2. In the ERP project's SQL editor, fill in and run this once with `rollback;` (a dry run), read the returned rows, then run it again with `commit;`:
+
+```sql
+begin;
+do $$
+begin
+  if exists (select 1 from public.admissions_leads
+             where email in (lower('<email 1>'), lower('<email 2>'), lower('<email 3>'))) then
+    raise exception 'One of these addresses is already a lead in the ERP; stop and decide before importing';
+  end if;
+end $$;
+insert into public.admissions_leads (name, email, phone, source, consent_to_marketing, created_at)
+values
+  ('<name 1>', lower('<email 1>'), <'phone 1' or null>, 'pdf_gate_admissions_overview', <true or false>, '<created_at 1 with its offset, for example 2026-08-14 10:00:00+00>'),
+  ('<name 2>', lower('<email 2>'), <'phone 2' or null>, 'pdf_gate_admissions_overview', <true or false>, '<created_at 2>'),
+  ('<name 3>', lower('<email 3>'), <'phone 3' or null>, 'pdf_gate_admissions_overview', <true or false>, '<created_at 3>')
+returning name, email, consent_to_marketing, created_at;
+rollback;   -- the dry run; change to commit; for the real run
+```
+
+3. Expect three rows returned, each with the consent value and the original date TCS OS shows. A direct insert makes no email and no outbox row. Retention counts from the original date (12 months without consent, 24 with). Imported leads are never on the go-live cleanup list.
+4. Record in JOURNAL only the date and "3 leads imported", never the names, addresses or consent values.
+
+**13. Record what was run and seen.**
+
+**If something goes wrong.** Admissions Settings, "Close lead capture" stops new leads at once (the form shows the closed message). `npx supabase secrets unset ADMISSIONS_LEAD_ORIGINS` cuts the marketing site off entirely (an unset list refuses the PDF gate). `npx supabase secrets set MAIL_MODE=off` stops all sending at the next run. A Vercel rollback puts the form back on TCS OS while TCS OS still runs.
+
+#### Marketing site change (described, not made), `~/projects/tcs-website/src/sections/Admissions.tsx`
+
+Only this file changes. `src/lib/turnstile.ts` already accepts an `action` option; `vercel.json` needs no change.
+
+1. **The endpoint.** Replace
+
+   ```ts
+   const PDF_GATE_ENDPOINT =
+     "https://admissions.tcsch.edu.gh/api/admissions/pdf-gate/admissions-overview/";
+   ```
+
+   with
+
+   ```ts
+   const PDF_GATE_ENDPOINT = "https://<project-ref>.supabase.co/functions/v1/admissions-public";
+   ```
+
+   and update the comment above it: "TCS ERP admissions-public, action pdf_gate. Turnstile issues valid tokens only on tcsch.edu.gh, www.tcsch.edu.gh, tcsch.vercel.app and any preview host added to the ERP widget for a test."
+
+2. **The site key.** In `TURNSTILE_SITE_KEY`, replace the production value `"0x4AAAAAAEc3rF8uYtobQ2Uj"` (the TCS OS widget) with the ERP widget's public site key (the value of `VITE_TURNSTILE_SITE_KEY` in the ERP's `frontend/.env.deploy`). Keep the dev test key `"1x00000000000000000000AA"`. A test-key token can't pass the ERP's hostname check, so test on the preview host, not on `npm run dev`.
+
+3. **The widget action.** In `turnstile.render(widgetRef.current, { ... })`, add `action: "pdf_gate",` next to `sitekey`. The ERP refuses a token with any other action.
+
+4. **The request body.** Replace
+
+   ```ts
+   body: JSON.stringify({
+     name,
+     email,
+     consent_to_marketing: consentToMarketing,
+     turnstile_token: turnstileToken,
+   }),
+   ```
+
+   with
+
+   ```ts
+   body: JSON.stringify({
+     action: "pdf_gate",
+     turnstile_token: turnstileToken,
+     payload: { name, email, consent_to_marketing: consentToMarketing },
+   }),
+   ```
+
+   Keep the headers as they are (`Content-Type: application/json` only; no `apikey` or `Authorization`, which the ERP's CORS doesn't allow).
+
+5. **The answers.** Keep `if (res.ok)` (the ERP answers 200 `{ok: true}`) and the 429 branch. Replace the 400-style block (the `asMessage` reading of `{field: [msgs]}` and `non_field_errors`) with:
+
+   ```ts
+   const body = (await res.json().catch(() => null)) as {
+     error?: string;
+     field?: string;
+   } | null;
+   if (res.status === 400 && body?.field === "name") {
+     setErrors({ name: body.error });
+   } else if (res.status === 400 && body?.field === "email") {
+     setErrors({ email: body.error });
+   } else {
+     setErrors({
+       form: body?.error ?? "Something went wrong. Please check your details and try again.",
+     });
+   }
+   resetTurnstile();
+   ```
+
+   The ERP's 409 (lead capture closed) and 503 carry a message in `error` that this shows.
+
 
 ## Slice 14 — Bulk email and one-click unsubscribe
 

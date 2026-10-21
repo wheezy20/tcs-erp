@@ -22,6 +22,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronDown,
+  Inbox,
   Mail,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -32,6 +33,7 @@ import { canViewFinancials, isAdmissionsOfficer, useAuth } from "@/data/auth-sto
 import {
   canViewAdmissions,
   canViewAdmissionsEmails,
+  canViewAdmissionsLeads,
   canViewAdmissionsSettings,
 } from "@/modules/admissions/permissions";
 import { canViewAuditLog } from "@/modules/audit/permissions";
@@ -73,6 +75,7 @@ export const navSections: { key: string; label: string; dormant?: boolean; items
     label: "Admissions",
     items: [
       { title: "Applications", url: "/admissions", icon: GraduationCap },
+      { title: "Admissions Leads", url: "/admissions/leads", icon: Inbox },
       { title: "Admissions Emails", url: "/admissions/emails", icon: Mail },
       { title: "Admissions Settings", url: "/admissions/settings", icon: Settings },
     ],
@@ -129,6 +132,11 @@ const ADMISSIONS_SETTINGS_URLS = new Set(["/admissions/settings"]);
 // blocks every other role; list_admissions_emails refuses them).
 const ADMISSIONS_EMAILS_URLS = new Set(["/admissions/emails"]);
 
+// Manager, Admissions Officer and Auditor (modules/admissions/components/
+// leads-page.tsx blocks every other role; list_admissions_leads refuses
+// them and masks contacts for the Auditor).
+const ADMISSIONS_LEADS_URLS = new Set(["/admissions/leads"]);
+
 // Manager, Accountant and Auditor (routes/audit-log/index.tsx guards the
 // page; audit_log_select hides admissions rows from the Accountant).
 const AUDIT_LOG_URLS = new Set(["/audit-log"]);
@@ -148,6 +156,7 @@ export function AppSidebar({
   const canViewAdmissionsSection = canViewAdmissions(currentStaff?.role);
   const canViewAdmissionsSettingsItem = canViewAdmissionsSettings(currentStaff?.role);
   const canViewAdmissionsEmailsItem = canViewAdmissionsEmails(currentStaff?.role);
+  const canViewAdmissionsLeadsItem = canViewAdmissionsLeads(currentStaff?.role);
   const canViewAuditLogItem = canViewAuditLog(currentStaff?.role);
   // Read-only roles for the operational POS screens: routes/pos.tsx blocks
   // both from Checkout/Returns, so the nav link points them at Sales
@@ -156,12 +165,14 @@ export function AppSidebar({
   const [storesOpen, setStoresOpen] = useState(false);
 
   // Applications stays unhighlighted on its sibling items, Admissions
-  // Emails and Admissions Settings.
+  // Leads, Admissions Emails and Admissions Settings.
   const isActive = (url: string) =>
     url === "/"
       ? pathname === "/"
       : url === "/admissions" &&
-          (pathname.startsWith("/admissions/settings") || pathname.startsWith("/admissions/emails"))
+          (pathname.startsWith("/admissions/settings") ||
+            pathname.startsWith("/admissions/emails") ||
+            pathname.startsWith("/admissions/leads"))
         ? false
         : pathname === url || pathname.startsWith(`${url}/`);
 
@@ -171,6 +182,7 @@ export function AppSidebar({
       .filter((item) => !ADMISSIONS_GATED_URLS.has(item.url) || canViewAdmissionsSection)
       .filter((item) => !ADMISSIONS_SETTINGS_URLS.has(item.url) || canViewAdmissionsSettingsItem)
       .filter((item) => !ADMISSIONS_EMAILS_URLS.has(item.url) || canViewAdmissionsEmailsItem)
+      .filter((item) => !ADMISSIONS_LEADS_URLS.has(item.url) || canViewAdmissionsLeadsItem)
       .filter((item) => !AUDIT_LOG_URLS.has(item.url) || canViewAuditLogItem)
       .map((item) =>
         item.url === "/pos" && posReadOnly ? { ...item, url: "/pos/history" } : item,

@@ -218,3 +218,11 @@ export async function setPublicApplicationsOpen(open: boolean): Promise<void> {
   const { error } = await supabase.rpc("set_admissions_public_applications", { p_open: open });
   if (error) throw error;
 }
+
+/** Manager only (slice 13): opens or closes lead capture, the school
+ * website's Admissions Overview form. Independent of the two intake
+ * switches. Audited as admissions_settings_changed. */
+export async function setPublicLeadsOpen(open: boolean): Promise<void> {
+  const { error } = await supabase.rpc("set_admissions_public_leads", { p_open: open });
+  if (error) throw error;
+}

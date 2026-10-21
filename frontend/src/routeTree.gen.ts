@@ -37,6 +37,7 @@ import { Route as AccountingTrialBalanceRouteImport } from './routes/accounting.
 import { Route as AdmissionsIndexRouteImport } from './routes/admissions/index'
 import { Route as AdmissionsApplicationIdRouteImport } from './routes/admissions/$applicationId'
 import { Route as AdmissionsEmailsRouteImport } from './routes/admissions/emails'
+import { Route as AdmissionsLeadsRouteImport } from './routes/admissions/leads'
 import { Route as AdmissionsSettingsRouteImport } from './routes/admissions/settings'
 import { Route as AuditLogIndexRouteImport } from './routes/audit-log/index'
 import { Route as BankingIndexRouteImport } from './routes/banking.index'
@@ -220,6 +221,11 @@ const AdmissionsApplicationIdRoute = AdmissionsApplicationIdRouteImport.update({
 const AdmissionsEmailsRoute = AdmissionsEmailsRouteImport.update({
   id: '/emails',
   path: '/emails',
+  getParentRoute: () => AdmissionsRouteRoute,
+} as any)
+const AdmissionsLeadsRoute = AdmissionsLeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
   getParentRoute: () => AdmissionsRouteRoute,
 } as any)
 const AdmissionsSettingsRoute = AdmissionsSettingsRouteImport.update({
@@ -470,6 +476,7 @@ export interface FileRoutesByFullPath {
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
   '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
   '/admissions/emails': typeof AdmissionsEmailsRoute
+  '/admissions/leads': typeof AdmissionsLeadsRoute
   '/admissions/settings': typeof AdmissionsSettingsRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
@@ -532,6 +539,7 @@ export interface FileRoutesByTo {
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
   '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
   '/admissions/emails': typeof AdmissionsEmailsRoute
+  '/admissions/leads': typeof AdmissionsLeadsRoute
   '/admissions/settings': typeof AdmissionsSettingsRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
@@ -606,6 +614,7 @@ export interface FileRoutesById {
   '/accounting/trial-balance': typeof AccountingTrialBalanceRoute
   '/admissions/$applicationId': typeof AdmissionsApplicationIdRoute
   '/admissions/emails': typeof AdmissionsEmailsRoute
+  '/admissions/leads': typeof AdmissionsLeadsRoute
   '/admissions/settings': typeof AdmissionsSettingsRoute
   '/banking/history': typeof BankingHistoryRoute
   '/banking/reconcile': typeof BankingReconcileRoute
@@ -681,6 +690,7 @@ export interface FileRouteTypes {
     | '/accounting/trial-balance'
     | '/admissions/$applicationId'
     | '/admissions/emails'
+    | '/admissions/leads'
     | '/admissions/settings'
     | '/banking/history'
     | '/banking/reconcile'
@@ -743,6 +753,7 @@ export interface FileRouteTypes {
     | '/accounting/trial-balance'
     | '/admissions/$applicationId'
     | '/admissions/emails'
+    | '/admissions/leads'
     | '/admissions/settings'
     | '/banking/history'
     | '/banking/reconcile'
@@ -816,6 +827,7 @@ export interface FileRouteTypes {
     | '/accounting/trial-balance'
     | '/admissions/$applicationId'
     | '/admissions/emails'
+    | '/admissions/leads'
     | '/admissions/settings'
     | '/banking/history'
     | '/banking/reconcile'
@@ -1092,6 +1104,13 @@ declare module '@tanstack/react-router' {
       path: '/emails'
       fullPath: '/admissions/emails'
       preLoaderRoute: typeof AdmissionsEmailsRouteImport
+      parentRoute: typeof AdmissionsRouteRoute
+    }
+    '/admissions/leads': {
+      id: '/admissions/leads'
+      path: '/leads'
+      fullPath: '/admissions/leads'
+      preLoaderRoute: typeof AdmissionsLeadsRouteImport
       parentRoute: typeof AdmissionsRouteRoute
     }
     '/admissions/settings': {
@@ -1401,6 +1420,7 @@ declare module '@tanstack/react-router' {
 interface AdmissionsRouteRouteChildren {
   AdmissionsApplicationIdRoute: typeof AdmissionsApplicationIdRoute
   AdmissionsEmailsRoute: typeof AdmissionsEmailsRoute
+  AdmissionsLeadsRoute: typeof AdmissionsLeadsRoute
   AdmissionsSettingsRoute: typeof AdmissionsSettingsRoute
   AdmissionsIndexRoute: typeof AdmissionsIndexRoute
 }
@@ -1408,6 +1428,7 @@ interface AdmissionsRouteRouteChildren {
 const AdmissionsRouteRouteChildren: AdmissionsRouteRouteChildren = {
   AdmissionsApplicationIdRoute: AdmissionsApplicationIdRoute,
   AdmissionsEmailsRoute: AdmissionsEmailsRoute,
+  AdmissionsLeadsRoute: AdmissionsLeadsRoute,
   AdmissionsSettingsRoute: AdmissionsSettingsRoute,
   AdmissionsIndexRoute: AdmissionsIndexRoute,
 }

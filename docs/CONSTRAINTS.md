@@ -164,7 +164,9 @@ Things that shape how this gets built, not just what gets built.
         limit (the fees PDF is about 4.9 MB), and raise
         `MAIL_DAILY_CEILING` (60) to match. Each lead is two emails and
         lead mail gets half the ceiling, so 40 leads a day needs at least
-        160; at 60, only 15 leads a day are mailed and the rest expire. Never open the lead switch
+        160; at 60, only 15 leads a day are mailed and the rest expire. Plan:
+        raise it to 200 once Eyram confirms the Resend plan allows it, with
+        room for the other domains on the account (rollout handover, step 5). Never open the lead switch
         with mail off.
       - **Fees PDF.** Eyram supplies the current file; it is uploaded to the
         private `admissions-attachments` bucket and is never in any repo.
@@ -172,6 +174,12 @@ Things that shape how this gets built, not just what gets built.
         `tcsch.edu.gh`, `www.tcsch.edu.gh` and `tcsch.vercel.app`, and
         `ADMISSIONS_LEAD_ORIGINS` holds the same three origins. Exact hosts
         only, no `*.vercel.app` pattern.
+      - **Never add the marketing hosts to `ADMISSIONS_ALLOWED_ORIGINS`**
+        (recorded 2026-10-21). That list is for the staff app and the intake
+        forms; an origin on both lists passes both gates, so a page on the
+        marketing site could post enquiries, applications, uploads and
+        drafts. The marketing hosts belong only on `ADMISSIONS_LEAD_ORIGINS`
+        (DESIGN.md, "Marketing origins have their own list").
       - **TCS OS leads (three real rows).** Read before the DNS flip in
         the TCS OS admin or read only in its SQL editor, with no file kept;
         imported after cutover by one reviewed SQL statement that keeps

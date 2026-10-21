@@ -41,6 +41,7 @@ import {
   setOfferTtlDays,
   setPublicApplicationsOpen,
   setPublicIntakeOpen,
+  setPublicLeadsOpen,
   updateCapacity,
 } from "@/modules/admissions/data/mutations";
 import {
@@ -142,24 +143,29 @@ function SectionMessage({ children, error }: { children: React.ReactNode; error?
 
 /* ---------------------------------------------------------------- public intake */
 
-/** Two independent switches. Public inquiries is
+/** Three independent switches. Public inquiries is
  * admissions_settings.public_intake_open, the slice 8 switch; public
- * applications is public_applications_open, usable since slice 9a (D-9k).
- * Each change is audited (admissions_settings_changed). Manager writes;
- * Auditor reads. */
+ * applications is public_applications_open, usable since slice 9a (D-9k);
+ * lead capture is public_leads_open (slice 13), the school website's
+ * Admissions Overview form. Each change is audited
+ * (admissions_settings_changed). Manager writes; Auditor reads. */
 function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
   const switches = useLoad(getPublicSwitches, [], "Could not load the public switches.");
-  const [confirming, setConfirming] = useState<"inquiries" | "applications" | null>(null);
+  const [confirming, setConfirming] = useState<"inquiries" | "applications" | "leads" | null>(null);
   const [busy, setBusy] = useState(false);
   const inquiriesOpen = switches.data?.inquiriesOpen === true;
   const applicationsOpen = switches.data?.applicationsOpen === true;
+  const leadsOpen = switches.data?.leadsOpen === true;
 
-  async function change(which: "inquiries" | "applications") {
+  async function change(which: "inquiries" | "applications" | "leads") {
     setBusy(true);
     try {
       if (which === "inquiries") {
         await setPublicIntakeOpen(!inquiriesOpen);
         toast.success(inquiriesOpen ? "Public inquiries closed" : "Public inquiries opened");
+      } else if (which === "leads") {
+        await setPublicLeadsOpen(!leadsOpen);
+        toast.success(leadsOpen ? "Lead capture closed" : "Lead capture opened");
       } else {
         await setPublicApplicationsOpen(!applicationsOpen);
         toast.success(
@@ -168,7 +174,14 @@ function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
       }
       await switches.reload();
     } catch (err) {
-      toast.error(getErrorMessage(err, `Could not change public ${which}.`));
+      toast.error(
+        getErrorMessage(
+          err,
+          which === "leads"
+            ? "Could not change lead capture."
+            : `Could not change public ${which}.`,
+        ),
+      );
     } finally {
       setBusy(false);
       setConfirming(null);
@@ -183,30 +196,38 @@ function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
     );
 
   const dialog =
-    confirming === "applications"
+    confirming === "leads"
       ? {
-          title: applicationsOpen ? "Close public applications?" : "Open public applications?",
-          body: applicationsOpen
-            ? "The application form will show a closed page, and uploads and submissions are refused straight away."
-            : "Anyone with the link will be able to upload documents and send an application. Make sure the old admissions site is no longer taking applications, so there is only one intake.",
-          action: applicationsOpen ? "Close applications" : "Open applications",
+          title: leadsOpen ? "Close lead capture?" : "Open lead capture?",
+          body: leadsOpen
+            ? "The Admissions Overview form on the school website will say the download is not available, and requests are refused straight away."
+            : "Visitors to the school website will be able to ask for the Admissions Overview and Fees PDF by email. Check that admissions emails are being sent and the PDF is in place first: the form tells visitors to check their inbox.",
+          action: leadsOpen ? "Close lead capture" : "Open lead capture",
         }
-      : {
-          title: inquiriesOpen ? "Close public inquiries?" : "Open public inquiries?",
-          body: inquiriesOpen
-            ? "The enquiry form will show a closed page and refuse new submissions straight away."
-            : "Anyone with the link will be able to send an enquiry. Make sure the old admissions site is no longer taking enquiries, so there is only one intake.",
-          action: inquiriesOpen ? "Close inquiries" : "Open inquiries",
-        };
+      : confirming === "applications"
+        ? {
+            title: applicationsOpen ? "Close public applications?" : "Open public applications?",
+            body: applicationsOpen
+              ? "The application form will show a closed page, and uploads and submissions are refused straight away."
+              : "Anyone with the link will be able to upload documents and send an application. Make sure the old admissions site is no longer taking applications, so there is only one intake.",
+            action: applicationsOpen ? "Close applications" : "Open applications",
+          }
+        : {
+            title: inquiriesOpen ? "Close public inquiries?" : "Open public inquiries?",
+            body: inquiriesOpen
+              ? "The enquiry form will show a closed page and refuse new submissions straight away."
+              : "Anyone with the link will be able to send an enquiry. Make sure the old admissions site is no longer taking enquiries, so there is only one intake.",
+            action: inquiriesOpen ? "Close inquiries" : "Open inquiries",
+          };
 
   return (
     <section className="card-surface overflow-hidden">
       <div className="border-b p-6">
         <h2 className="text-sm font-semibold">Public intake</h2>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Two separate switches. Closing one doesn't affect the other. Keep both closed while the
-          old admissions site is still taking enquiries and applications, so there is only one
-          intake.
+          Three separate switches. Closing one doesn't affect the others. Keep the two intake
+          switches closed while the old admissions site is still taking enquiries and applications,
+          so there is only one intake. Lead capture is not intake and can be open on its own.
         </p>
         {switches.error && <p className="mt-2 text-sm text-destructive">{switches.error}</p>}
       </div>
@@ -250,6 +271,28 @@ function PublicIntakeSection({ canEdit }: { canEdit: boolean }) {
               onClick={() => setConfirming("applications")}
             >
               {applicationsOpen ? "Close public applications" : "Open public applications"}
+            </Button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-start justify-between gap-4 p-6">
+          <div>
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-medium">Lead capture</h3>
+              {badge(switches.data?.leadsOpen)}
+            </div>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Whether the Admissions Overview form on the school website can request the fees PDF.
+              While closed, the form says the download is not available and every request is
+              refused. New leads appear under Admissions Leads.
+            </p>
+          </div>
+          {canEdit && switches.data && (
+            <Button
+              variant={leadsOpen ? "outline" : "default"}
+              disabled={busy}
+              onClick={() => setConfirming("leads")}
+            >
+              {leadsOpen ? "Close lead capture" : "Open lead capture"}
             </Button>
           )}
         </div>

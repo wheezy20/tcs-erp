@@ -58,20 +58,26 @@ export async function getOfferTtlDays(): Promise<number | null> {
   return data?.offer_ttl_days ?? null;
 }
 
-/** The two public intake switches (slices 8 and 8b), both starting closed
- * and changed only by a Manager. inquiriesOpen is public_intake_open. */
+/** The two public intake switches (slices 8 and 8b) and the lead capture
+ * switch (slice 13), all starting closed and changed only by a Manager.
+ * inquiriesOpen is public_intake_open. */
 export async function getPublicSwitches(): Promise<{
   inquiriesOpen: boolean;
   applicationsOpen: boolean;
+  leadsOpen: boolean;
 } | null> {
   const { data, error } = await supabase
     .from("admissions_settings")
-    .select("public_intake_open, public_applications_open")
+    .select("public_intake_open, public_applications_open, public_leads_open")
     .eq("id", 1)
     .maybeSingle();
   if (error) throw error;
   return data
-    ? { inquiriesOpen: data.public_intake_open, applicationsOpen: data.public_applications_open }
+    ? {
+        inquiriesOpen: data.public_intake_open,
+        applicationsOpen: data.public_applications_open,
+        leadsOpen: data.public_leads_open,
+      }
     : null;
 }
 
