@@ -62,6 +62,20 @@
 // go, and resume emails are retried with class config, which shows on the
 // staff email health page.
 //
+// Lead emails (slice 13, D-13g, D-13k, D-13n):
+//   pdf_gate    the fees PDF from the fixed path in attachment.ts, read once
+//               per run and only when a pdf_gate row is claimed, attached
+//               to the email with the one enquiry link from
+//               PDF_GATE_INQUIRY_URL (https, path exactly /inquiry). A
+//               missing, oversized or non-PDF file, or a missing or bad
+//               link setting, sends nothing: the row is retried with class
+//               config, which shows on the staff email health page. Sends
+//               with an attachment get ATTACHMENT_SEND_TIMEOUT_MS.
+//   lead_staff  get_lead_alert between claim and send gives the grade of
+//               interest, the consent answer, the source and the lead id
+//               (never a name, email or phone). null means the claim is no
+//               longer held; nothing is recorded. An error is a retry.
+//
 // A claimed row this worker can't read (an unknown kind, a bad shape) is
 // marked failed on its own; the rest of the batch still goes.
 //
@@ -72,25 +86,36 @@
 // with a fake provider and fake RPCs (handler.test.ts). index.ts wires the
 // real ones.
 
-import {
-  sweepExpiredUploads,
-  type StorageDeps,
-} from "../admissions-public/handler.ts";
+import { sweepExpiredUploads, type StorageDeps } from "../admissions-public/handler.ts";
+import { pdfAttachment, type Attachment } from "./attachment.ts";
 import {
   EMAIL_KINDS,
+  INQUIRY_LINK,
   renderEmail,
   type DraftLink,
   type EmailKind,
+  type LeadContext,
 } from "./templates.ts";
 
 export const MAX_BODY_BYTES = 1024;
 export const MAX_SECRET_LENGTH = 200;
-// 10 sends of at most 10.5 s each stay inside the hosted function's time
-// limit; a function stopped mid-batch is safe (the lease lapses and the
-// retry reuses the idempotency key).
+// A batch is at most 10 sends. A send takes at most SEND_TIMEOUT_MS, or
+// ATTACHMENT_SEND_TIMEOUT_MS with the PDF, so a run stops starting new
+// sends after RUN_BUDGET_MS and puts the rest of its batch back (retry,
+// class timeout), well inside the 5 minute claim lease and the hosted
+// function's time limit. A function stopped mid-batch is still safe (the
+// lease lapses and the retry reuses the idempotency key).
 export const MAIL_BATCH = 10;
 export const SEND_GAP_MS = 500;
 export const SEND_TIMEOUT_MS = 10_000;
+/** A send carrying the PDF (about 5 MB) gets longer. */
+export const ATTACHMENT_SEND_TIMEOUT_MS = 30_000;
+export const RUN_BUDGET_MS = 120_000;
+
+/** The send timeout for one email: longer when it carries the PDF. */
+export function sendTimeoutMs(email: Pick<OutgoingEmail, "attachments">): number {
+  return email.attachments ? ATTACHMENT_SEND_TIMEOUT_MS : SEND_TIMEOUT_MS;
+}
 export const RESEND_LIVE_BASE = "https://api.resend.com";
 export const USER_AGENT = "tcs-erp-admissions-worker/1.0";
 
@@ -121,6 +146,8 @@ export type MailConfig = {
   dailyCeiling: number;
   /** The public origin resume links point to, or null (resume emails wait). */
   applyBaseUrl: string | null;
+  /** The enquiry link printed in the PDF email, or null (PDF emails wait). */
+  pdfGateInquiryUrl: string | null;
 };
 
 /** What the provider said, already reduced to what the worker records. */
@@ -138,6 +165,7 @@ export type OutgoingEmail = {
   subject: string;
   text: string;
   kind: EmailKind;
+  attachments?: Attachment[];
 };
 
 export type Deps = {
@@ -152,6 +180,11 @@ export type Deps = {
   log: (outcome: string) => void;
   /** Needed by the sweep job only; without it the sweep does nothing. */
   storage?: StorageDeps;
+  /** Reads the fees PDF from its fixed path; throws when it can't. Without
+   * it, PDF emails are retried with class config. */
+  readPdfGate?: () => Promise<Uint8Array>;
+  /** Milliseconds now, for the run budget (Date.now when absent). */
+  now?: () => number;
 };
 
 function json(status: number, body: Record<string, unknown>): Response {
@@ -208,6 +241,9 @@ export function loadMailConfig(
     .trim()
     .replace(/\/+$/, "");
   const applyBaseUrl = isOrigin(applyRaw) ? applyRaw : null;
+  const inquiryRaw = (get("PDF_GATE_INQUIRY_URL") ?? "").trim();
+  const pdfGateInquiryUrl =
+    INQUIRY_LINK.test(inquiryRaw) && !isLocalUrl(inquiryRaw) ? inquiryRaw : null;
   if (
     apiKey === "" ||
     !FROM.test(from) ||
@@ -230,9 +266,8 @@ export function loadMailConfig(
       erpBaseUrl,
       dailyCeiling,
       applyBaseUrl:
-        applyBaseUrl && isHttpsUrl(applyBaseUrl) && !isLocalUrl(applyBaseUrl)
-          ? applyBaseUrl
-          : null,
+        applyBaseUrl && isHttpsUrl(applyBaseUrl) && !isLocalUrl(applyBaseUrl) ? applyBaseUrl : null,
+      pdfGateInquiryUrl,
     };
   }
   // Test mode: local stack only, a local fake provider, never a real key.
@@ -253,8 +288,8 @@ export function loadMailConfig(
     staffEmail,
     erpBaseUrl,
     dailyCeiling,
-    applyBaseUrl:
-      applyBaseUrl && isLocalUrl(applyBaseUrl) ? applyBaseUrl : null,
+    applyBaseUrl: applyBaseUrl && isLocalUrl(applyBaseUrl) ? applyBaseUrl : null,
+    pdfGateInquiryUrl,
   };
 }
 
@@ -312,8 +347,9 @@ export function makeResendSender(fetchImpl: typeof fetch) {
           subject: email.subject,
           text: email.text,
           tags: [{ name: "kind", value: email.kind }],
+          ...(email.attachments ? { attachments: email.attachments } : {}),
         }),
-        signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+        signal: AbortSignal.timeout(sendTimeoutMs(email)),
       });
       if (res.status >= 200 && res.status < 300) {
         const body: unknown = await res.json().catch(() => null);
@@ -477,8 +513,16 @@ export async function runMailJob(
 
   let sent = 0;
   let stopped: Outcome | null = null;
+  // The PDF is read at most once per run, and only if a PDF email is due.
+  let pdf: Attachment | "missing" | undefined;
+  const now = deps.now ?? Date.now;
+  const started = now();
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    if (!stopped && now() - started > RUN_BUDGET_MS) {
+      deps.log("mail_run_budget_spent");
+      stopped = { ...retryConfig, errorClass: "timeout", stop: true };
+    }
     if (stopped) {
       // Never sent: keep the reason, but no HTTP status of its own.
       await mark(deps, row, { ...stopped, status: null, messageId: null });
@@ -493,10 +537,32 @@ export async function runMailJob(
       if (link === "done") continue;
       draft = link;
     }
+    let lead: LeadContext | undefined;
+    let attachments: Attachment[] | undefined;
+    if (row.kind === "pdf_gate") {
+      if (!config.pdfGateInquiryUrl) {
+        deps.log("mail_pdf_gate_no_link");
+        await mark(deps, row, retryConfig);
+        continue;
+      }
+      if (pdf === undefined) pdf = await loadPdf(deps);
+      if (pdf === "missing") {
+        deps.log("mail_pdf_gate_file_missing");
+        await mark(deps, row, retryConfig);
+        continue;
+      }
+      lead = { inquiryUrl: config.pdfGateInquiryUrl };
+      attachments = [pdf];
+    }
+    if (row.kind === "lead_staff") {
+      const alert = await leadAlert(deps, row);
+      if (alert === "done") continue;
+      lead = { alert };
+    }
     let rendered;
     try {
       if (!to || !EMAIL.test(to)) throw new Error("no recipient");
-      rendered = renderEmail(row.kind, row.params, config.erpBaseUrl, draft);
+      rendered = renderEmail(row.kind, row.params, config.erpBaseUrl, draft, lead);
     } catch {
       deps.log("mail_render_failed");
       await mark(deps, row, {
@@ -520,6 +586,7 @@ export async function runMailJob(
         subject: rendered.subject,
         text: rendered.text,
         kind: row.kind,
+        ...(attachments ? { attachments } : {}),
       },
       config,
     );
@@ -539,6 +606,52 @@ const failedOther: Omit<Outcome, "stop"> = {
   status: null,
   messageId: null,
 };
+
+const retryConfig: Omit<Outcome, "stop"> = {
+  outcome: "retry",
+  errorClass: "config",
+  status: null,
+  messageId: null,
+};
+
+/** The fees PDF ready to attach, or "missing" (no reader, a read error, or
+ * a file that isn't a PDF of at most 10 MB). */
+async function loadPdf(deps: Deps): Promise<Attachment | "missing"> {
+  if (!deps.readPdfGate) return "missing";
+  try {
+    return pdfAttachment(await deps.readPdfGate());
+  } catch {
+    return "missing";
+  }
+}
+
+/** The staff alert's fields for one claimed lead_staff row, or "done" when
+ * the row has been dealt with: null from the database (the claim is no
+ * longer held, nothing recorded) or an error (a retry). */
+async function leadAlert(
+  deps: Deps,
+  row: ClaimedRow,
+): Promise<NonNullable<LeadContext["alert"]> | "done"> {
+  let res: RpcResult;
+  try {
+    res = await deps.rpc("get_lead_alert", {
+      p_outbox_id: row.id,
+      p_claim_token: row.claim_token,
+    });
+  } catch {
+    res = { data: null, error: { code: "network" } };
+  }
+  if (res.error) {
+    deps.log("mail_lead_alert_error");
+    await mark(deps, row, { ...retryConfig, errorClass: "other" });
+    return "done";
+  }
+  if (res.data === null) {
+    deps.log("mail_lead_claim_lost");
+    return "done";
+  }
+  return res.data as NonNullable<LeadContext["alert"]>;
+}
 
 /** The link for one claimed resume email, or "done" when the row has
  * already been dealt with (see the header). Never logs the token. */

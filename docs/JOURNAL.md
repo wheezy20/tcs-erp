@@ -5239,3 +5239,16 @@ Built locally and uncommitted; nothing applied on hosted. Detail in PORT-PLAN, "
 - **Verification (local).** Fresh reset; no duplicate overloads; types regenerated (additions only); anon-executable 170; 52 of 52 probe files green; 16 deliberate breaks caught; worker integration 7 of 7; Edge unit tests 105; `tsc` clean; lint 0 errors and 13 warnings (baseline); vitest 216; build ok. Golden payroll suite not run (no payroll or audit action change).
 
 **Not done:** the commit; the hand race on the PDF cap (two sessions); C2 (Edge Function and worker attachment) and C3 (staff screens); everything on hosted.
+
+## 2026-10-21: Admissions slice 13 C2, the PDF gate action and the PDF email (local only)
+
+C1 is committed as 1a76b6c. C2 is built locally and uncommitted; nothing is deployed or set on hosted and no real email was sent. Detail in PORT-PLAN, "Slice 13 C2 as built".
+
+- **Race test (by hand).** Three sessions capturing to one address at once gave exactly 2 pending PDF emails and 1 suppressed; the later two waited on the advisory lock while the first was open.
+- **What it does.** The marketing site's form can post to `admissions-public` (action `pdf_gate`) once it is repointed; the worker emails the fees PDF from the private bucket with the one enquiry link, and alerts staff with a link to the lead.
+- **Why a separate origin list.** Marketing origins reach only the PDF gate, and the PDF gate only marketing origins (D-13c), so a page on the marketing site can't post enquiries or applications, and cutting the site off is one secret. A typo in that list refuses only the PDF gate.
+- **Why a missing PDF stops the email.** An email that says the document is attached with nothing attached is worse than a delay; the row retries with class config, which shows on the staff email health page (D-13k).
+- **Fix round 1.** From code review: a 120 second run budget, so a slow provider can't push a batch of 30 second attachment sends past the 5 minute claim lease; more tests; the enquiry link refuses an IP host.
+- **Verification (local).** Edge unit tests 136; strict `tsc` clean; integration 7, 7, 6, 6, 7 and 3 on a fresh reset with a fake provider; no duplicate overloads; types match; anon-executable 170; 6 deliberate breaks caught (22 in the slice). Full role matrix not re-run (no SQL change); golden payroll suite not run.
+
+**Not done:** the commit; C3 (the staff lead list, the third switch card, the email page labels, the rollout handover); everything on hosted.

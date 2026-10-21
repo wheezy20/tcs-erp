@@ -12,8 +12,17 @@
 // params are always {}; the link and the date it is kept until are passed
 // in separately and never stored.
 //
+// The PDF gate emails (slice 13; D-13f, D-13g, D-13n). pdf_gate goes to the
+// lead with the fees PDF attached (the worker attaches it) and one plain
+// link to the public enquiry form, with no token: the second exception to
+// "no links in a parent email". lead_staff goes to the staff address with
+// the grade of interest, the consent answer, the source and a link to the
+// lead in the ERP, and no name, email or phone. Both rows' params are
+// always {}; the link and the alert's fields are passed in separately.
+//
 // Rules the tests hold (templates.test.ts): no em or en dash and never the
-// word "inquiry" in a subject or body (code names keep "inquiry"); the
+// word "inquiry" in a subject or body (code names keep "inquiry"; the one
+// exception is inside the pdf_gate email's enquiry link, /inquiry); the
 // sign-off is the Admissions Office; the same params always give the same
 // text, so a matched family and a new family get identical emails.
 //
@@ -25,6 +34,8 @@ export const EMAIL_KINDS = [
   "application_parent",
   "application_staff",
   "draft_resume",
+  "pdf_gate",
+  "lead_staff",
 ] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 
@@ -45,6 +56,27 @@ export type RenderedEmail = { subject: string; text: string };
 
 /** What a resume email needs that is not in the outbox row. */
 export type DraftLink = { url: string; expiresAt: string };
+
+/** What the lead emails need that is not in the outbox row: the enquiry
+ * link (pdf_gate) or the alert's fields from get_lead_alert (lead_staff). */
+export type LeadContext = {
+  inquiryUrl?: string;
+  alert?: {
+    lead_id: string;
+    grade_interest: string | null;
+    consent_to_marketing: boolean;
+    source: string;
+  };
+};
+
+/** The only enquiry link a pdf_gate email may print: https, a host name
+ * (not an IP address), and exactly the path /inquiry. */
+// The host has a letter in its last label, so an IP address never matches.
+export const INQUIRY_LINK = /^https:\/\/([a-z0-9-]+\.)+[a-z][a-z0-9-]*\/inquiry$/;
+const LEAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const LEAD_SOURCES: Record<string, string> = {
+  pdf_gate_admissions_overview: "Admissions Overview download on the school website",
+};
 
 const MONTHS = [
   "January",
@@ -93,9 +125,8 @@ function isObject(v: unknown): v is Record<string, unknown> {
  * database check would have refused. Throws on anything else. */
 export function parseParams(kind: EmailKind, raw: unknown): EmailParams {
   if (!isObject(raw)) throw new Error("params is not an object");
-  if (kind === "draft_resume") {
-    if (Object.keys(raw).length !== 0)
-      throw new Error("a resume email has no params");
+  if (kind === "draft_resume" || kind === "pdf_gate" || kind === "lead_staff") {
+    if (Object.keys(raw).length !== 0) throw new Error(`a ${kind} email has no params`);
     return { references: [] };
   }
   const allowed =
@@ -175,6 +206,7 @@ export function renderEmail(
   rawParams: unknown,
   erpBaseUrl: string,
   draft?: DraftLink,
+  lead?: LeadContext,
 ): RenderedEmail {
   const p = parseParams(kind, rawParams);
   const refs = p.references;
@@ -231,6 +263,46 @@ export function renderEmail(
           `Your saved application will be kept until ${longDate(draft.expiresAt)}. The health questions, uploaded files and the declaration are not saved, so you will be asked for them again when you continue.`,
           "If you did not ask for this, you can ignore this email. The saved information will be deleted automatically.",
           SIGN_OFF,
+        ].join("\n\n"),
+      };
+    }
+    case "pdf_gate": {
+      const url = lead?.inquiryUrl;
+      if (!url || !INQUIRY_LINK.test(url)) throw new Error("a PDF email needs its enquiry link");
+      return {
+        subject: "Your TCS Admissions Overview and Fees",
+        text: [
+          "Dear Parent or Guardian,",
+          "Thank you for your interest in Treasures Christian School. Our Admissions Overview and Fees document is attached.",
+          "If you would like to take the next step, you can start an enquiry here:",
+          `  ${url}`,
+          "If you did not ask for this document, you can ignore this email.",
+          SIGN_OFF,
+        ].join("\n\n"),
+      };
+    }
+    case "lead_staff": {
+      const a = lead?.alert;
+      if (
+        !a ||
+        typeof a.lead_id !== "string" ||
+        !LEAD_ID.test(a.lead_id) ||
+        typeof a.consent_to_marketing !== "boolean" ||
+        !(a.source in LEAD_SOURCES) ||
+        (a.grade_interest !== null && typeof a.grade_interest !== "string")
+      )
+        throw new Error("a lead alert needs its fields");
+      const grade = a.grade_interest === null ? "" : clean(a.grade_interest).slice(0, 50);
+      return {
+        subject: "New lead: Admissions Overview download",
+        text: [
+          "Someone asked for the Admissions Overview and Fees document.",
+          [
+            `Grade of interest: ${grade === "" ? "not given" : grade}`,
+            `Agreed to marketing emails: ${a.consent_to_marketing ? "yes" : "no"}`,
+            `Source: ${LEAD_SOURCES[a.source]}`,
+          ].join("\n"),
+          `Open the lead in the ERP to see the contact details: ${erpBaseUrl.replace(/\/+$/, "")}/admissions/leads?lead=${a.lead_id}`,
         ].join("\n\n"),
       };
     }

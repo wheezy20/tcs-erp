@@ -84,6 +84,24 @@
 //                  is called instead, which retires the draft in the same
 //                  transaction.
 //
+// The PDF gate (slice 13; D-13a to D-13p, decided 2026-10-21). The
+// marketing site (tcsch.edu.gh) posts here cross-origin:
+//
+//   pdf_gate       origins come from their own secret, ADMISSIONS_LEAD_ORIGINS
+//                  (D-13c): an origin on that list may call only pdf_gate,
+//                  and pdf_gate accepts only those origins. Steps 1 to 3
+//                  with the 32 KB cap, then lead_ip (an HMAC of the IP),
+//                  Turnstile with action "pdf_gate" and a hostname from the
+//                  lead origins, lead_global (only after Turnstile), then
+//                  capture_lead with the source set here. Only the lead
+//                  fields are passed on; any other payload key is dropped,
+//                  not refused, so a new marketing form field can't cost a
+//                  lead. 200 {ok: true}; 400 {error, field?} (field only
+//                  name, email, phone or grade_interest); 409 {error, code:
+//                  "closed"} while lead capture is closed; 429 for every
+//                  limit. A malformed ADMISSIONS_LEAD_ORIGINS refuses only
+//                  this action; enquiries and applications keep working.
+//
 // Draft refusals keep the database's message only for the DETAIL codes in
 // DRAFT_CODES (written for parents in the database) and return the code so
 // the page can act on it. A live-draft cap (draft_limit) and every rate
@@ -144,7 +162,26 @@ export const MESSAGES = {
   appError:
     "Something went wrong on our side. Please try again later, or call the school office to apply.",
   draftRefused: "We could not save your application right now. Please contact the school office.",
+  leadOffice:
+    "We couldn't send the Admissions Overview just now. Please contact the school office.",
+  leadClosed:
+    "The Admissions Overview download is not available right now. Please contact the school office.",
 } as const;
+
+/** The lead fields capture_lead reads; anything else in the payload is
+ * dropped here. */
+export const LEAD_PAYLOAD_KEYS = [
+  "name",
+  "email",
+  "phone",
+  "grade_interest",
+  "consent_to_marketing",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+] as const;
+export const LEAD_SOURCE = "pdf_gate_admissions_overview";
+const LEAD_FIELDS = ["name", "email", "phone", "grade_interest"];
 
 /** The draft refusals whose database message is shown to the parent. */
 export const DRAFT_CODES = [
@@ -162,6 +199,9 @@ export const MAX_DRAFT_EMAIL_LENGTH = 254;
 
 export type Config = {
   allowedOrigins: string[];
+  /** The marketing site's origins (ADMISSIONS_LEAD_ORIGINS), which may call
+   * only pdf_gate. Null when unset or malformed: pdf_gate is refused. */
+  leadOrigins: string[] | null;
   turnstileSecret: string;
   ipHashKey: string;
 };
@@ -289,16 +329,14 @@ export function loadConfig(
   if (!allowedOrigins || turnstileSecret === "" || ipHashKey.length < 32)
     return null;
   const hosted = (get("SUPABASE_URL") ?? "").startsWith("https://");
-  if (
-    hosted &&
-    allowedOrigins.some((o) => {
-      const url = new URL(o);
-      return url.protocol !== "https:" || LOOPBACK_HOSTS.includes(url.hostname);
-    })
-  ) {
-    return null;
-  }
-  return { allowedOrigins, turnstileSecret, ipHashKey };
+  const unsafe = (o: string) => {
+    const url = new URL(o);
+    return url.protocol !== "https:" || LOOPBACK_HOSTS.includes(url.hostname);
+  };
+  if (hosted && allowedOrigins.some(unsafe)) return null;
+  let leadOrigins = parseAllowedOrigins(get("ADMISSIONS_LEAD_ORIGINS"));
+  if (leadOrigins && hosted && leadOrigins.some(unsafe)) leadOrigins = null;
+  return { allowedOrigins, leadOrigins, turnstileSecret, ipHashKey };
 }
 
 /** The leftmost x-forwarded-for entry, else "unknown". Best effort: see
@@ -436,7 +474,8 @@ type ParsedRequest =
       sendEmail: boolean;
     }
   | { action: "draft_get"; draftToken: string }
-  | { action: "draft_delete"; draftToken: string };
+  | { action: "draft_delete"; draftToken: string }
+  | { action: "pdf_gate"; token: string; payload: Record<string, unknown> };
 
 /** Actions whose body may use the larger cap. */
 const LARGE_BODY_ACTIONS = ["application", "draft_create", "draft_save"];
@@ -506,6 +545,15 @@ function parseRequest(text: string): ParsedRequest | "unknown_action" | null {
     const token = turnstileToken(b.turnstile_token);
     if (token === null || !isObject(b.payload)) return null;
     return { action: "inquiry", token, payload: b.payload };
+  }
+  if (b.action === "pdf_gate") {
+    const token = turnstileToken(b.turnstile_token);
+    if (token === null || !isObject(b.payload)) return null;
+    const payload: Record<string, unknown> = {};
+    for (const key of LEAD_PAYLOAD_KEYS) {
+      if (key in b.payload) payload[key] = b.payload[key];
+    }
+    return { action: "pdf_gate", token, payload };
   }
   if (b.action === "upload_session") {
     const token = turnstileToken(b.turnstile_token);
@@ -628,8 +676,12 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     return respond(503, { error: MESSAGES.office }, null);
   }
 
+  // An origin on either list gets a preflight answer; which actions it may
+  // call is checked once the action is known.
   const origin = req.headers.get("origin");
-  if (origin === null || !config.allowedOrigins.includes(origin)) {
+  const staffOrigin = origin !== null && config.allowedOrigins.includes(origin);
+  const leadOrigin = origin !== null && (config.leadOrigins ?? []).includes(origin);
+  if (origin === null || (!staffOrigin && !leadOrigin)) {
     deps.log("origin_refused");
     return respond(403, { error: "Origin not allowed" }, null);
   }
@@ -670,8 +722,14 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     deps.log("too_large");
     return respond(413, { error: MESSAGES.badRequest }, origin);
   }
-  if (parsed.action === "application")
-    return handleApplication(req, parsed, deps, config, origin);
+  // A marketing origin reaches only the PDF gate, and the PDF gate only
+  // from a marketing origin (D-13c).
+  if (!(parsed.action === "pdf_gate" ? leadOrigin : staffOrigin)) {
+    deps.log("origin_refused");
+    return respond(403, { error: "Origin not allowed" }, null);
+  }
+  if (parsed.action === "pdf_gate") return handlePdfGate(req, parsed, deps, config, origin);
+  if (parsed.action === "application") return handleApplication(req, parsed, deps, config, origin);
   if (parsed.action === "upload_session")
     return handleUploadSession(req, parsed.token, deps, config, origin);
   if (parsed.action === "upload_url")
@@ -779,13 +837,11 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   return respond(200, { references: refs }, origin);
 }
 
-/** success, a hostname from the allow-list, and exactly this action. */
-function turnstilePassed(
-  outcome: TurnstileOutcome,
-  config: Config,
-  action: string,
-): boolean {
-  const hostnames = config.allowedOrigins.map((o) => new URL(o).hostname);
+/** success, a hostname from the allow-list, and exactly this action. The
+ * PDF gate checks against the marketing origins instead. */
+function turnstilePassed(outcome: TurnstileOutcome, config: Config, action: string): boolean {
+  const origins = action === "pdf_gate" ? (config.leadOrigins ?? []) : config.allowedOrigins;
+  const hostnames = origins.map((o) => new URL(o).hostname);
   return (
     outcome.success === true &&
     typeof outcome.hostname === "string" &&
@@ -1392,4 +1448,87 @@ async function handleDraft(
       deps.log("draft_deleted");
       return respond(200, { deleted: true }, origin);
   }
+}
+
+/** The PDF gate (see the header): lead_ip, Turnstile, lead_global, then
+ * capture_lead. Every limit gives the same 429. */
+async function handlePdfGate(
+  req: Request,
+  parsed: Extract<ParsedRequest, { action: "pdf_gate" }>,
+  deps: Deps,
+  config: Config,
+  origin: string,
+): Promise<Response> {
+  const office = (outcome: string, status = 429) => {
+    deps.log(outcome);
+    return respond(status, { error: MESSAGES.leadOffice }, origin);
+  };
+
+  let ipKey: string;
+  try {
+    ipKey = await hmacHex(config.ipHashKey, clientIp(req.headers));
+  } catch {
+    return office("lead_ip_hash_failed", 503);
+  }
+  const ipOk = await underLimit(deps, { p_bucket: "lead_ip", p_key_hash: ipKey });
+  if (ipOk === "error") return office("lead_rate_limit_error", 503);
+  if (!ipOk) return office("lead_ip_limited");
+
+  let outcome: TurnstileOutcome;
+  try {
+    outcome = await deps.verifyTurnstile(parsed.token, config.turnstileSecret);
+  } catch {
+    deps.log("lead_turnstile_unavailable");
+    return respond(503, { error: MESSAGES.verify }, origin);
+  }
+  if (!turnstilePassed(outcome, config, "pdf_gate")) {
+    deps.log("lead_turnstile_refused");
+    return respond(400, { error: MESSAGES.verify }, origin);
+  }
+
+  const globalOk = await underLimit(deps, { p_bucket: "lead_global" });
+  if (globalOk === "error") return office("lead_rate_limit_error", 503);
+  if (!globalOk) return office("lead_global_limited");
+
+  let result: RpcResult;
+  try {
+    result = await deps.rpc("capture_lead", {
+      p_source: LEAD_SOURCE,
+      p_payload: parsed.payload,
+    });
+  } catch {
+    deps.log("lead_error");
+    return respond(500, { error: MESSAGES.error }, origin);
+  }
+  if (result.error) {
+    switch (result.error.code) {
+      case "TCS22": {
+        deps.log("lead_invalid");
+        const details = result.error.details;
+        const field = typeof details === "string" && LEAD_FIELDS.includes(details) ? details : null;
+        return respond(
+          400,
+          {
+            error: result.error.message ?? MESSAGES.badRequest,
+            ...(field ? { field } : {}),
+          },
+          origin,
+        );
+      }
+      case "TCS03":
+        deps.log("lead_closed");
+        return respond(409, { error: MESSAGES.leadClosed, code: "closed" }, origin);
+      default: {
+        const code = /^[0-9A-Z]{5}$/.test(result.error.code ?? "") ? result.error.code : "unknown";
+        deps.log(`lead_failed_${code}`);
+        return respond(500, { error: MESSAGES.error }, origin);
+      }
+    }
+  }
+  if (result.data !== true) {
+    deps.log("lead_bad_result");
+    return respond(500, { error: MESSAGES.error }, origin);
+  }
+  deps.log("lead_captured");
+  return respond(200, { ok: true }, origin);
 }

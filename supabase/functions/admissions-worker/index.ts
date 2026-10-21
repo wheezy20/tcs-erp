@@ -7,11 +7,15 @@
 //     secrets (see loadMailConfig in handler.ts): MAIL_MODE, RESEND_API_KEY,
 //     MAIL_FROM, MAIL_REPLY_TO, ADMISSIONS_STAFF_EMAIL, ERP_BASE_URL and
 //     MAIL_DAILY_CEILING (plus RESEND_API_BASE in local test mode only), and
-//     the optional PUBLIC_APPLY_BASE_URL for resume email links (slice 10).
+//     the optional PUBLIC_APPLY_BASE_URL for resume email links (slice 10)
+//     and PDF_GATE_INQUIRY_URL for the enquiry link in the PDF email
+//     (slice 13; without it PDF emails wait with class config).
 //     Set on hosted with `supabase secrets set`; none is logged or returned.
 //     MAIL_MODE unset means mail is off.
 //   - fetch for Resend, with a timeout, and Storage for the sweep, reusing
 //     admissions-public's storage.ts.
+//   - The fees PDF reader (attachment.ts), from the private
+//     admissions-attachments bucket at a fixed path.
 //
 // verify_jwt = false (supabase/config.toml): pg_net calls it with the
 // worker secret header instead of a JWT; handler.ts checks that header
@@ -19,6 +23,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { makeStorage } from "../admissions-public/storage.ts";
+import { makePdfGateReader } from "./attachment.ts";
 import {
   handle,
   loadMailConfig,
@@ -59,5 +64,6 @@ Deno.serve(async (req) => {
     log: (outcome) =>
       console.log(JSON.stringify({ fn: "admissions-worker", outcome })),
     storage: makeStorage(fetch, supabaseUrl, serviceRoleKey),
+    readPdfGate: makePdfGateReader(fetch, supabaseUrl, serviceRoleKey),
   });
 });

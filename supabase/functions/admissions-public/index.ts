@@ -5,6 +5,9 @@
 //       TURNSTILE_SECRET_KEY        Cloudflare Turnstile secret for the ERP widget
 //       IP_HASH_KEY                 HMAC key for per-IP rate limit keys (32+ chars)
 //       ADMISSIONS_ALLOWED_ORIGINS  comma-separated exact origins
+//       ADMISSIONS_LEAD_ORIGINS     the marketing site's exact origins, which may
+//                                   call only pdf_gate (slice 13; optional:
+//                                   unset refuses pdf_gate)
 //     Set with `supabase secrets set` on hosted; locally from the gitignored
 //     supabase/functions/.env. None of them is logged or returned.
 //   - SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, injected by Supabase into
