@@ -95,8 +95,14 @@ Things that shape how this gets built, not just what gets built.
         NoSuchUser bounce, because the mailbox did not exist yet; the
         mailbox now works and the suppression was removed (reported by
         Eyram, 2026-10-21).
-      - **Mail authentication.** Check the SPF, DKIM and DMARC results on a
-        delivered email ("Show original"). Not reported for the hosted test.
+      - [x] **Mail authentication.** SPF, DKIM and DMARC all showed PASS on
+        the hosted test's delivered parent email (Gmail, "Show original";
+        reported by Eyram, 2026-10-21).
+      - **Mail is live; both public switches are closed.** `MAIL_MODE` was
+        left live after the hosted test, and Public inquiries and Public
+        applications are both closed again (reported by Eyram, 2026-10-21).
+        With the switches closed no parent can submit, so nothing new is
+        queued until intake opens.
       - **From address and domain.** Confirm in the Resend dashboard the
         live From address and that its domain is verified. From is
         `TCS Admissions <no-reply@mail.tcsch.edu.gh>`; the bare

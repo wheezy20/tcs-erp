@@ -5153,4 +5153,15 @@ Docs only; nothing run here. Everything below is as reported by Eyram on 2026-10
 - **Why a new go-live item.** A suppressed staff mailbox silently loses every staff alert. Before real intake, confirm `admissions@tcsch.edu.gh` is not on Resend's suppression list and that a test message reaches it quickly.
 - **Docs.** PORT-PLAN: header status, slice 12 status row, the rollout reported section, the accepted risk, the go-live gates (the confirmation email now exists on hosted; the slice 12 checks stay open), and the two test enquiries and their outbox rows on the cleanup list. CONSTRAINTS.md: staff ID item, slice 12 item (status, accepted risk, suppression check, mail authentication check, staff address set, exposed schemas as reported). PLANNING.md: staff ID status.
 
-**Not checked or not reported:** SPF, DKIM and DMARC on the parent email; the matched-family application test; the staff ID click-through; whether both public switches are closed again; `net` absent from exposed schemas by name; where `MAIL_MODE` was left.
+**Not checked or not reported:** the matched-family application test; the staff ID click-through; `net` absent from exposed schemas by name. (SPF, DKIM and DMARC, `MAIL_MODE` and the public switches were reported later the same day; see the next entry.)
+
+## 2026-10-21: Slice 12 hosted test, further answers
+
+Docs only; nothing run here. Reported by Eyram on 2026-10-21:
+
+- **Mail authentication.** SPF, DKIM and DMARC all showed PASS on the delivered parent email (Gmail, "Show original"). That closes the mail authentication go-live check.
+- **Mail left live.** `MAIL_MODE` was left live after the test. The kill switch (`MAIL_MODE=off`) is in PORT-PLAN, rollout step 12.
+- **Intake closed.** Public inquiries and Public applications are both closed again, so no parent can submit and nothing new is queued until intake opens.
+- **Docs.** PORT-PLAN, "Slice 12 rollout reported" and the slice 12 go-live gate; CONSTRAINTS.md, the slice 12 item (mail authentication ticked; mail live and switches closed recorded).
+
+**Still not reported:** the matched-family application test; the staff ID click-through; `net` absent from the exposed schemas by name.
