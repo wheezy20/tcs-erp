@@ -437,6 +437,9 @@ export function buildApplicationPayload(
 export type ApplicationOutcome =
   | { kind: "created"; reference: string }
   | { kind: "closed"; message: string }
+  /** The saved application this form came from was already submitted, from
+   * another window (slice 10): the page locks instead of showing an error. */
+  | { kind: "alreadySubmitted"; message: string }
   | { kind: "refused"; message: string; field?: string; path?: string };
 
 const CHILD_KEYS: Record<string, string> = {
@@ -502,6 +505,8 @@ export function interpretApplicationResponse(status: number, body: unknown): App
     return { kind: "refused", message: APPLICATION_OFFICE_MESSAGE };
   }
   if (status === 409) return { kind: "closed", message };
+  if (status === 400 && isRecord(body) && body.code === "draft_submitted")
+    return { kind: "alreadySubmitted", message };
   if (status === 400) {
     const path = isRecord(body) && typeof body.field === "string" ? body.field : undefined;
     const field = applicationFieldToKey(path);

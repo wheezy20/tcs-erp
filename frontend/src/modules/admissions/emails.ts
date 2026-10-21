@@ -110,6 +110,9 @@ export type EmailHealth = {
   failed: number;
   suppressed: number;
   expired: number;
+  /** Resume emails for saved applications that failed (slice 10). A count
+   * only: staff never see those emails or who saved. */
+  draftFailed: number;
   lastRunAt: string | null;
   lastSuccessAt: string | null;
   ceilingReachedAt: string | null;
@@ -163,6 +166,12 @@ export function healthMessages(h: EmailHealth, now: Date): Array<{ tone: Tone; t
     out.push({
       tone: "problem",
       text: `${plural(h.expired, "email", "emails")} expired: each waited more than 48 hours and was never sent.`,
+    });
+  }
+  if (h.draftFailed > 0) {
+    out.push({
+      tone: "problem",
+      text: `${plural(h.draftFailed, "saved application link email", "saved application link emails")} failed. These are not listed and can't be retried here; a parent who saves again gets a new link.`,
     });
   }
   if (h.suppressed > 0) {

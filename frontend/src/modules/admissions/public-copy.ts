@@ -211,3 +211,74 @@ export const DECLARATION_COPY = {
 export function applicationThankYou(name: string, grade: string, year: string): string {
   return `Thank you! We've received the application for ${name} (${grade}, ${year}). Our admissions team will review your documents and be in touch soon.`;
 }
+
+// ---------------------------------------------------------------- privacy policy
+
+/** The school's privacy policy: the one place its link is set. A published
+ * policy is a go-live gate; until it exists the words are shown without a
+ * link. The policy must describe saved applications (slice 10). */
+export const PRIVACY_POLICY = {
+  text: "the school's privacy policy",
+  url: null as string | null,
+} as const;
+
+// ---------------------------------------------------------------- save and finish later (slice 10)
+
+/** The generic refusal: also the server's wording for the live-draft
+ * limit, which must never say that saved applications exist. */
+export const DRAFT_REFUSED =
+  "We could not save your application right now. Please contact the school office.";
+
+export const SAVE_COPY = {
+  button: "Save and finish later",
+  panelTitle: "Save and finish later",
+  panelIntro:
+    "We will email you a private link so that you can come back and finish this application, on this device or another one.",
+  emailLabel: "Email address for the link",
+  /** The consent line (drafted for Eyram's review, 2026-10-21), in two parts
+   * around the privacy policy, which is linked from PRIVACY_POLICY. */
+  consentBefore:
+    "I agree that Treasures Christian School may keep the answers I have entered on this form, which may include details about my child, and the email address above, so that I can finish my application later. They are kept for 30 days after my last save, and for no more than 60 days in all, and are then deleted. The health questions, uploaded files, the declaration, my signature and media consent are not saved. I can delete my saved application at any time from the emailed link. My saved answers are handled in line with",
+  consentAfter: ".",
+  consentRequired: "Please tick the box to agree before saving.",
+  turnstilePrompt: "Complete this security check to save.",
+  save: "Save and email me a link",
+  saving: "Saving…",
+  close: "Close",
+  saved: (masked: string, until: string) =>
+    `Saved. We have emailed a link to ${masked}. It may take a few minutes to arrive, so please also check your spam folder. Your answers will be kept until ${until} unless you save again.`,
+  savedAgain: (until: string) =>
+    `Saved. Your answers will be kept until ${until}. Use the link we emailed you to come back.`,
+  savedAgainEmailed: (masked: string, until: string) =>
+    `Saved. We have emailed a new link to ${masked}. Your answers will be kept until ${until}.`,
+  saveChanges: "Save changes",
+  emailAgain: "Also email me a new link",
+  /** After a resume email limit: the save was undone, nothing typed is lost. */
+  saveWithoutEmail: "Save without emailing a link",
+  notLost: "Nothing you have typed has been lost.",
+  resumeLoading: "Opening your saved application…",
+  resumed:
+    "Welcome back. Your saved answers are restored. The health questions, uploaded files, the declaration, your signature and media consent were not saved, so please complete them again before you submit.",
+  discard: "Discard this saved application",
+  discardConfirm:
+    "Discard your saved application? This deletes it and clears this form, and cannot be undone.",
+  discarded: "Your saved application has been deleted.",
+  filesAgain: "Files are not saved with your application. Please attach your documents again.",
+  linkProblemTitle: "This link can't be opened",
+  expiredTitle: "This saved application has expired",
+  startNew: "Start a new application",
+  loadFailedTitle: "We could not open your saved application",
+  loadFailed:
+    "We could not open your saved application just now. Please try again in a few minutes, or contact the school office.",
+  retry: "Try again",
+  /** A save naming an older version: another window saved since, or an
+   * earlier save's answer was lost. */
+  versionConflict:
+    "This application was saved again from another window or device. Save what is on this screen to replace that copy, or open your emailed link in a new tab to see it.",
+  saveThisScreen: "Save what is on this screen",
+  stateRefused:
+    "This form could not be saved. Please check what you have typed and try again, or contact the school office.",
+  submittedTitle: "This application has already been submitted",
+  submittedBody:
+    "The school has received it. You should have a confirmation email with your application number. Please contact the school office if you have any questions.",
+} as const;

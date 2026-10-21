@@ -15,6 +15,9 @@ import {
   CONFIRMATION_EMAIL_NOTE,
   applicationThankYou,
   joinNames,
+  DRAFT_REFUSED,
+  PRIVACY_POLICY,
+  SAVE_COPY,
 } from "@/modules/admissions/public-copy";
 
 const DASHES = /[–—]/;
@@ -42,6 +45,9 @@ describe("public form copy", () => {
       SCHOLARSHIP_COPY,
       DECLARATION_SECTIONS,
       DECLARATION_COPY,
+      SAVE_COPY,
+      PRIVACY_POLICY,
+      DRAFT_REFUSED,
     ]))
       expect(s, s).not.toMatch(DASHES);
     expect(applicationThankYou("Kofi", "Grade 3", "2026/2027")).not.toMatch(DASHES);
@@ -153,5 +159,32 @@ describe("joinNames", () => {
     expect(joinNames(["Ama", "Kofi"])).toBe("Ama and Kofi");
     expect(joinNames(["Ama", "", "Kofi", "Esi"])).toBe("Ama, Kofi and Esi");
     expect(joinNames(["", " "])).toBe("");
+  });
+});
+
+describe("save and finish later copy (slice 10)", () => {
+  const consent = `${SAVE_COPY.consentBefore} ${PRIVACY_POLICY.text}${SAVE_COPY.consentAfter}`;
+
+  it("the consent line says what is kept, what is not, how long, how to delete, and names the privacy policy", () => {
+    expect(consent).toMatch(/keep the answers I have entered/);
+    expect(consent).toMatch(/details about my child/);
+    expect(consent).toMatch(/30 days after my last save, and for no more than 60 days in all/);
+    expect(consent).toMatch(/and the email address above/);
+    expect(consent).toMatch(
+      /The health questions, uploaded files, the declaration, my signature and media consent are not saved/,
+    );
+    expect(consent).toMatch(/delete my saved application at any time from the emailed link/);
+    expect(consent).toMatch(/in line with the school's privacy policy\.$/);
+  });
+
+  it("the generic refusal never says that saved applications exist", () => {
+    expect(DRAFT_REFUSED).toBe(
+      "We could not save your application right now. Please contact the school office.",
+    );
+    expect(DRAFT_REFUSED).not.toMatch(/saved|draft|already|exist/i);
+  });
+
+  it("the privacy policy has no link until one is published", () => {
+    expect(PRIVACY_POLICY.url).toBeNull();
   });
 });

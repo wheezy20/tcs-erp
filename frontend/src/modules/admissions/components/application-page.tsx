@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useRouter } from "@tanstack/react-router";
 
 import {
   BlockHeading,
@@ -10,7 +11,11 @@ import {
 } from "@/modules/admissions/components/public-page-parts";
 import { TurnstileWidget } from "@/modules/admissions/components/turnstile-widget";
 import {
+  createDraft,
+  deleteDraft,
+  loadDraft,
   openUploadSession,
+  saveDraft,
   submitApplication,
   uploadDocument,
 } from "@/modules/admissions/data/public-apply";
@@ -29,7 +34,6 @@ import {
   checkFile,
   childAddress,
   emptyApplicationDraft,
-  hasEnteredData,
   requiredDocumentTypes,
   validateApplication,
   type ApplicationDraft,
@@ -71,9 +75,21 @@ import {
   DECLARATION_SECTIONS,
   DOCUMENTS_COPY as DOCS,
   FEE_BOX,
+  PRIVACY_POLICY,
+  SAVE_COPY,
   SCHOLARSHIP_COPY,
   applicationThankYou,
 } from "@/modules/admissions/public-copy";
+import {
+  defaultSaveEmail,
+  fromSavedState,
+  hasUnsavedChanges,
+  keptUntil,
+  readResumeFragment,
+  savedKey,
+  toSavedState,
+  type DraftErrorCode,
+} from "@/modules/admissions/saved-application";
 
 // /apply: the public Application form (admissions slice 9a), in the TCS OS
 // six step layout from slice 9b C2 (TCS OS backend/templates/public/
@@ -87,17 +103,102 @@ import {
 // Two security checks, as in 9a: one opens the upload session (action
 // "upload") at the first upload, in the Documents step; one sends the
 // application (action "application"), inside the Declaration step and
-// mounted only while that step is shown. Steps 5 and 6 keep the 9a
-// content until C3 ports the TCS OS document slots, fee box, scholarship,
-// declaration and media consent.
+// mounted only while that step is shown.
+//
+// Save and finish later (slice 10): a third check (action "draft") on the
+// first save only. The link the parent is emailed opens /apply#resume=<token>;
+// the page reads the fragment once, removes it from the address bar at
+// once, and opens the saved answers. The token is kept in memory only. The
+// health questions, files and the declaration are never saved, so a resumed
+// form asks for them again.
 
 const SITE_KEY = (import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined) ?? "";
 let missingKeyReported = false;
+
+/** What the resume link opened, once it has been read. */
+type Resumed = {
+  draft: ApplicationDraft;
+  step: number;
+  saved: SavedDraft;
+};
+
+type ResumeState =
+  | { status: "none" }
+  | { status: "loading"; token: string }
+  | { status: "ready"; resumed: Resumed }
+  /** retryToken is kept only for a failure worth retrying (the network or
+   * a rate limit), so Retry works without the link. */
+  | { status: "problem"; code: DraftErrorCode; message: string; retryToken: string | null };
 
 export function ApplicationPage() {
   const options = useLoad(getPublicAdmissionsOptions, [], "Could not load the form.");
   const [closedAfterSubmit, setClosedAfterSubmit] = useState(false);
   const [created, setCreated] = useState<{ reference: string; sentence: string } | null>(null);
+  const [resume, setResume] = useState<ResumeState>({ status: "none" });
+  const [locked, setLocked] = useState(false);
+  const [formKey, setFormKey] = useState(0);
+  const [pageNotice, setPageNotice] = useState<string | null>(null);
+  const router = useRouter();
+
+  // The resume link: read the fragment once, then take it out of the
+  // address bar (and so out of history and any later copy of the URL)
+  // before anything else happens. Through the router's own history, so the
+  // router's idea of the location loses the fragment too and never writes
+  // it back.
+  useEffect(() => {
+    const token = readResumeFragment(window.location.hash);
+    if (window.location.hash !== "") {
+      router.history.replace(window.location.pathname + window.location.search);
+    }
+    if (token) setResume({ status: "loading", token });
+    // Once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loaded = options.data;
+  useEffect(() => {
+    if (resume.status !== "loading" || !loaded) return;
+    let cancelled = false;
+    void loadDraft(resume.token).then((a) => {
+      if (cancelled) return;
+      if (a.ok) {
+        setResume({
+          status: "ready",
+          resumed: {
+            draft: fromSavedState(a.state, loaded),
+            step: a.step,
+            saved: {
+              token: resume.token,
+              version: a.version,
+              emailMasked: a.emailMasked,
+              expiresAt: a.expiresAt,
+            },
+          },
+        });
+      } else if (a.code === "closed") {
+        setClosedAfterSubmit(true);
+      } else if (a.code === "draft_submitted") {
+        setLocked(true);
+      } else {
+        const retryable = a.code === "error" || a.code === "draft_limit";
+        setResume({
+          status: "problem",
+          code: a.code,
+          message: retryable ? SAVE_COPY.loadFailed : a.message,
+          retryToken: retryable ? resume.token : null,
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [resume, loaded]);
+
+  const startNew = () => {
+    setResume({ status: "none" });
+    setPageNotice(null);
+    setFormKey((k) => k + 1);
+  };
 
   const view = applicationView({
     loading: options.loading,
@@ -119,6 +220,46 @@ export function ApplicationPage() {
     );
   } else if (view === "created" && created) {
     body = <ThankYou reference={created.reference} sentence={created.sentence} />;
+  } else if (view === "form" && locked) {
+    body = (
+      <PublicNotice title={SAVE_COPY.submittedTitle}>
+        <p>{SAVE_COPY.submittedBody}</p>
+      </PublicNotice>
+    );
+  } else if (view === "form" && resume.status === "loading") {
+    body = <p className="tcs-subtitle">{SAVE_COPY.resumeLoading}</p>;
+  } else if (view === "form" && resume.status === "problem") {
+    body = (
+      <PublicNotice
+        title={
+          resume.retryToken
+            ? SAVE_COPY.loadFailedTitle
+            : resume.code === "draft_expired"
+              ? SAVE_COPY.expiredTitle
+              : SAVE_COPY.linkProblemTitle
+        }
+      >
+        <p>{resume.message}</p>
+        <div className="tcs-save-actions">
+          {resume.retryToken && (
+            <button
+              type="button"
+              className="tcs-nav-btn tcs-primary"
+              onClick={() => setResume({ status: "loading", token: resume.retryToken as string })}
+            >
+              {SAVE_COPY.retry}
+            </button>
+          )}
+          <button
+            type="button"
+            className={`tcs-nav-btn ${resume.retryToken ? "tcs-secondary" : "tcs-primary"}`}
+            onClick={startNew}
+          >
+            {SAVE_COPY.startNew}
+          </button>
+        </div>
+      </PublicNotice>
+    );
   } else if (view === "closed") {
     body = (
       <PublicNotice title={COPY.closedTitle}>
@@ -138,15 +279,39 @@ export function ApplicationPage() {
       </PublicNotice>
     );
   } else {
+    const resumed = resume.status === "ready" ? resume.resumed : null;
     body = (
-      <ApplicationForm
-        options={options.data}
-        onCreated={(reference, sentence) => {
-          setCreated({ reference, sentence });
-          window.scrollTo({ top: 0 });
-        }}
-        onClosed={() => setClosedAfterSubmit(true)}
-      />
+      <>
+        {pageNotice && (
+          <div className="tcs-message tcs-success" role="status">
+            <p>{pageNotice}</p>
+          </div>
+        )}
+        <ApplicationForm
+          // formKey alone is enough: a resume always passes through
+          // "loading", which unmounts the form, so the resumed values are
+          // read by fresh useState initialisers.
+          key={formKey}
+          options={options.data}
+          resumed={resumed}
+          onSaved={() => setPageNotice(null)}
+          onCreated={(reference, sentence) => {
+            setCreated({ reference, sentence });
+            window.scrollTo({ top: 0 });
+          }}
+          onClosed={() => setClosedAfterSubmit(true)}
+          onLocked={() => {
+            setLocked(true);
+            window.scrollTo({ top: 0 });
+          }}
+          onDiscarded={() => {
+            setResume({ status: "none" });
+            setFormKey((k) => k + 1);
+            setPageNotice(SAVE_COPY.discarded);
+            window.scrollTo({ top: 0 });
+          }}
+        />
+      </>
     );
   }
 
@@ -179,18 +344,38 @@ function ThankYou({ reference, sentence }: { reference: string; sentence: string
 
 type Message = { kind: "error"; text: string } | { kind: "incomplete"; steps: number[] };
 
+/** The saved application this form is linked to. The token stays in memory. */
+type SavedDraft = { token: string; version: number; emailMasked: string; expiresAt: string };
+
 function ApplicationForm({
   options,
+  resumed,
+  onSaved,
   onCreated,
   onClosed,
+  onLocked,
+  onDiscarded,
 }: {
   options: PublicOptions;
+  resumed: Resumed | null;
+  onSaved: () => void;
   onCreated: (reference: string, sentence: string) => void;
   onClosed: () => void;
+  onLocked: () => void;
+  onDiscarded: () => void;
 }) {
-  const [draft, setDraft] = useState<ApplicationDraft>(emptyApplicationDraft);
+  const [draft, setDraft] = useState<ApplicationDraft>(
+    () => resumed?.draft ?? emptyApplicationDraft(),
+  );
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(resumed?.step ?? 0);
+  const [saved, setSaved] = useState<SavedDraft | null>(resumed?.saved ?? null);
+  // What the last successful save kept, to tell what has changed since.
+  const [lastSaved, setLastSaved] = useState<string | null>(() =>
+    resumed ? savedKey(resumed.draft) : null,
+  );
+  const [panelOpen, setPanelOpen] = useState(false);
+  const wasResumed = resumed !== null;
   const [uploads, setUploads] = useState<Record<string, UploadedFile | undefined>>({});
   const [uploading, setUploading] = useState<string | null>(null);
   // Per slot: a file going up now or the last attempt failed; uploaded
@@ -212,9 +397,10 @@ function ApplicationForm({
   const [verifyUnavailable, setVerifyUnavailable] = useState(false);
   const today = todayInAccra();
 
-  // Without drafts (slice 10), leaving the page loses everything: warn once
-  // anything has been entered. The browser shows its own wording.
-  const dirty = hasEnteredData(draft, uploads);
+  // Leaving would lose something: changes since the last save, anything in
+  // a part never saved (health, the declaration), or any attached file
+  // (files are never saved). The browser shows its own wording.
+  const dirty = hasUnsavedChanges(draft, lastSaved, uploads);
   useEffect(() => {
     if (!dirty) return;
     const warn = (e: BeforeUnloadEvent) => {
@@ -384,6 +570,7 @@ function ApplicationForm({
         token,
         sessionToken,
         buildApplicationPayload(draft, options, uploads),
+        saved?.token ?? null,
       );
       if (outcome.kind === "created") {
         // TCS OS's sentence, with the name, grade and year as entered.
@@ -397,6 +584,8 @@ function ApplicationForm({
         );
       } else if (outcome.kind === "closed") {
         onClosed();
+      } else if (outcome.kind === "alreadySubmitted") {
+        onLocked();
       } else {
         // A server check the form didn't catch: open its step and show it
         // on the field when it names one.
@@ -558,8 +747,55 @@ function ApplicationForm({
 
   const current = STEPS[step];
 
+  // Focus moves to the panel's heading when it opens and back to the
+  // button that opened it when it closes.
+  const saveLaterRef = useRef<HTMLButtonElement>(null);
+  function openPanel() {
+    setPanelOpen(true);
+    requestAnimationFrame(() => {
+      const heading = document.getElementById("save-panel-title");
+      heading?.focus({ preventScroll: true });
+      document.getElementById("save-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+  function closePanel() {
+    setPanelOpen(false);
+    requestAnimationFrame(() => saveLaterRef.current?.focus());
+  }
+
   return (
     <>
+      {/* Only for the saved application this page opened: a lost one that
+          was saved again is a new one. */}
+      {wasResumed && saved && saved.token === resumed?.saved.token && (
+        <div className="tcs-message tcs-success" role="status">
+          <p>{SAVE_COPY.resumed}</p>
+          <div className="tcs-save-actions">
+            <DiscardButton token={saved.token} onDiscarded={onDiscarded} />
+          </div>
+        </div>
+      )}
+      {panelOpen && (
+        <SavePanel
+          draft={draft}
+          step={step}
+          saved={saved}
+          onSaved={(next, key) => {
+            setSaved(next);
+            setLastSaved(key);
+            onSaved();
+          }}
+          onLost={() => {
+            // The saved copy is gone (expired or deleted): the next save
+            // starts a new one.
+            setSaved(null);
+            setLastSaved(null);
+          }}
+          onClosed={onClosed}
+          onLocked={onLocked}
+          onClose={closePanel}
+        />
+      )}
       {message && (
         <div id="application-message" className="tcs-message tcs-error" role="alert">
           {message.kind === "error" ? (
@@ -1109,6 +1345,11 @@ function ApplicationForm({
               {current.key === "documents" && (
                 <>
                   <p className="tcs-hint tcs-section-hint">{COPY.documentsHint}</p>
+                  {wasResumed && !Object.values(uploads).some(Boolean) && (
+                    <p className="tcs-field-error" role="status">
+                      {SAVE_COPY.filesAgain}
+                    </p>
+                  )}
                   {errors.documents && (
                     <div className="tcs-field-error" role="alert">
                       {errors.documents}
@@ -1366,6 +1607,11 @@ function ApplicationForm({
               </button>
             )}
           </div>
+          <div className="tcs-save-later">
+            <button ref={saveLaterRef} type="button" className="tcs-link-btn" onClick={openPanel}>
+              {SAVE_COPY.button}
+            </button>
+          </div>
         </form>
 
         <nav ref={navRef} className="tcs-section-nav" aria-label="Application sections">
@@ -1391,5 +1637,307 @@ function ApplicationForm({
         </nav>
       </div>
     </>
+  );
+}
+
+/** Deletes the saved application after a confirm: the parent's own
+ * erasure. A link that no longer opens anything counts as deleted. */
+function DiscardButton({ token, onDiscarded }: { token: string; onDiscarded: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <>
+      <button
+        type="button"
+        className="tcs-link-btn"
+        disabled={busy}
+        onClick={async () => {
+          if (!window.confirm(SAVE_COPY.discardConfirm)) return;
+          setBusy(true);
+          setError(null);
+          const a = await deleteDraft(token);
+          setBusy(false);
+          if (a.ok || a.code === "draft_invalid") onDiscarded();
+          else setError(a.message);
+        }}
+      >
+        {SAVE_COPY.discard}
+      </button>
+      {error && <p className="tcs-field-error">{error}</p>}
+    </>
+  );
+}
+
+type PanelNote = {
+  kind: "success" | "error";
+  text: string;
+  /** After a resume email limit on a later save. */
+  offerWithoutEmail?: boolean;
+  /** After a version conflict: the latest version, to save over. */
+  overwriteVersion?: number;
+};
+
+/** Save and finish later. The first save asks for the email (prefilled
+ * from guardian 1), the consent tick and a security check, and emails the
+ * link. Later saves need none of these, and can email a new link. A
+ * resume email limit undoes the save; nothing typed is lost, and a later
+ * save can go again without the email. Outside the form element, so Enter
+ * in its email field can never submit the application. */
+function SavePanel({
+  draft,
+  step,
+  saved,
+  onSaved,
+  onLost,
+  onClosed,
+  onLocked,
+  onClose,
+}: {
+  draft: ApplicationDraft;
+  step: number;
+  saved: SavedDraft | null;
+  onSaved: (saved: SavedDraft, key: string) => void;
+  onLost: () => void;
+  onClosed: () => void;
+  onLocked: () => void;
+  onClose: () => void;
+}) {
+  const [email, setEmail] = useState(() => defaultSaveEmail(draft));
+  const [consent, setConsent] = useState(false);
+  const [turnstile, setTurnstile] = useState("");
+  const [resetKey, setResetKey] = useState(0);
+  const [unavailable, setUnavailable] = useState(false);
+  const [emailAgain, setEmailAgain] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; consent?: string }>({});
+  const [note, setNote] = useState<PanelNote | null>(null);
+  // A ref, not state: a second click in the same tick can't start a second
+  // save (a second first save would make a second draft and email).
+  const sending = useRef(false);
+
+  async function refused(code: DraftErrorCode, text: string, later: boolean) {
+    if (code === "closed") return onClosed();
+    if (code === "draft_submitted") return onLocked();
+    if (code === "email") return setFieldErrors({ email: text });
+    if (code === "consent") return setFieldErrors({ consent: text });
+    if (code === "draft_expired" || code === "draft_invalid") onLost();
+    if (code === "draft_version" && saved) {
+      // Saved from another window, or an earlier save whose answer was
+      // lost. Reloading would lose the link, so read the latest version
+      // and offer to save what is on this screen over it.
+      // Held across the re-read, so a click meanwhile can't save the
+      // stale version again.
+      sending.current = true;
+      setBusy(true);
+      const latest = await loadDraft(saved.token);
+      sending.current = false;
+      setBusy(false);
+      if (latest.ok) {
+        return setNote({
+          kind: "error",
+          text: SAVE_COPY.versionConflict,
+          overwriteVersion: latest.version,
+        });
+      }
+      if (latest.code === "draft_expired" || latest.code === "draft_invalid") onLost();
+      return setNote({ kind: "error", text: latest.message });
+    }
+    setNote({
+      kind: "error",
+      text:
+        code === "draft_email_limit"
+          ? `${text} ${SAVE_COPY.notLost}`
+          : code === "draft_state"
+            ? SAVE_COPY.stateRefused
+            : text,
+      offerWithoutEmail: later && code === "draft_email_limit",
+    });
+  }
+
+  async function save(sendEmail: boolean, overVersion?: number) {
+    if (sending.current) return;
+    setNote(null);
+    setFieldErrors({});
+    const state = toSavedState(draft);
+    // The snapshot this save keeps: typing during the request still counts
+    // as unsaved afterwards.
+    const key = JSON.stringify(state);
+    if (!saved) {
+      if (!consent) return setFieldErrors({ consent: SAVE_COPY.consentRequired });
+      if (turnstile === "") return setNote({ kind: "error", text: COPY.completeCheck });
+      sending.current = true;
+      setBusy(true);
+      const a = await createDraft(turnstile, email.trim(), state, step, true);
+      sending.current = false;
+      setBusy(false);
+      // A token is single use: the next attempt needs a new one.
+      setResetKey((k) => k + 1);
+      setTurnstile("");
+      if (!a.ok) return refused(a.code, a.message, false);
+      onSaved(
+        { token: a.token, version: a.version, emailMasked: a.emailMasked, expiresAt: a.expiresAt },
+        key,
+      );
+      setNote({ kind: "success", text: SAVE_COPY.saved(a.emailMasked, keptUntil(a.expiresAt)) });
+      return;
+    }
+    sending.current = true;
+    setBusy(true);
+    const a = await saveDraft(saved.token, state, step, overVersion ?? saved.version, sendEmail);
+    sending.current = false;
+    setBusy(false);
+    if (!a.ok) return refused(a.code, a.message, true);
+    onSaved(
+      { ...saved, version: a.version, emailMasked: a.emailMasked, expiresAt: a.expiresAt },
+      key,
+    );
+    setEmailAgain(false);
+    setNote({
+      kind: "success",
+      text: a.emailQueued
+        ? SAVE_COPY.savedAgainEmailed(a.emailMasked, keptUntil(a.expiresAt))
+        : SAVE_COPY.savedAgain(keptUntil(a.expiresAt)),
+    });
+  }
+
+  return (
+    <div
+      id="save-panel"
+      className="tcs-card tcs-save-panel"
+      role="region"
+      aria-labelledby="save-panel-title"
+    >
+      <h2 id="save-panel-title" tabIndex={-1}>
+        {SAVE_COPY.panelTitle}
+      </h2>
+      {!saved ? (
+        <>
+          <p>{SAVE_COPY.panelIntro}</p>
+          <PField id="save-email" label={SAVE_COPY.emailLabel} required error={fieldErrors.email}>
+            <input
+              id="save-email"
+              type="email"
+              inputMode="email"
+              maxLength={254}
+              aria-invalid={fieldErrors.email ? true : undefined}
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setFieldErrors((f) => ({ ...f, email: undefined }));
+              }}
+            />
+          </PField>
+          <div className="tcs-field">
+            <div className="tcs-checkbox-field tcs-standalone">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={consent}
+                  aria-invalid={fieldErrors.consent ? true : undefined}
+                  aria-describedby={fieldErrors.consent ? "save-consent-error" : undefined}
+                  onChange={(e) => {
+                    setConsent(e.target.checked);
+                    setFieldErrors((f) => ({ ...f, consent: undefined }));
+                  }}
+                />
+                <span>
+                  {SAVE_COPY.consentBefore}{" "}
+                  {PRIVACY_POLICY.url ? (
+                    <a href={PRIVACY_POLICY.url} target="_blank" rel="noopener noreferrer">
+                      {PRIVACY_POLICY.text}
+                    </a>
+                  ) : (
+                    PRIVACY_POLICY.text
+                  )}
+                  {SAVE_COPY.consentAfter}{" "}
+                  <span className="tcs-required" aria-hidden="true">
+                    *
+                  </span>
+                </span>
+              </label>
+            </div>
+            {fieldErrors.consent && (
+              <div id="save-consent-error" className="tcs-field-error">
+                {fieldErrors.consent}
+              </div>
+            )}
+          </div>
+          <div className="tcs-turnstile">
+            <p className="tcs-question">{SAVE_COPY.turnstilePrompt}</p>
+            {unavailable ? (
+              <p className="tcs-field-error">
+                The security check couldn't load. {APPLICATION_OFFICE_MESSAGE}
+              </p>
+            ) : (
+              <TurnstileWidget
+                siteKey={SITE_KEY}
+                action="draft"
+                resetKey={resetKey}
+                onToken={setTurnstile}
+                onUnavailable={() => setUnavailable(true)}
+              />
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="tcs-checkbox-field tcs-standalone">
+          <label>
+            <input
+              type="checkbox"
+              checked={emailAgain}
+              onChange={(e) => setEmailAgain(e.target.checked)}
+            />
+            <span>{SAVE_COPY.emailAgain}</span>
+          </label>
+        </div>
+      )}
+      {/* Both live regions stay mounted, so what is put in them is
+          announced. */}
+      <div role="status" aria-live="polite">
+        {note?.kind === "success" && (
+          <div className="tcs-message tcs-success" style={{ marginTop: "1rem", marginBottom: 0 }}>
+            <p>{note.text}</p>
+          </div>
+        )}
+      </div>
+      <div role="alert">
+        {note?.kind === "error" && (
+          <div className="tcs-message tcs-error" style={{ marginTop: "1rem", marginBottom: 0 }}>
+            <p>{note.text}</p>
+            {(note.offerWithoutEmail || note.overwriteVersion !== undefined) && (
+              <div className="tcs-save-actions">
+                <button
+                  type="button"
+                  className="tcs-nav-btn tcs-secondary"
+                  disabled={busy}
+                  onClick={() =>
+                    note.overwriteVersion !== undefined
+                      ? void save(emailAgain, note.overwriteVersion)
+                      : void save(false)
+                  }
+                >
+                  {note.overwriteVersion !== undefined
+                    ? SAVE_COPY.saveThisScreen
+                    : SAVE_COPY.saveWithoutEmail}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="tcs-save-actions">
+        <button
+          type="button"
+          className="tcs-nav-btn tcs-primary"
+          disabled={busy || (!saved && unavailable)}
+          onClick={() => void save(saved ? emailAgain : true)}
+        >
+          {busy ? SAVE_COPY.saving : saved ? SAVE_COPY.saveChanges : SAVE_COPY.save}
+        </button>
+        <button type="button" className="tcs-nav-btn tcs-secondary" onClick={onClose}>
+          {SAVE_COPY.close}
+        </button>
+      </div>
+    </div>
   );
 }

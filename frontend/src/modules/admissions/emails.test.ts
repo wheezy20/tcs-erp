@@ -19,6 +19,7 @@ const HEALTHY: EmailHealth = {
   failed: 0,
   suppressed: 0,
   expired: 0,
+  draftFailed: 0,
   lastRunAt: ago(1),
   lastSuccessAt: ago(1),
   ceilingReachedAt: null,
@@ -137,5 +138,18 @@ describe("healthMessages", () => {
       NOW,
     );
     for (const x of all) expect(x.text).not.toMatch(/[\u2013\u2014]/);
+  });
+});
+
+describe("saved application link emails (slice 10)", () => {
+  it("a failed count shows as a problem, says it can't be retried here, and names nobody", () => {
+    const m = healthMessages({ ...HEALTHY, draftFailed: 2 }, NOW);
+    expect(m[0]).toEqual({
+      tone: "problem",
+      text: "2 saved application link emails failed. These are not listed and can't be retried here; a parent who saves again gets a new link.",
+    });
+    expect(healthMessages({ ...HEALTHY, draftFailed: 1 }, NOW)[0].text).toMatch(
+      /^1 saved application link email failed\./,
+    );
   });
 });

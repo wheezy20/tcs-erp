@@ -57,9 +57,9 @@ Things that shape how this gets built, not just what gets built.
       moves to the ERP. The application declaration is ported without a link
       until then; once the policy is published, one link goes into the
       declaration copy constant. Recorded in PORT-PLAN, "Go-live gates still
-      open". Not yet written (reported by Eyram, 2026-10-15).
+      open". Not yet written (reported by Eyram, 2026-10-15). From slice 10 (recorded 2026-10-21) the policy must also describe saved applications: what is kept (the answers entered, which may include details about the child, and the email address), kept for 30 days after the last save and for 60 days at most in all, then deleted; that the health questions, uploaded files, the declaration, the signature and media consent are not saved; and that a saved application can be deleted from the emailed link.
 - [ ] Go-live test data cleanup (planned 2026-10-15, slice 9b C4). Every test
-      inquiry, application, file, family and upload session on hosted is
+      inquiry, application, file, family, upload session and saved application draft on hosted is
       removed before real intake opens, once, after the privacy policy, the
       confirmation email and the last hosted test. Eyram names each test
       record by reference; files go through the Storage API or the
@@ -68,6 +68,23 @@ Things that shape how this gets built, not just what gets built.
 - [ ] Stored declaration version (backlog, 2026-10-15). Decide before real
       intake whether each application records which declaration text was
       agreed, since the privacy policy link changes that text.
+- [ ] Saved applications (slice 10, recorded 2026-10-21). Built locally in
+      C1 to C3 (C1 as dcbff52, C2 as 3ec9468, C3 uncommitted); nothing is on
+      hosted. Before real intake:
+      - **Consent wording review.** The consent line on the save panel is
+        drafted for Eyram's review and is not decided. It is in
+        `public-copy.ts`.
+      - **Privacy policy.** It must describe saved applications (the privacy
+        policy item above).
+      - **Erasure requests.** Recorded 2026-10-21 as the handling plan, not yet
+        reported by Eyram: an erasure request for a saved application is
+        handled by Eyram deleting the draft by the email address on hosted,
+        with a reviewed SQL statement. That is a production step, run by Eyram.
+      - **No staff draft access, by design.** No API role has a privilege on
+        `application_drafts` or `application_draft_links`, and RLS has no policy
+        on them. Staff see only a count of failed resume emails on the email
+        health page.
+      - **Hosted test.** The slice 10 rollout handover in PORT-PLAN is not run.
 - [ ] Confirmation email go-live checks (slice 12, decided 2026-10-16,
       2026-10-18 and 2026-10-20). Committed as a929511 and 8a45e04. Applied,
       deployed and set on hosted, and a hosted test delivered the parent

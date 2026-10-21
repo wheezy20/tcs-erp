@@ -742,3 +742,29 @@ body.tcs-public-body {
     font-size: 1rem;
   }
 }
+
+/* Save and finish later (slice 10) */
+.tcs-public .tcs-save-later {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.tcs-public .tcs-save-panel {
+  margin-bottom: 1.25rem;
+}
+
+.tcs-public .tcs-save-panel h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem;
+}
+
+.tcs-public .tcs-save-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.tcs-public .tcs-message .tcs-save-actions {
+  margin-top: 0.75rem;
+}

@@ -264,6 +264,7 @@ function HealthStrip({ health }: { health: LoadState<EmailHealth> }) {
     ["Failed", h.failed],
     ["Expired", h.expired],
     ["Address limit", h.suppressed],
+    ["Saved application links failed", h.draftFailed],
   ];
   return (
     <section className="card-surface p-6">

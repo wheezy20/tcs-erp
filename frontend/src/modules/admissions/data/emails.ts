@@ -55,6 +55,7 @@ export async function getEmailHealth(): Promise<EmailHealth> {
     failed: h?.failed ?? 0,
     suppressed: h?.suppressed ?? 0,
     expired: h?.expired ?? 0,
+    draftFailed: h?.draft_failed ?? 0,
     lastRunAt: h?.last_run_at ?? null,
     lastSuccessAt: h?.last_success_at ?? null,
     ceilingReachedAt: h?.ceiling_reached_at ?? null,

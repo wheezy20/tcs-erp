@@ -298,6 +298,19 @@ describe("responses", () => {
     }
   });
 
+  it("a saved application already submitted from another window locks the form (slice 10)", () => {
+    expect(
+      interpretApplicationResponse(400, {
+        error: "This application has already been submitted.",
+        code: "draft_submitted",
+      }),
+    ).toEqual({
+      kind: "alreadySubmitted",
+      message: "This application has already been submitted.",
+    });
+    expect(interpretApplicationResponse(400, { error: "m", code: "other" }).kind).toBe("refused");
+  });
+
   it("maps refusals, keeping the server's path", () => {
     expect(interpretApplicationResponse(409, { error: "closed" })).toEqual({
       kind: "closed",

@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is built locally: C1 is committed as dcbff52, C2 as 3ec9468, and C3 is built and uncommitted. Nothing is on hosted (see "Slice 10 as built (local only)"). The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -43,7 +43,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 8 | Public request path (Edge Function, Turnstile, rate limits, intake flag) + public Inquiry form | committed (c71b363, 6842848), migrations applied on hosted (reported by Eyram, 2026-10-14) | 7b |
 | 8b | Public enquiry form polish and two intake switches | committed (32eae11, c3943d8, 7d80735), migrations applied on hosted (reported by Eyram, 2026-10-14) | 8 |
 | 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) committed as c822b56; migration `20261024100000` applied on hosted and `admissions-public` deployed on hosted at version 3 (reported by Eyram, 2026-10-15). 9a checkpoint 2 committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). 9b checkpoint C1 (look foundation and `/inquiry`) committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15); 9b checkpoint C2 (`/apply` six-step layout) committed as 8393551; 9b checkpoint C3 (`/apply` content) committed as 14582d0, deployed with C2 and checked on hosted by Eyram (reported by Eyram, 2026-10-15); C4 close-out written locally 2026-10-15, docs only, uncommitted (decided 2026-10-15; split into 9a and 9b on 2026-10-13) | 8 |
-| 10 | Application drafts: save/resume tokens | not started | 9 |
+| 10 | Application drafts: save/resume tokens | built locally (C1, C2 committed; C3 uncommitted), not on hosted | 9 |
 | 11 | Public offer response page | not started | 8, 6b |
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | C1 committed (a929511), C2 and C3 committed (8a45e04). Migrations applied, `admissions-worker` deployed (version 1), secrets and worker URL set, frontend deployed, and a hosted test delivered both emails (reported by Eyram, 2026-10-20 and 2026-10-21). See "Slice 12 as built" and "Slice 12 rollout reported" | 8 (and 6, 9, 10 for the emails it sends) |
 | 13 | Lead capture (marketing-site endpoints) | not started | 8, 12 |
@@ -56,7 +56,8 @@ Slice 0 is independent of admissions and can run first or in parallel.
 
 Every gate here must be closed before the step it names. Each one is also listed in its slice below.
 
-- **Published privacy policy (decided 2026-10-15, slice 9b).** A privacy policy must be published before real admissions intake opens, and before admissions.tcsch.edu.gh moves to the ERP (slice 15). The policy is being written (reported by Eyram, 2026-10-15). When it exists, add one link in one place: the declaration copy constant. Until then the declaration is ported exactly as TCS OS has it, with no link. Also a CONSTRAINTS.md checklist item.
+- **Published privacy policy (decided 2026-10-15, slice 9b).** A privacy policy must be published before real admissions intake opens, and before admissions.tcsch.edu.gh moves to the ERP (slice 15). The policy is being written (reported by Eyram, 2026-10-15). When it exists, add one link in one place: the declaration copy constant. Until then the declaration is ported exactly as TCS OS has it, with no link. From slice 10 the policy must also describe saved applications (what is kept, 30 days after the last save and 60 days at most in all, and deletion from the emailed link); see CONSTRAINTS.md. Also a CONSTRAINTS.md checklist item.
+- **Saved applications go-live checks (slice 10, added 2026-10-21).** Before real intake: Resend click and open tracking off for `mail.tcsch.edu.gh` (handover step 0); the consent wording reviewed (drafted, not yet decided); the privacy policy describes saved applications (above); the slice 10 hosted test run in the handover order; `PUBLIC_APPLY_BASE_URL` set to the origin that serves `/apply`. Also CONSTRAINTS.md checklist items.
 - **Go-live test data cleanup.** Every test record on hosted must be removed before real intake opens. The plan is in "Go-live test data cleanup plan" below (written 2026-10-15, plan only, nothing run). The records known so far:
   - **"ZZ Test Do Not Process" (slice 8b).** One test inquiry on hosted.
   - **Live-test application (slice 9a, rollout step 4).** The application created by the D-9k live test. The test was done and checked out (reported by Eyram, 2026-10-15).
@@ -1466,9 +1467,18 @@ The token functions are token-gated, so any caller holding the token succeeds.
 
 **Size:** one table, four RPCs, two Edge Function actions, and resume wiring on the existing form.
 
-### Slice 10 as built (in progress, local only)
+### Slice 10 as built (local only)
 
-The text above is the original plan, kept for history. Slice 10 was planned again on 2026-10-21 and approved by Eyram with D-10a to D-10l the same day. C1 (the database) is committed as dcbff52. C2 (the Edge Functions) is built and uncommitted. C3 (the form) is not started. Nothing is on hosted. The full record comes with the slice close-out.
+The text above is the original plan, kept for history. Slice 10 was planned again on 2026-10-21 and approved by Eyram with D-10a to D-10l the same day. C1 (the database) is committed as dcbff52. C2 (the Edge Functions) is committed as 3ec9468. C3 (the form) is built and uncommitted. Nothing is on hosted. The full record comes with the slice close-out (JOURNAL, 2026-10-21).
+
+**Built (local only):**
+
+- **C1, database (dcbff52).** Migration `20261028100000_admissions_drafts.sql`: tables `application_drafts` and `application_draft_links`, RLS on with no policy and no API privilege; a state check (an allowlist of keys) that refuses `health`, `documents`, `signature`, `agreed` and `mediaConsent` at every level; a 48 KB size cap; outbox kind `draft_resume` with `params {}` and a `draft_id`. Resume emails are left out of the 4 per address confirmation cap, out of `list_admissions_emails` and out of requeue. `get_admissions_email_health` counts exclude them and gain `draft_failed`. Housekeeping wipes expired drafts, deletes a draft 30 days after expiry or submission, purges resume rows after 7 days, and drops a wiped or submitted draft's waiting resume rows. Migration `20261028110000_admissions_draft_rpcs.sql`: service-role-only `create`, `get`, `save`, `delete`, `issue_application_draft_link` and `submit_application_from_draft`. `submit_application` is unchanged.
+- **C2, Edge functions (3ec9468).** Migration `20261029100000_admissions_draft_edge_support.sql`: DETAIL codes `draft_limit` and `draft_email_limit`; `issue_application_draft_link` returns `issued`, `expired` (marks the row expired when the switch is closed, or the draft expired or was submitted) or `failed`. `20261028110000` was changed in C2 (49 lines). `admissions-public` actions: `draft_create` (`draft_ip`, Turnstile action `draft`, `draft_global`), `draft_save`, `draft_get`, `draft_delete` (`draft_use_ip`, token gated), and `application` with an optional `draft_token`. Tokens travel only in POST bodies. The live-draft limit and the rate limits return one generic refusal: "We could not save your application right now. Please contact the school office." `admissions-worker`: an unreadable claimed row is failed on its own (the batch fix); the resume link is minted between claim and send and never logged or stored; resume emails send with `Idempotency-Key: outbox-<id>-<attempt>`; a second link request in one claim counts as a failed attempt; the worker reads the optional `PUBLIC_APPLY_BASE_URL`; template "Your saved application".
+- **C3, form (uncommitted).** `frontend/src/modules/admissions/saved-application.ts` (`toSavedState` and `fromSavedState`, which re-check every value against the current options; `hasUnsavedChanges`; `readResumeFragment`). The save panel on `/apply`: the email is prefilled from guardian 1, a consent tick, Turnstile on the first save only. A later save can email a new link. A resume email limit undoes that save, and later saves offer "Save without emailing a link". A version conflict re-reads the latest version and offers "Save what is on this screen". Resume is at `/apply#resume=<64 hex>`, stripped at once through the router's history. A welcome banner with Discard; files are re-attached by hand on resume; the form locks when the draft is already submitted; the leave page warning covers only unsaved changes, parts never saved and attached files. The staff email health strip shows "Saved application links failed". Copy is in `public-copy.ts` (`SAVE_COPY`, `DRAFT_REFUSED`, `PRIVACY_POLICY`; the policy URL is null until the policy is published, and that is the one place the link goes). A test ties the 30 and 60 day numbers to the migration.
+- **Review decisions (Eyram, 2026-10-21).** An expired draft (not failed) also for submitted and expired drafts; a first save that hits the resume email limit is simply refused; old Prettier mismatches in the public handler files are left alone.
+- **Verification (local, test-runner end pass 2026-10-21, then the main session after fix round 1).** Fresh reset; overload check clean; types identical; anon-executable 170; 50 of 50 probe files green (new D1 to D9, B1 to B10, L1 to L3); Edge unit tests admissions-public 62, worker 30, templates 13; integration tests integration 7, upload 7, submit 6, draft 6, worker 7 (fake provider, no real email); lint 0 errors and 13 warnings (baseline); `tsc` clean; vitest 216, run after the health strip count was added; build ok; no service role key in `dist/client`; Prettier clean on the changed files. Golden payroll suite not run: no payroll, audit action or audit policy was touched.
+- **Not done:** no browser run of the form locally; the hosted test is in the handover below.
 
 **Decisions (Eyram, 2026-10-21):** drafts hold no health answers at all (D-10d), no files (D-10c) and no declaration, signature or media consent; 30 days from the last save, at most 60 from creation (D-10a); wiped at expiry, deleted 30 days later, resume email rows kept 7 days (D-10b); an explicit save button only, no autosave; the resume link's token is minted at send time and only its hash stored; staff see no drafts, only a count of failed resume emails on the email health page; a resume email limit is shown to the parent, the save is undone, and the page offers to save again without the email; the live-draft limit gives only "We could not save your application right now. Please contact the school office."; a resume email no longer needed while public applications are closed (or whose draft expired or was submitted) is marked expired, not failed. Accepted in C1: the per-draft daily email cap is dropped (the per-address cap of 3 always binds first), one link per worker claim, the link backstop cap is 61.
 
@@ -1482,6 +1492,89 @@ The text above is the original plan, kept for history. Slice 10 was planned agai
 **Cutover additions:** `PUBLIC_APPLY_BASE_URL` and `ADMISSIONS_ALLOWED_ORIGINS` change to `admissions.tcsch.edu.gh` at cutover ("Cutover runbook", step 4). Resend click and open tracking must be off for `mail.tcsch.edu.gh` (CONSTRAINTS.md checklist; Eyram checks).
 
 **Rollout order (for the handover):** deploy the new `admissions-worker` before `npx supabase db push`. The old worker would otherwise fail the claim for its whole batch when it met a `draft_resume` row.
+
+### Slice 10 rollout handover (Eyram runs every step; none run here)
+
+Do the steps in order. Stop at any step whose check doesn't match. Nothing in this section has been run on hosted.
+
+**0. Before you start.**
+
+- C3 committed; `git status` clean, on `main`.
+- Resend dashboard, Domains, `mail.tcsch.edu.gh`: **click tracking and open tracking both off** (CONSTRAINTS.md checklist). A resume email carries a private link; click tracking would rewrite it through Resend's tracking host. Do not continue until both are off.
+- Note: `MAIL_MODE` is live on hosted (reported 2026-10-21), so step 6 sends real email, to your own address only.
+
+**1. Backups.** Dashboard, Database, Backups: a backup from today exists. Optionally the local dumps as in the slice 12 handover (encrypted disk, delete after the checks).
+
+**2. Deploy the worker first.** It reads resume emails safely, and until the migrations are applied there are none.
+
+```sh
+npx supabase functions deploy admissions-worker --no-verify-jwt
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  "https://<project-ref>.supabase.co/functions/v1/admissions-worker" \
+  -H 'content-type: application/json' -d '{"job":"mail"}'
+# 401: refused without the secret
+```
+
+**3. Database.**
+
+```sh
+npx supabase db push --dry-run
+```
+
+It must list exactly these three, in this order, and nothing else: `20261028100000_admissions_drafts.sql`, `20261028110000_admissions_draft_rpcs.sql`, `20261029100000_admissions_draft_edge_support.sql`. Then:
+
+```sh
+npx supabase db push
+```
+
+Read-only checks in the SQL editor:
+
+```sql
+select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');   -- 170
+select count(*) from public.application_drafts;                                    -- 0
+select has_table_privilege('anon', 'public.application_drafts', 'select'),
+       has_table_privilege('authenticated', 'public.application_drafts', 'select'); -- f, f
+select jobname from cron.job where jobname like 'admissions-%' order by jobname;    -- the same 4 jobs
+```
+
+**4. Deploy the public function.**
+
+```sh
+npx supabase functions deploy admissions-public --no-verify-jwt
+```
+
+**5. The resume link base.** The public origin that serves `/apply` today, exactly as it appears in `ADMISSIONS_ALLOWED_ORIGINS` (https, no path, no trailing slash). Not a secret value, but it is a function secret so the worker can read it:
+
+```sh
+npx supabase secrets set PUBLIC_APPLY_BASE_URL=https://<the origin that serves /apply>
+npx supabase secrets list   # names only
+```
+
+Until this is set, confirmation emails still go and resume emails wait (the staff page shows a mail settings problem). At cutover it changes to `https://admissions.tcsch.edu.gh` ("Cutover runbook", step 4).
+
+**6. Frontend, last.**
+
+```sh
+cd frontend && ./scripts/deploy-production.sh
+```
+
+Never a bare `wrangler deploy` (CONSTRAINTS.md, "Deployment").
+
+**7. Hosted test with your own address.** Every record made here joins the go-live cleanup list.
+
+1. Sign in as Manager and open Public applications.
+2. On `/apply`, enter guardian 1 with your own email, a child named "ZZ Test Do Not Process", and answer a health question. Press "Save and finish later", check the email is prefilled, tick the consent box, complete the security check and save. The panel says the link was emailed to your masked address and the date it is kept until.
+3. Admissions Emails: the resume email is **not** listed (by design) and "Saved application links failed" is 0.
+4. In your inbox, "Your saved application" from `TCS Admissions <no-reply@mail.tcsch.edu.gh>`: no names, no dashes, one link `<PUBLIC_APPLY_BASE_URL>/apply#resume=…`. Hover the link: it points to your own origin, not a Resend tracking host.
+5. Open the link in a private window. The address bar loses the `#resume=…` part at once; pressing Back doesn't bring it back. The banner says your answers are restored; the health question is blank again; on Documents a notice says files must be attached again.
+6. Change a field and close the tab: the browser warns. Save again (no security check this time).
+7. Attach a fee proof, answer the health questions, complete the declaration, submit. You get the APP reference and a confirmation email. Opening the resume link again now says the application has already been submitted.
+8. Close Public applications. Optionally, check in the SQL editor that the draft is wiped: `select submitted_at is not null, data, email from public.application_drafts order by created_at desc limit 1;` (true, `{}`, null).
+
+**8. Cleanup.** Add to the go-live cleanup: the test application and its outbox rows, the test draft (deleted by housekeeping 30 days after submission, or by hand). Decide whether to leave mail live.
+
+**If something goes wrong.** `npx supabase secrets set MAIL_MODE=off` stops all sending at the next run. Closing Public applications stops new drafts (create, open and save all refuse while it is closed; delete still works).
 
 ## Slice 11 — Public offer response page
 
@@ -2064,8 +2157,9 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-9n | Turnstile on submit | **Decided 2026-10-15:** a second Turnstile solve, action `application`, after the upload session's solve. |
 | D-9o | Repeat submit on a used session | **Decided 2026-10-15:** returns the same APP reference, and writes and counts nothing. |
 | D-9p | Which family a submission matches | **Decided 2026-10-15:** the oldest family with a guardian email match that holds a child with the same name and date of birth; else the oldest such family. |
-| D-10a | Draft TTL | 30 days; confirm the live value. |
-| D-10b | Draft purge | 30 days after expiry. |
+| D-10a | Draft TTL | **Decided 2026-10-21:** 30 days from the last save (sliding), at most 60 days from creation. The live TCS OS value check from the original plan is not reported. |
+| D-10b | Draft purge | **Decided 2026-10-21:** wiped at expiry; deleted 30 days after expiry or submission; resume email rows kept 7 days. |
+| D-10c to D-10l | Files, health answers, declaration and consent, save model, link minting, staff visibility, limits, expired versus failed | **Decided 2026-10-21.** See "Slice 10 as built (local only)". Individual IDs are not mapped here; D-10c is no files and D-10d is no health answers. |
 | D-11a | Offer page shows the child's name before response | First name and grade. |
 | D-12a | Email provider | **Decided 2026-10-16:** Resend HTTP API, a separate ERP key limited to `mail.tcsch.edu.gh`, as a function secret. |
 | D-12b | Email queue | **Decided 2026-10-16:** outbox in the submit transaction, the `admissions-worker` Edge Function, pg_cron and pg_net. |
@@ -2221,7 +2315,8 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 | Reference counters | `INQ-2026` and `APP-2026` advanced by the tests | none | **left.** The first real reference continues the sequence, leaving a gap. Resetting would reuse references that the kept audit rows already name. Eyram's call; the recommendation is no reset | none |
 | Staff IDs (HR, `20261026100000`, added 2026-10-16) | none: the migration is built locally only and not applied on hosted. After the push, any employee approved on hosted gets a 2026 ID. Rule for now: test approvals happen locally only | employee names through `employee_id`; the ID itself is not personal | **left, by rule, not by script.** `staff_numbers.employee_id` is `on delete restrict` and a trigger refuses deleting any issued row, so a test employee who got an ID can't be deleted. The `staff_number_issued` audit rows are kept (append-only). `staff_number_counters` only moves forward; any reset or ID removal needs its own reviewed hand script | the delete trigger, the restrict key and the append-only audit log; see CONSTRAINTS.md, the staff ID checklist item |
 | `admissions_email_outbox` (slice 12) | the rows of the two slice 12 hosted test enquiries (reported by Eyram, 2026-10-21), and any later hosted test: a confirmation row and a staff alert row each (`application_ids` holds the test application ids, `params` their references) | the recipient email address and the references | deleted by the same script, matched by the test application ids | the Resend log keeps its own copy outside the database for its retention period |
-| Later slices (will exist) | slice 10 drafts and tokens, slice 11 offer tokens, slice 13 leads, slice 14 campaigns and unsubscribe rows | varies | each slice that adds a table adds a row here before the cleanup is run | to be planned with each slice |
+| Application drafts (slice 10, built locally, not on hosted) | the test drafts and their links (`application_drafts`, `application_draft_links`), named by draft id from the hosted test; the `draft_resume` rows in `admissions_email_outbox`, matched by `draft_id`; and the Resend log copies of the test resume emails | the email address and the answers a test draft holds (names and test child details; never health answers, files or declaration) | deleted by the same script: link rows first, then drafts, then the outbox rows; no document rows or files are involved | housekeeping deletes a submitted draft 30 days after submission and wipes an expired one, but an open test draft must be deleted by hand; the Resend log keeps its own copy of each test resume email outside the database, for its retention period |
+| Later slices (will exist) | slice 11 offer tokens, slice 13 leads, slice 14 campaigns and unsubscribe rows | varies | each slice that adds a table adds a row here before the cleanup is run | to be planned with each slice |
 
 **Stop conditions (the script refuses, and Eyram decides separately):** a test record at `enrolled` or with a `student_id` (a STUDENT counter was used); an accepted offer; a target family that also holds a student with a non-test application; a guardian email of a target family that also appears in a non-test family; a file in the bucket attached to a non-test application; either public switch open.
 

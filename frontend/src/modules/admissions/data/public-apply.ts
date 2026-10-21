@@ -4,6 +4,18 @@ import {
   type ApplicationOutcome,
   type UploadedFile,
 } from "@/modules/admissions/application-form";
+import {
+  interpretCreate,
+  interpretLoad,
+  interpretSave,
+  draftError,
+  type CreateAnswer,
+  type DraftError,
+  type LoadAnswer,
+  type SaveAnswer,
+  type SavedApplicationState,
+} from "@/modules/admissions/saved-application";
+import { DRAFT_REFUSED } from "@/modules/admissions/public-copy";
 
 // The plain public Application form's calls (admissions slice 9a). None
 // needs a session. Everything goes to the admissions-public Edge Function,
@@ -11,6 +23,10 @@ import {
 // one exception is the file itself, which goes straight to Storage with
 // the single-use, single-path upload token the function signed. Nothing
 // secret is sent from here.
+//
+// Saved applications (slice 10) go through the same function. The draft
+// token lives only in the page's memory and in these POST bodies: never in
+// a URL, in storage or in a log.
 
 const BUCKET = "admissions-documents";
 
@@ -101,17 +117,70 @@ export async function uploadDocument(
   return { reservationId: b.reservation_id, path: b.path, fileName: file.name };
 }
 
-/** The final submit: a second Turnstile solve (action "application"). */
+/** The final submit: a second Turnstile solve (action "application").
+ * With a draft token, the saved application is retired in the same
+ * transaction (slice 10). */
 export async function submitApplication(
   turnstileToken: string,
   sessionToken: string,
   payload: Record<string, unknown>,
+  draftToken: string | null = null,
 ): Promise<ApplicationOutcome> {
   const a = await call({
     action: "application",
     turnstile_token: turnstileToken,
     session_token: sessionToken,
     payload,
+    ...(draftToken ? { draft_token: draftToken } : {}),
   });
   return interpretApplicationResponse(a.status, a.body);
+}
+
+// ---------------------------------------------------------------- saved applications
+
+/** The first save: Turnstile (action "draft"), the email and the consent
+ * tick. Also queues the first resume email. */
+export async function createDraft(
+  turnstileToken: string,
+  email: string,
+  state: SavedApplicationState,
+  step: number,
+  consent: boolean,
+): Promise<CreateAnswer> {
+  const a = await call({
+    action: "draft_create",
+    turnstile_token: turnstileToken,
+    payload: { email, state, step, consent },
+  });
+  return interpretCreate(a.status, a.body, DRAFT_REFUSED);
+}
+
+/** A later save, with the version last seen; optionally a new link. */
+export async function saveDraft(
+  draftToken: string,
+  state: SavedApplicationState,
+  step: number,
+  version: number,
+  sendEmail: boolean,
+): Promise<SaveAnswer> {
+  const a = await call({
+    action: "draft_save",
+    payload: { draft_token: draftToken, state, step, version, send_email: sendEmail },
+  });
+  return interpretSave(a.status, a.body, DRAFT_REFUSED);
+}
+
+/** Opens a saved application from its link's token. */
+export async function loadDraft(draftToken: string): Promise<LoadAnswer> {
+  const a = await call({ action: "draft_get", payload: { draft_token: draftToken } });
+  return interpretLoad(a.status, a.body, DRAFT_REFUSED);
+}
+
+/** The parent's own erasure. */
+export async function deleteDraft(draftToken: string): Promise<{ ok: true } | DraftError> {
+  const a = await call({ action: "draft_delete", payload: { draft_token: draftToken } });
+  const b = a.body as { deleted?: unknown } | null;
+  return a.status === 200 && b?.deleted === true
+    ? { ok: true }
+    : draftError(a.status, a.body, DRAFT_REFUSED);
 }
