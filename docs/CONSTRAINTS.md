@@ -69,8 +69,9 @@ Things that shape how this gets built, not just what gets built.
       intake whether each application records which declaration text was
       agreed, since the privacy policy link changes that text.
 - [ ] Saved applications (slice 10, recorded 2026-10-21). Built locally in
-      C1 to C3 (C1 as dcbff52, C2 as 3ec9468, C3 uncommitted); nothing is on
-      hosted. Before real intake:
+      C1 to C3 (dcbff52, 3ec9468, bebd811); applied, deployed and set on
+      hosted (reported by Eyram, 2026-10-21; see PORT-PLAN, "Slice 10
+      rollout reported"). Before real intake:
       - **Consent wording review.** The consent line on the save panel is
         drafted for Eyram's review and is not decided. It is in
         `public-copy.ts`.
@@ -84,7 +85,12 @@ Things that shape how this gets built, not just what gets built.
         `application_drafts` or `application_draft_links`, and RLS has no policy
         on them. Staff see only a count of failed resume emails on the email
         health page.
-      - **Hosted test.** The slice 10 rollout handover in PORT-PLAN is not run.
+      - [x] **Hosted test.** Run in the handover order with Eyram's own
+        address and passed: save, resume email received, link not
+        rewritten, fragment removed, resume, submit, and the reopened link
+        locked as already submitted. Public applications closed again
+        afterwards (reported by Eyram, 2026-10-21). The anon-executable
+        count after the push was not reported.
 - [ ] Confirmation email go-live checks (slice 12, decided 2026-10-16,
       2026-10-18 and 2026-10-20). Committed as a929511 and 8a45e04. Applied,
       deployed and set on hosted, and a hosted test delivered the parent
@@ -117,7 +123,10 @@ Things that shape how this gets built, not just what gets built.
         application; click tracking would rewrite it through Resend's
         tracking host. Eyram checks that click and open tracking are off
         for `mail.tcsch.edu.gh` in the Resend dashboard before resume emails
-        are used for real.
+        are used for real. The setting itself was not reported; in the
+        hosted test the resume link was not rewritten (reported by Eyram,
+        2026-10-21), which indicates click tracking is off. Open tracking
+        is not shown by that test.
       - [x] **Mail authentication.** SPF, DKIM and DMARC all showed PASS on
         the hosted test's delivered parent email (Gmail, "Show original";
         reported by Eyram, 2026-10-21).

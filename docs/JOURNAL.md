@@ -5195,3 +5195,15 @@ Planned and approved by Eyram the same day with D-10a to D-10l. C1 is committed 
   - Erasure requests. The handling (Eyram deletes the draft by email address on hosted, with a reviewed SQL statement) is recorded as a plan, not reported by Eyram.
   - No browser run of the form locally. The hosted test is in the handover.
   - D-10c to D-10l sit in one row of the decision table. The session summary gives only D-10c (no files) and D-10d (no health answers) by number.
+
+## 2026-10-21: Slice 10 rollout reported
+
+Docs only; nothing run here. Everything below is as reported by Eyram on 2026-10-21; nothing else is claimed as applied or checked on hosted. C3 is committed as bebd811. Detail in PORT-PLAN, "Slice 10 rollout reported".
+
+- **Applied and deployed, in the handover order.** Backups taken. `admissions-worker` deployed before the push, and a bare request returned 401. The dry run listed exactly `20261028100000`, `20261028110000` and `20261029100000`, and `db push` applied them. The four cron jobs are present. The grants query for `application_drafts` and `application_draft_links` returned no rows. `admissions-public` deployed. `PUBLIC_APPLY_BASE_URL` set to `https://tcs-erp.weyramkodzo.workers.dev`. Frontend deployed.
+- **Hosted test passed** with Eyram's own address: save, resume email received, link not rewritten, fragment removed, resume, submit, and the reopened link locked as already submitted. Public applications closed again afterwards.
+- **Why the worker went first.** The old worker would have failed every claim batch that met a `draft_resume` row; the new one reads them safely and had none to read until the push.
+- **Not reported:** the anon-executable count after the push; the Resend click and open tracking setting itself. The unrewritten link indicates click tracking is off; open tracking is not shown by that test, so the checklist item stays open.
+- **Docs.** PORT-PLAN: header status, slice 10 status row, "Slice 10 as built" (retitled), the new "Slice 10 rollout reported", the slice 10 go-live gate, and the slice 10 hosted test records on the cleanup list and in the cleanup plan table. CONSTRAINTS.md: the saved applications item (hosted test ticked) and the Resend tracking item (indirect evidence recorded, still open).
+
+**Still open:** the consent wording review; the privacy policy describing saved applications; the Resend tracking setting itself; the anon count on hosted; the go-live cleanup of the test records.
