@@ -42,10 +42,11 @@ import may slip past the import's duplicate check and create a
 double entry. No uniqueness constraints were added (Eyram, 2026-10-08);
 how to close the manual-path gap is not yet decided.
 
-**Staff IDs (built locally 2026-10-16, uncommitted, not on hosted).**
-Migration `20261026100000_hr_staff_numbers.sql` and its frontend are
-built and tested on the local stack only. Nothing is committed, pushed or
-applied on hosted. The frontend has not yet been tried in a browser.
+**Staff IDs (built 2026-10-16, committed as 204aff9, on hosted).**
+Migration `20261026100000_hr_staff_numbers.sql` was applied on hosted
+together with admissions slice 12, and the frontend is deployed (reported
+by Eyram, 2026-10-20 and 2026-10-21). The staff ID click-through on hosted
+is not reported.
 Plan and decisions approved by Eyram on 2026-10-16; they replace the
 2026-10-12 record (which had three classes and an open roll question).
 

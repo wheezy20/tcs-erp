@@ -69,9 +69,11 @@ Things that shape how this gets built, not just what gets built.
       intake whether each application records which declaration text was
       agreed, since the privacy policy link changes that text.
 - [ ] Confirmation email go-live checks (slice 12, decided 2026-10-16,
-      2026-10-18 and 2026-10-20). C1 is committed (a929511); C2 and C3 are
-      built locally and uncommitted; nothing is applied, deployed or set on hosted. The steps are
-      in PORT-PLAN, "Rollout handover: staff ID and slice 12 together".
+      2026-10-18 and 2026-10-20). Committed as a929511 and 8a45e04. Applied,
+      deployed and set on hosted, and a hosted test delivered the parent
+      email and, after a fix, the staff alert (reported by Eyram, 2026-10-20
+      and 2026-10-21); see PORT-PLAN, "Slice 12 rollout reported". The items
+      below are still open unless marked reported.
       - **`MAIL_MODE=live` only on the hosted project.** Live mode always
         sends through Resend whatever database the function talks to, so a
         local `functions serve` with live and a real key would send real
@@ -82,16 +84,31 @@ Things that shape how this gets built, not just what gets built.
       - **Recorded risk (accepted 2026-10-20).** A request to the worker
         with any non-empty secret header costs one database call before the
         secret is compared.
+      - **Accepted risk (2026-10-21).** The staff email page shows Sent
+        when Resend accepts an email, not when it is delivered. A bounce or
+        suppression shows only in the Resend dashboard until bounce and
+        complaint webhooks are built. Seen in the hosted test.
+      - **Staff alert mailbox not suppressed (added 2026-10-21).** Before
+        real intake, confirm `admissions@tcsch.edu.gh` is not on Resend's
+        suppression list and that a test message reaches it quickly. The
+        hosted test's first staff alert was suppressed after a Google
+        NoSuchUser bounce, because the mailbox did not exist yet; the
+        mailbox now works and the suppression was removed (reported by
+        Eyram, 2026-10-21).
+      - **Mail authentication.** Check the SPF, DKIM and DMARC results on a
+        delivered email ("Show original"). Not reported for the hosted test.
       - **From address and domain.** Confirm in the Resend dashboard the
         live From address and that its domain is verified. From is
         `TCS Admissions <no-reply@mail.tcsch.edu.gh>`; the bare
         `tcsch.edu.gh` is not a verified sending domain (reported by Eyram,
         2026-10-16).
       - **Staff alert address.** `ADMISSIONS_STAFF_EMAIL` is a function
-        secret Eyram sets at rollout. The TCS OS staff alert address is not
-        known and is not copied.
+        secret, set at rollout (reported by Eyram, 2026-10-21). The TCS OS
+        staff alert address is not known and is not copied.
       - **Exposed schemas must not include `net` on hosted** (Dashboard,
-        Settings, API). pg_net holds each queued call, including the worker
+        Settings, API). Reported 2026-10-21 as "2 of 2 schemas exposed",
+        with "Automatically expose new tables" off; the names were not
+        itemised, so confirm by name. pg_net holds each queued call, including the worker
         secret header, in `net.http_request_queue` for about a second, and
         that table is readable by any database role.
       - **Bounce rate.** Check it in Resend after the first real week of
@@ -103,10 +120,11 @@ Things that shape how this gets built, not just what gets built.
         reference was issued by then; the bump is a reviewed hand step that
         only raises a counter.
 - [ ] Staff IDs on hosted (decided 2026-10-16, staff ID slice). Migration
-      `20261026100000_hr_staff_numbers.sql` is committed (204aff9) and not
-      pushed or applied on hosted. It goes to hosted together with slice 12;
-      the steps are in PORT-PLAN, "Rollout handover: staff ID and slice 12
-      together".
+      `20261026100000_hr_staff_numbers.sql` is committed (204aff9) and was
+      applied on hosted together with slice 12, and the frontend is
+      deployed; the hosted positions query showed all 16 positions mapped
+      and 0 employees in any position (all reported by Eyram, 2026-10-20
+      and 2026-10-21). The staff ID click-through on hosted is not reported.
       - **Test approvals happen locally only.** After the push, approving a
         test employee on hosted issues a real 2026 ID and spends a roll, and
         it can't be undone cleanly: `staff_numbers.employee_id` is `on delete
