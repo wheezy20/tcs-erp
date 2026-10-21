@@ -1466,6 +1466,23 @@ The token functions are token-gated, so any caller holding the token succeeds.
 
 **Size:** one table, four RPCs, two Edge Function actions, and resume wiring on the existing form.
 
+### Slice 10 as built (in progress, local only)
+
+The text above is the original plan, kept for history. Slice 10 was planned again on 2026-10-21 and approved by Eyram with D-10a to D-10l the same day. C1 (the database) is committed as dcbff52. C2 (the Edge Functions) is built and uncommitted. C3 (the form) is not started. Nothing is on hosted. The full record comes with the slice close-out.
+
+**Decisions (Eyram, 2026-10-21):** drafts hold no health answers at all (D-10d), no files (D-10c) and no declaration, signature or media consent; 30 days from the last save, at most 60 from creation (D-10a); wiped at expiry, deleted 30 days later, resume email rows kept 7 days (D-10b); an explicit save button only, no autosave; the resume link's token is minted at send time and only its hash stored; staff see no drafts, only a count of failed resume emails on the email health page; a resume email limit is shown to the parent, the save is undone, and the page offers to save again without the email; the live-draft limit gives only "We could not save your application right now. Please contact the school office."; a resume email no longer needed while public applications are closed (or whose draft expired or was submitted) is marked expired, not failed. Accepted in C1: the per-draft daily email cap is dropped (the per-address cap of 3 always binds first), one link per worker claim, the link backstop cap is 61.
+
+**Accepted risks (2026-10-21):**
+
+- Anyone who passes Turnstile can fill an address's 3 live draft slots for 30 days. The real parent then sees only the generic message and has to contact the school office.
+- Plus addressing (`a+1@`, `a+2@`) gets around the per-address caps. The IP limits, the global draft limit and the 2,000 live draft cap still apply.
+
+**Recorded rule:** any future migration that lowers the 48 KB draft size limit must also fix existing rows (CONSTRAINTS.md, "Data safety").
+
+**Cutover additions:** `PUBLIC_APPLY_BASE_URL` and `ADMISSIONS_ALLOWED_ORIGINS` change to `admissions.tcsch.edu.gh` at cutover ("Cutover runbook", step 4). Resend click and open tracking must be off for `mail.tcsch.edu.gh` (CONSTRAINTS.md checklist; Eyram checks).
+
+**Rollout order (for the handover):** deploy the new `admissions-worker` before `npx supabase db push`. The old worker would otherwise fail the claim for its whole batch when it met a `draft_resume` row.
+
 ## Slice 11 — Public offer response page
 
 **Delivers:**
@@ -2351,6 +2368,7 @@ D5 is written out in full in the script, with the same `<refs>`. The dry run als
    - Remove the Cloud Run domain mapping for `admissions.tcsch.edu.gh`, and attach `admissions.tcsch.edu.gh` as a Worker custom domain.
    - Point `app.tcsch.edu.gh` at the ERP Worker, if that's the ERP staff host (D-15e).
    - Add both hosts to the Turnstile widget and to Supabase Auth `site_url` and `additional_redirect_urls` for the staff host.
+   - Change the `PUBLIC_APPLY_BASE_URL` function secret (resume email links, slice 10) to `https://admissions.tcsch.edu.gh`, and make sure `ADMISSIONS_ALLOWED_ORIGINS` includes `https://admissions.tcsch.edu.gh` (added 2026-10-21). Resume links already sent keep working only while their old host still reaches the same Worker.
    - Smoke-test the four legacy URL shapes, including `curl -X POST …/api/admissions/unsubscribe/<test-token>/` returning 200.
 5. **[E] Keep TCS OS read-only** for N days (D-15f): Cloud Run still up behind its `*.run.app` URL, with intake blocked. It's only for reference; it gets no traffic after the DNS flip.
 6. **[E] Shut down TCS OS:** delete the Cloud Run service, Cloud Tasks queues and Secret Manager secrets; rotate or delete the TCS OS Resend key and Turnstile secret; delete the TCS OS Supabase project when Eyram decides (the data is test data). Then update both repos' docs.

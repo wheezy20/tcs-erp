@@ -44,6 +44,27 @@
 //       other 4xx        failed (other)
 //       network error    retry (network); timeout: retry (timeout)
 //
+// Resume emails (kind draft_resume, slice 10). Between claim and send the
+// worker calls issue_application_draft_link, which mints a fresh token for
+// this claim and stores only its hash. The token lives in this function's
+// memory and the request to Resend, nowhere else: it is never logged,
+// never passed to mark, never stored. The link is
+// PUBLIC_APPLY_BASE_URL/apply#resume=<token>. The answer decides the row:
+//   issued    send it, with Idempotency-Key "outbox-<row id>-<attempt>"
+//             (each attempt has its own token, so its own body; the same
+//             key with a different body would be refused by Resend)
+//   expired   no longer needed; the database has already marked it
+//   failed    marked failed
+//   null      the claim is no longer held; nothing is recorded
+//   an error  (including a second request for one claim) a failed attempt
+//             (retry)
+// PUBLIC_APPLY_BASE_URL is optional: without it confirmation emails still
+// go, and resume emails are retried with class config, which shows on the
+// staff email health page.
+//
+// A claimed row this worker can't read (an unknown kind, a bad shape) is
+// marked failed on its own; the rest of the batch still goes.
+//
 // The sweep job runs admissions-public's sweepExpiredUploads unchanged:
 // files are deleted only through the Storage API (D-4d).
 //
@@ -55,7 +76,12 @@ import {
   sweepExpiredUploads,
   type StorageDeps,
 } from "../admissions-public/handler.ts";
-import { EMAIL_KINDS, renderEmail, type EmailKind } from "./templates.ts";
+import {
+  EMAIL_KINDS,
+  renderEmail,
+  type DraftLink,
+  type EmailKind,
+} from "./templates.ts";
 
 export const MAX_BODY_BYTES = 1024;
 export const MAX_SECRET_LENGTH = 200;
@@ -93,6 +119,8 @@ export type MailConfig = {
   staffEmail: string;
   erpBaseUrl: string;
   dailyCeiling: number;
+  /** The public origin resume links point to, or null (resume emails wait). */
+  applyBaseUrl: string | null;
 };
 
 /** What the provider said, already reduced to what the worker records. */
@@ -176,6 +204,10 @@ export function loadMailConfig(
   const erpBaseUrl = (get("ERP_BASE_URL") ?? "").trim().replace(/\/+$/, "");
   const ceilingRaw = (get("MAIL_DAILY_CEILING") ?? "").trim();
   const supabaseUrl = (get("SUPABASE_URL") ?? "").trim();
+  const applyRaw = (get("PUBLIC_APPLY_BASE_URL") ?? "")
+    .trim()
+    .replace(/\/+$/, "");
+  const applyBaseUrl = isOrigin(applyRaw) ? applyRaw : null;
   if (
     apiKey === "" ||
     !FROM.test(from) ||
@@ -197,6 +229,10 @@ export function loadMailConfig(
       staffEmail,
       erpBaseUrl,
       dailyCeiling,
+      applyBaseUrl:
+        applyBaseUrl && isHttpsUrl(applyBaseUrl) && !isLocalUrl(applyBaseUrl)
+          ? applyBaseUrl
+          : null,
     };
   }
   // Test mode: local stack only, a local fake provider, never a real key.
@@ -217,7 +253,22 @@ export function loadMailConfig(
     staffEmail,
     erpBaseUrl,
     dailyCeiling,
+    applyBaseUrl:
+      applyBaseUrl && isLocalUrl(applyBaseUrl) ? applyBaseUrl : null,
   };
+}
+
+/** A bare http(s) origin: no path, query or fragment. */
+function isOrigin(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    return (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      url.origin === raw
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function sha256(value: string): Promise<Uint8Array> {
@@ -354,28 +405,39 @@ type ClaimedRow = {
   recipient_email: string | null;
   params: unknown;
   claim_token: string;
+  attempts: number;
 };
 
-function claimedRows(data: unknown): ClaimedRow[] | null {
+/** The claimed rows, split into those this worker can send and those it
+ * can't read but can still mark (an id and a claim token). One bad row
+ * never stops the batch. Null only when the answer isn't a list. */
+export function claimedRows(data: unknown): {
+  rows: ClaimedRow[];
+  unreadable: { id: string; claim_token: string }[];
+} | null {
   if (!Array.isArray(data)) return null;
   const rows: ClaimedRow[] = [];
+  const unreadable: { id: string; claim_token: string }[] = [];
   for (const r of data) {
+    if (typeof r !== "object" || r === null) continue;
+    const c = r as Partial<ClaimedRow>;
+    if (typeof c.id !== "string" || typeof c.claim_token !== "string") continue;
     if (
-      typeof r !== "object" ||
-      r === null ||
-      typeof (r as ClaimedRow).id !== "string" ||
-      typeof (r as ClaimedRow).claim_token !== "string" ||
-      !EMAIL_KINDS.includes((r as ClaimedRow).kind)
-    )
-      return null;
-    rows.push(r as ClaimedRow);
+      !EMAIL_KINDS.includes(c.kind as EmailKind) ||
+      typeof c.attempts !== "number" ||
+      !Number.isInteger(c.attempts)
+    ) {
+      unreadable.push({ id: c.id, claim_token: c.claim_token });
+      continue;
+    }
+    rows.push(c as ClaimedRow);
   }
-  return rows;
+  return { rows, unreadable };
 }
 
 async function mark(
   deps: Deps,
-  row: ClaimedRow,
+  row: { id: string; claim_token: string },
   o: Omit<Outcome, "stop">,
 ): Promise<void> {
   const res = await deps.rpc("mark_admissions_email_result", {
@@ -402,11 +464,16 @@ export async function runMailJob(
     p_limit: MAIL_BATCH,
     p_daily_ceiling: config.dailyCeiling,
   });
-  const rows = claim.error ? null : claimedRows(claim.data);
-  if (!rows) {
+  const claimed = claim.error ? null : claimedRows(claim.data);
+  if (!claimed) {
     deps.log("mail_claim_failed");
     return { sent: 0, claimed: 0 };
   }
+  for (const u of claimed.unreadable) {
+    deps.log("mail_unreadable_row");
+    await mark(deps, u, failedOther);
+  }
+  const rows = claimed.rows;
 
   let sent = 0;
   let stopped: Outcome | null = null;
@@ -420,10 +487,16 @@ export async function runMailJob(
     const to = row.kind.endsWith("_staff")
       ? config.staffEmail
       : row.recipient_email;
+    let draft: DraftLink | undefined;
+    if (row.kind === "draft_resume") {
+      const link = await draftLink(deps, config, row);
+      if (link === "done") continue;
+      draft = link;
+    }
     let rendered;
     try {
       if (!to || !EMAIL.test(to)) throw new Error("no recipient");
-      rendered = renderEmail(row.kind, row.params, config.erpBaseUrl);
+      rendered = renderEmail(row.kind, row.params, config.erpBaseUrl, draft);
     } catch {
       deps.log("mail_render_failed");
       await mark(deps, row, {
@@ -437,7 +510,10 @@ export async function runMailJob(
     if (i > 0) await deps.sleep(SEND_GAP_MS);
     const result = await deps.send(
       {
-        idempotencyKey: `outbox-${row.id}`,
+        idempotencyKey:
+          row.kind === "draft_resume"
+            ? `outbox-${row.id}-${row.attempts}`
+            : `outbox-${row.id}`,
         from: config.from,
         to,
         replyTo: config.replyTo,
@@ -455,6 +531,78 @@ export async function runMailJob(
   }
   deps.log(`mail_done_${sent}_of_${rows.length}`);
   return { sent, claimed: rows.length };
+}
+
+const failedOther: Omit<Outcome, "stop"> = {
+  outcome: "failed",
+  errorClass: "other",
+  status: null,
+  messageId: null,
+};
+
+/** The link for one claimed resume email, or "done" when the row has
+ * already been dealt with (see the header). Never logs the token. */
+async function draftLink(
+  deps: Deps,
+  config: MailConfig,
+  row: ClaimedRow,
+): Promise<DraftLink | "done"> {
+  if (!config.applyBaseUrl) {
+    deps.log("mail_draft_no_base_url");
+    await mark(deps, row, {
+      outcome: "retry",
+      errorClass: "config",
+      status: null,
+      messageId: null,
+    });
+    return "done";
+  }
+  let res: RpcResult;
+  try {
+    res = await deps.rpc("issue_application_draft_link", {
+      p_outbox_id: row.id,
+      p_claim_token: row.claim_token,
+    });
+  } catch {
+    res = { data: null, error: { code: "network" } };
+  }
+  if (res.error) {
+    deps.log("mail_draft_link_error");
+    await mark(deps, row, {
+      outcome: "retry",
+      errorClass: "other",
+      status: null,
+      messageId: null,
+    });
+    return "done";
+  }
+  const d = res.data;
+  if (d === null) {
+    deps.log("mail_draft_claim_lost");
+    return "done";
+  }
+  const status =
+    typeof d === "object" && !Array.isArray(d)
+      ? (d as { status?: unknown }).status
+      : undefined;
+  if (status === "expired") {
+    deps.log("mail_draft_not_needed");
+    return "done";
+  }
+  const token = (d as { token?: unknown }).token;
+  const expiresAt = (d as { expires_at?: unknown }).expires_at;
+  if (
+    status !== "issued" ||
+    typeof token !== "string" ||
+    !/^[0-9a-f]{64}$/.test(token) ||
+    typeof expiresAt !== "string" ||
+    Number.isNaN(Date.parse(expiresAt))
+  ) {
+    deps.log("mail_draft_link_refused");
+    await mark(deps, row, failedOther);
+    return "done";
+  }
+  return { url: `${config.applyBaseUrl}/apply#resume=${token}`, expiresAt };
 }
 
 async function readCapped(req: Request, max: number): Promise<string | null> {

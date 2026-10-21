@@ -11,6 +11,7 @@ import {
   MAX_APPLICATION_BODY_BYTES,
   MAX_BODY_BYTES,
   MESSAGES,
+  DRAFT_CODES,
   safeApplicationFieldPath,
   sniffKind,
   clientIp,
@@ -955,7 +956,7 @@ function applicationHarness(opts: {
         return { data: v, error: null };
       }
       order.push(fn);
-      if (fn === "submit_application") {
+      if (fn === "submit_application" || fn === "submit_application_from_draft") {
         submits.push(args);
         if (opts.submit === "throw") throw new Error("network");
         return opts.submit ?? { data: "APP-2026-0042", error: null };
@@ -1197,4 +1198,245 @@ test("safeApplicationFieldPath: only the application's field paths", () => {
     assert.equal(safeApplicationFieldPath(ok), ok);
   for (const no of ["students.0.grade_id", "guardians.2.email", "student.", "x", "", null, "student.A"])
     assert.equal(safeApplicationFieldPath(no), null);
+});
+
+// ---------------------------------------------------------------- saved applications (slice 10)
+
+const DRAFT_TOKEN = "d".repeat(64);
+const MASKED = "a•••@e•••.test";
+const EXPIRES = "2026-11-20T06:34:29.935916+00:00";
+const STATE = { campusId: "c1", child: { fullName: "Kojo" } };
+
+function draftHarness(opts: {
+  ipOk?: boolean | "error";
+  globalOk?: boolean | "error";
+  turnstile?: TurnstileOutcome | "throw";
+  result?: RpcResult | "throw";
+}) {
+  const calls: Call[] = [];
+  const order: string[] = [];
+  const logs: string[] = [];
+  const deps: Deps = {
+    config: CONFIG,
+    verifyTurnstile: async () => {
+      order.push("turnstile");
+      if (opts.turnstile === "throw") throw new Error("timeout");
+      return opts.turnstile ?? { success: true, hostname: "app.example.test", action: "draft" };
+    },
+    rpc: async (fn, args) => {
+      calls.push({ fn, args });
+      if (fn === "check_public_rate_limit") {
+        const bucket = String(args.p_bucket);
+        order.push(bucket);
+        const v = bucket.endsWith("_ip") ? (opts.ipOk ?? true) : (opts.globalOk ?? true);
+        if (v === "error") return { data: null, error: { code: "XX000", message: "boom" } };
+        return { data: v, error: null };
+      }
+      order.push(fn);
+      if (opts.result === "throw") throw new Error("network");
+      if (opts.result) return opts.result;
+      switch (fn) {
+        case "create_application_draft":
+          return { data: { token: DRAFT_TOKEN, expires_at: EXPIRES, version: 1, email_masked: MASKED }, error: null };
+        case "save_application_draft":
+          return { data: { version: 3, expires_at: EXPIRES, email_queued: true, email_masked: MASKED }, error: null };
+        case "get_application_draft":
+          return { data: { state: STATE, step: 2, version: 3, expires_at: EXPIRES, email_masked: MASKED }, error: null };
+        case "delete_application_draft":
+          return { data: true, error: null };
+      }
+      return { data: null, error: { code: "XX000" } };
+    },
+    log: (o) => logs.push(o),
+  };
+  return { deps, calls, order, logs };
+}
+
+const CREATE = {
+  action: "draft_create",
+  turnstile_token: TOKEN,
+  payload: { email: "Ama@Example.test", state: STATE, step: 2, consent: true },
+};
+const SAVE = {
+  action: "draft_save",
+  payload: { draft_token: DRAFT_TOKEN, state: STATE, step: 2, version: 2, send_email: true },
+};
+const GET = { action: "draft_get", payload: { draft_token: DRAFT_TOKEN } };
+const DELETE = { action: "draft_delete", payload: { draft_token: DRAFT_TOKEN } };
+
+test("draft_create: draft_ip, Turnstile (draft), draft_global, then the RPC; the token comes back once", async () => {
+  const h = draftHarness({});
+  const res = await handle(post(CREATE), h.deps);
+  assert.equal(res.status, 200);
+  assert.deepEqual(h.order, ["draft_ip", "turnstile", "draft_global", "create_application_draft"]);
+  assert.deepEqual(h.calls.at(-1)?.args, { p_email: "Ama@Example.test", p_state: STATE, p_step: 2, p_consent: true });
+  assert.deepEqual(await json(res), { draft_token: DRAFT_TOKEN, expires_at: EXPIRES, version: 1, email_masked: MASKED });
+  assert.match(String(h.calls[0].args.p_key_hash), /^[0-9a-f]{64}$/);
+});
+
+test("draft_create: Turnstile must carry the draft action; another action's token is refused before the database", async () => {
+  for (const action of ["application", "upload", "inquiry", undefined]) {
+    const h = draftHarness({ turnstile: { success: true, hostname: "app.example.test", action } });
+    const res = await handle(post(CREATE), h.deps);
+    assert.equal(res.status, 400, String(action));
+    assert.ok(!h.order.includes("create_application_draft"));
+    assert.ok(!h.order.includes("draft_global"));
+  }
+});
+
+test("draft save, get and delete: draft_use_ip, no Turnstile, no global limit", async () => {
+  for (const [body, fn] of [[SAVE, "save_application_draft"], [GET, "get_application_draft"],
+                            [DELETE, "delete_application_draft"]] as const) {
+    const h = draftHarness({});
+    const res = await handle(post(body), h.deps);
+    assert.equal(res.status, 200, fn);
+    assert.deepEqual(h.order, ["draft_use_ip", fn]);
+  }
+  const s = draftHarness({});
+  await handle(post(SAVE), s.deps);
+  assert.deepEqual(s.calls.at(-1)?.args, {
+    p_token: DRAFT_TOKEN, p_state: STATE, p_step: 2, p_expected_version: 2, p_send_email: true,
+  });
+});
+
+test("draft rate limits give the generic message, which never mentions saved applications", async () => {
+  for (const [body, opts] of [[CREATE, { ipOk: false }], [CREATE, { globalOk: false }], [SAVE, { ipOk: false }],
+                              [GET, { ipOk: false }]] as const) {
+    const h = draftHarness(opts);
+    const res = await handle(post(body), h.deps);
+    assert.equal(res.status, 429);
+    const b = await json(res);
+    assert.deepEqual(b, { error: MESSAGES.draftRefused, code: "draft_limit" });
+  }
+  assert.equal(MESSAGES.draftRefused, "We could not save your application right now. Please contact the school office.");
+  assert.doesNotMatch(MESSAGES.draftRefused, /saved|draft|already/i);
+});
+
+test("draft refusals: the live-draft cap is generic whatever the database says; a resume email cap passes its message and code", async () => {
+  const leaky = { code: "TCS29", details: "draft_limit", message: "This email address already has saved applications." };
+  let h = draftHarness({ result: { data: null, error: leaky } });
+  let res = await handle(post(CREATE), h.deps);
+  assert.equal(res.status, 429);
+  assert.deepEqual(await json(res), { error: MESSAGES.draftRefused, code: "draft_limit" });
+  // A TCS29 with no DETAIL is treated the same.
+  h = draftHarness({ result: { data: null, error: { code: "TCS29", message: "anything" } } });
+  assert.deepEqual(await json(await handle(post(CREATE), h.deps)), { error: MESSAGES.draftRefused, code: "draft_limit" });
+
+  const email = { code: "TCS29", details: "draft_email_limit", message: "Too many emails have been sent to this address today." };
+  h = draftHarness({ result: { data: null, error: email } });
+  res = await handle(post(SAVE), h.deps);
+  assert.equal(res.status, 429);
+  assert.deepEqual(await json(res), { error: email.message, code: "draft_email_limit" });
+});
+
+test("draft refusals: each DRAFT_CODES DETAIL passes its message and code; anything else is a fixed answer", async () => {
+  for (const code of DRAFT_CODES) {
+    const h = draftHarness({ result: { data: null, error: { code: "TCS22", details: code, message: `msg ${code}` } } });
+    const res = await handle(post(GET), h.deps);
+    assert.equal(res.status, code === "draft_version" ? 409 : 400, code);
+    assert.deepEqual(await json(res), { error: `msg ${code}`, code });
+  }
+  let h = draftHarness({ result: { data: null, error: { code: "TCS22", details: "student.full_name", message: "secret detail" } } });
+  assert.deepEqual(await json(await handle(post(GET), h.deps)), { error: MESSAGES.badRequest });
+  h = draftHarness({ result: { data: null, error: { code: "TCS03", message: "closed" } } });
+  let res = await handle(post(SAVE), h.deps);
+  assert.equal(res.status, 409);
+  assert.deepEqual(await json(res), { error: MESSAGES.appClosed, code: "closed" });
+  h = draftHarness({ result: { data: null, error: { code: "42501", message: "permission denied for table" } } });
+  res = await handle(post(SAVE), h.deps);
+  assert.equal(res.status, 500);
+  assert.deepEqual(await json(res), { error: MESSAGES.appError });
+  h = draftHarness({ result: "throw" });
+  assert.equal((await handle(post(DELETE), h.deps)).status, 500);
+});
+
+test("draft requests: exact keys and shapes, a 64 hex token, refused before any call", async () => {
+  const bad: unknown[] = [
+    { ...CREATE, payload: { ...CREATE.payload, extra: 1 } },
+    { ...CREATE, payload: { ...CREATE.payload, consent: "yes" } },
+    { ...CREATE, payload: { ...CREATE.payload, step: 6 } },
+    { ...CREATE, payload: { ...CREATE.payload, step: 1.5 } },
+    { ...CREATE, payload: { ...CREATE.payload, state: [] } },
+    { ...CREATE, payload: { ...CREATE.payload, email: "x".repeat(255) } },
+    { ...CREATE, turnstile_token: "" },
+    { ...SAVE, turnstile_token: TOKEN },
+    { ...SAVE, payload: { ...SAVE.payload, draft_token: DRAFT_TOKEN.toUpperCase() } },
+    { ...SAVE, payload: { ...SAVE.payload, draft_token: "d".repeat(63) } },
+    { ...SAVE, payload: { ...SAVE.payload, version: 0 } },
+    { ...SAVE, payload: { ...SAVE.payload, send_email: 1 } },
+    { ...GET, payload: { draft_token: DRAFT_TOKEN, state: {} } },
+    { action: "draft_get", draft_token: DRAFT_TOKEN },
+    { ...DELETE, payload: {} },
+  ];
+  for (const body of bad) {
+    const h = draftHarness({});
+    const res = await handle(post(body), h.deps);
+    assert.equal(res.status, 400, JSON.stringify(body));
+    assert.deepEqual(h.calls, [], JSON.stringify(body));
+  }
+  const h = draftHarness({});
+  assert.equal((await handle(post({ action: "draft_rename", payload: {} }), h.deps)).status, 400);
+  assert.ok(h.logs.includes("unknown_action"));
+});
+
+test("draft bodies: create and save take the 64 KB cap; get and delete stay at 32 KB", async () => {
+  const big = { scholarshipDetails: "x".repeat(40 * 1024) };
+  let h = draftHarness({});
+  assert.equal((await handle(post({ ...SAVE, payload: { ...SAVE.payload, state: big } }), h.deps)).status, 200);
+  h = draftHarness({});
+  assert.equal((await handle(post({ ...CREATE, payload: { ...CREATE.payload, state: big } }), h.deps)).status, 200);
+  h = draftHarness({});
+  // Valid JSON, just over 32 KB of whitespace.
+  const padded = JSON.stringify(GET).replace("{", `{${" ".repeat(MAX_BODY_BYTES)}`);
+  assert.equal((await handle(post(padded), h.deps)).status, 413);
+  h = draftHarness({});
+  assert.equal(
+    (await handle(post({ ...SAVE, payload: { ...SAVE.payload, state: { s: "x".repeat(MAX_APPLICATION_BODY_BYTES) } } }), h.deps)).status,
+    413,
+  );
+});
+
+test("draft results with the wrong shape never reach the page; the token is never logged", async () => {
+  for (const data of [
+    { token: "short", expires_at: EXPIRES, version: 1, email_masked: MASKED },
+    { token: DRAFT_TOKEN, expires_at: EXPIRES, version: 1, email_masked: "ama@example.test" },
+    { token: DRAFT_TOKEN, expires_at: "soon", version: 1, email_masked: MASKED },
+  ]) {
+    const h = draftHarness({ result: { data, error: null } });
+    const res = await handle(post(CREATE), h.deps);
+    assert.equal(res.status, 500, JSON.stringify(data));
+  }
+  const h = draftHarness({});
+  await handle(post(CREATE), h.deps);
+  await handle(post(SAVE), h.deps);
+  for (const l of h.logs) assert.ok(!l.includes(DRAFT_TOKEN) && !l.includes("Ama"), l);
+});
+
+test("application with draft_token: the same checks, then submit_application_from_draft with the token", async () => {
+  const h = applicationHarness({});
+  const res = await handle(post({ ...appReq(), draft_token: DRAFT_TOKEN }), h.deps);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await json(res), { reference: "APP-2026-0042" });
+  assert.deepEqual(h.order, ["submit_ip", "turnstile", "submit_global", "read", "submit_application_from_draft"]);
+  assert.deepEqual(h.submits, [{
+    p_payload: appReq().payload,
+    p_session_token: SESSION,
+    p_sniffed: [{ reservation_id: RES_ID, path: RES_PATH, kind: "pdf" }],
+    p_draft_token: DRAFT_TOKEN,
+  }]);
+  for (const l of h.logs) assert.ok(!l.includes(DRAFT_TOKEN));
+});
+
+test("application with draft_token: a malformed token is refused before any call; draft_submitted is passed as a code", async () => {
+  for (const t of ["", "D".repeat(64), "d".repeat(65), 5, null]) {
+    const h = applicationHarness({});
+    assert.equal((await handle(post({ ...appReq(), draft_token: t }), h.deps)).status, 400, String(t));
+    assert.deepEqual(h.order, []);
+  }
+  const h = applicationHarness({
+    submit: { data: null, error: { code: "TCS22", details: "draft_submitted", message: "This application has already been submitted." } },
+  });
+  const res = await handle(post({ ...appReq(), draft_token: DRAFT_TOKEN }), h.deps);
+  assert.equal(res.status, 400);
+  assert.deepEqual(await json(res), { error: "This application has already been submitted.", code: "draft_submitted" });
 });

@@ -260,7 +260,7 @@ do $$ declare t text; t2 text; v integer; begin
   t := public.create_application_draft('m@example.test', '{}', 0, true) ->> 'token';
   perform public.save_application_draft(t, '{}', 0, 1, true);
   perform public.save_application_draft(t, '{}', 0, 2, true);
-  if pg_temp.err(format('select public.save_application_draft(%L, %L, 0, 3, true)', t, '{"campusId": "new"}')) <> 'TCS29|' then
+  if pg_temp.err(format('select public.save_application_draft(%L, %L, 0, 3, true)', t, '{"campusId": "new"}')) <> 'TCS29|draft_email_limit' then
     raise exception 'fourth email for the draft allowed';
   end if;
   select version into v from public.application_drafts where email = 'm@example.test';
@@ -274,14 +274,14 @@ do $$ declare t text; t2 text; v integer; begin
   -- After a day the draft may email again, up to its lifetime 10.
   perform public.save_application_draft(t, '{}', 0, 4, true);
   update public.application_drafts set resume_emails = 10 where email = 'm@example.test';
-  if pg_temp.err(format('select public.save_application_draft(%L, %L, 0, 5, true)', t, '{}')) <> 'TCS29|' then
+  if pg_temp.err(format('select public.save_application_draft(%L, %L, 0, 5, true)', t, '{}')) <> 'TCS29|draft_email_limit' then
     raise exception 'eleventh email allowed';
   end if;
   update public.application_drafts set resume_emails = 4 where email = 'm@example.test';
   perform public.save_application_draft(t, '{}', 0, 5, true);
   perform public.save_application_draft(t, '{}', 0, 6, true);
   -- The address now has 3 resume emails in 24 hours: a new draft for it is refused.
-  if pg_temp.err($q$select public.create_application_draft('M@example.test', '{}', 0, true)$q$) <> 'TCS29|' then
+  if pg_temp.err($q$select public.create_application_draft('M@example.test', '{}', 0, true)$q$) <> 'TCS29|draft_email_limit' then
     raise exception 'fourth email to the address allowed';
   end if;
   if (select count(*) from public.application_drafts) <> 1 then raise exception 'refused create kept a row'; end if;
@@ -311,7 +311,7 @@ do $$ declare v_msg text; v_global text; begin
   values ('k@example.test', '{}', now(), now() - interval '2 days', now() - interval '1 day');
   insert into public.application_drafts (email, data, consented_at, expires_at)
   select 'k@example.test', '{}', now(), now() + interval '1 day' from generate_series(1, 2);
-  if pg_temp.err($q$select public.create_application_draft('l@example.test', '{}', 0, true)$q$) <> 'TCS29|' then
+  if pg_temp.err($q$select public.create_application_draft('l@example.test', '{}', 0, true)$q$) <> 'TCS29|draft_limit' then
     raise exception 'fourth live draft allowed';
   end if;
   begin
@@ -326,7 +326,7 @@ do $$ declare v_msg text; v_global text; begin
   perform public.create_application_draft('k@example.test', '{}', 0, true);
   insert into public.application_drafts (email, data, consented_at, expires_at)
   select 'bulk' || n || '@example.test', '{}', now(), now() + interval '1 day' from generate_series(1, 2000 - 6) n;
-  if pg_temp.err($q$select public.create_application_draft('z@example.test', '{}', 0, true)$q$) <> 'TCS29|' then
+  if pg_temp.err($q$select public.create_application_draft('z@example.test', '{}', 0, true)$q$) <> 'TCS29|draft_limit' then
     raise exception 'draft 2,001 allowed';
   end if;
   begin
@@ -341,7 +341,7 @@ end $$;
 -- as role:
 select 1;
 
--- probe: B9 the send-time link: only for a claimed resume email with its claim token, one per claim, never for an expired or submitted draft, another address or while closed; the hash only; the link opens the draft; at most 61 links
+-- probe: B9 the send-time link: only for a claimed resume email with its claim token, one per claim, expired (never failed) for an expired or submitted draft or while closed, failed for another address or the link cap; the hash only; the link opens the draft; at most 61 links
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 create function pg_temp.err(p_sql text) returns text language plpgsql as $f$
 declare v_state text; v_detail text;
@@ -352,6 +352,11 @@ exception when others then
   get stacked diagnostics v_state = returned_sqlstate, v_detail = pg_exception_detail;
   return v_state || '|' || coalesce(v_detail, '');
 end $f$;
+-- pg_temp.reclaim(id) puts a row back to sending with a fresh claim, as
+-- a lapsed lease does, and returns the claim token.
+create function pg_temp.reclaim(p_id uuid) returns uuid language sql as $f$
+  update public.admissions_email_outbox set status = 'sending', claim_token = gen_random_uuid(), claimed_at = now()
+  where id = p_id returning claim_token $f$;
 do $$ declare t text; c record; r jsonb; tok text; begin
   update public.admissions_settings set public_applications_open = true where id = 1;
   t := public.create_application_draft('w@example.test', '{"campusId": "w"}', 0, true) ->> 'token';
@@ -369,7 +374,7 @@ do $$ declare t text; c record; r jsonb; tok text; begin
   end if;
   r := public.issue_application_draft_link(c.id, c.claim_token);
   tok := r ->> 'token';
-  if tok !~ '^[0-9a-f]{64}$' or tok = t then raise exception 'token %', r; end if;
+  if r ->> 'status' <> 'issued' or tok !~ '^[0-9a-f]{64}$' or tok = t then raise exception 'token %', r; end if;
   if not exists (select 1 from public.application_draft_links
                  where token_hash = encode(sha256(convert_to(tok, 'UTF8')), 'hex') and issued_for_claim = c.claim_token) then
     raise exception 'hash not stored';
@@ -391,27 +396,39 @@ do $$ declare t text; c record; r jsonb; tok text; begin
   if public.issue_application_draft_link('12000000-0000-4000-8000-00000000b901', '12000000-0000-4000-8000-00000000b9c1') is not null then
     raise exception 'issued for another kind';
   end if;
-  -- Closed, expired, submitted, link cap: nothing.
-  update public.admissions_email_outbox set status = 'sending', claim_token = gen_random_uuid(), claimed_at = now()
-  where id = c.id;
-  select claim_token into c.claim_token from public.admissions_email_outbox where id = c.id;
+  -- No longer needed (closed, expired, submitted): the row is marked
+  -- expired, never failed. Can't be sent (link cap, another address):
+  -- failed, left for the worker to mark. Each case takes a fresh claim.
+  -- The result is stored before the row is read: a subquery in the same
+  -- expression would see the row as it was before the call.
   update public.admissions_settings set public_applications_open = false where id = 1;
-  if public.issue_application_draft_link(c.id, c.claim_token) is not null then raise exception 'issued while closed'; end if;
+  r := public.issue_application_draft_link(c.id, pg_temp.reclaim(c.id));
+  if r is distinct from '{"status": "expired"}'
+     or (select status || coalesce(claim_token::text, '-') from public.admissions_email_outbox where id = c.id) <> 'expired-' then
+    raise exception 'closed: not expired %', r;
+  end if;
   update public.admissions_settings set public_applications_open = true where id = 1;
   update public.application_drafts set created_at = now() - interval '2 days', expires_at = now() - interval '1 second';
-  if public.issue_application_draft_link(c.id, c.claim_token) is not null then raise exception 'issued for expired'; end if;
+  r := public.issue_application_draft_link(c.id, pg_temp.reclaim(c.id));
+  if r is distinct from '{"status": "expired"}' then raise exception 'expired draft: %', r; end if;
   update public.application_drafts set expires_at = now() + interval '1 day';
   insert into public.application_draft_links (draft_id, token_hash)
   select (select id from public.application_drafts), encode(sha256(convert_to(n::text, 'UTF8')), 'hex') from generate_series(1, 59) n;
-  if public.issue_application_draft_link(c.id, c.claim_token) is not null then raise exception 'issued a 62nd link'; end if;
+  r := public.issue_application_draft_link(c.id, pg_temp.reclaim(c.id));
+  if r is distinct from '{"status": "failed"}'
+     or (select status from public.admissions_email_outbox where id = c.id) <> 'sending' then
+    raise exception 'a 62nd link: %', r;
+  end if;
   delete from public.application_draft_links where token_hash in
     (select encode(sha256(convert_to(n::text, 'UTF8')), 'hex') from generate_series(1, 59) n);
   -- The row's recipient must be the draft's own address.
   update public.admissions_email_outbox set recipient_email = 'other@example.test' where id = c.id;
-  if public.issue_application_draft_link(c.id, c.claim_token) is not null then raise exception 'issued to another address'; end if;
+  r := public.issue_application_draft_link(c.id, pg_temp.reclaim(c.id));
+  if r is distinct from '{"status": "failed"}' then raise exception 'another address: %', r; end if;
   update public.admissions_email_outbox set recipient_email = 'w@example.test' where id = c.id;
   update public.application_drafts set submitted_at = now(), data = '{}', email = null;
-  if public.issue_application_draft_link(c.id, c.claim_token) is not null then raise exception 'issued for submitted'; end if;
+  r := public.issue_application_draft_link(c.id, pg_temp.reclaim(c.id));
+  if r is distinct from '{"status": "expired"}' then raise exception 'submitted: %', r; end if;
 end $$;
 -- as role:
 select 1;

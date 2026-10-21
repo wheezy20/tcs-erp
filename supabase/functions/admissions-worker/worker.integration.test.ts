@@ -2,8 +2,10 @@
 // (a small HTTP server on 127.0.0.1 that records requests): no email is
 // ever sent and Resend is never called. Covers a missing or wrong secret
 // doing nothing, a real enquiry's emails end to end, retries and
-// failures, a second run sending nothing, mail off, and two database
-// sessions claiming the same rows at once. Run on a freshly reset local
+// failures, a second run sending nothing, mail off, two database
+// sessions claiming the same rows at once, and (slice 10) a resume email
+// with a link minted at send time, and one no longer needed while public
+// applications are closed. Run on a freshly reset local
 // stack from the repo root, after the probe files:
 //
 //   ./scripts/seed-local-dev-staff.sh
@@ -152,6 +154,7 @@ function mailConfig(): MailConfig {
         MAIL_REPLY_TO: "admissions@example.test",
         ADMISSIONS_STAFF_EMAIL: `staff.${RUN}@example.test`,
         ERP_BASE_URL: "http://localhost:8080",
+        PUBLIC_APPLY_BASE_URL: "http://localhost:8080",
         MAIL_DAILY_CEILING: "1000",
         SUPABASE_URL: API_URL,
       })[n],
@@ -363,4 +366,90 @@ commit;`);
   psql(
     `update public.admissions_email_outbox set status = 'failed', claim_token = null, claimed_at = null where id in (${list})`,
   );
+});
+
+// ---------------------------------------------------------------- resume emails (slice 10)
+
+async function draftFor(to: string): Promise<string> {
+  psql(
+    "update public.admissions_settings set public_applications_open = true where id = 1",
+  );
+  const r = await rpc("create_application_draft", {
+    p_email: to,
+    p_state: { campusId: "worker" },
+    p_step: 1,
+    p_consent: true,
+  });
+  assert.equal(r.error, null, JSON.stringify(r.error));
+  return String((r.data as { token: string }).token);
+}
+
+test("a resume email: a fresh link minted at send time opens the draft; the row and the database never hold it", async () => {
+  const to = email("resume");
+  const browserToken = await draftFor(to);
+  const id = psql(
+    `select id from public.admissions_email_outbox where kind = 'draft_resume' and recipient_email = '${to}'`,
+  );
+  const before = seen.length;
+  await call(deps(mailConfig()), "mail", secret());
+  psql(
+    "update public.admissions_settings set public_applications_open = false where id = 1",
+  );
+  const mine = seen
+    .slice(before)
+    .filter((s) => (s.body.to as string[])[0] === to);
+  assert.equal(mine.length, 1);
+  const [m] = mine;
+  assert.equal(m.body.subject, "Your saved application");
+  assert.equal(m.headers["idempotency-key"], `outbox-${id}-1`);
+  const link = /http:\/\/localhost:8080\/apply#resume=([0-9a-f]{64})/.exec(
+    String(m.body.text),
+  );
+  assert.ok(link, "no resume link in the email");
+  const token = link[1];
+  assert.notEqual(token, browserToken);
+  assert.doesNotMatch(String(m.body.text), /\u2013|\u2014|inquir|campus/i);
+  assert.equal(status(id), "sent/1/-");
+  for (const table of [
+    "admissions_email_outbox",
+    "application_draft_links",
+    "application_drafts",
+  ]) {
+    assert.equal(
+      psql(
+        `select count(*) from public.${table} x where row_to_json(x)::text like '%${token}%'`,
+      ),
+      "0",
+      table,
+    );
+  }
+  psql(
+    "update public.admissions_settings set public_applications_open = true where id = 1",
+  );
+  const opened = await rpc("get_application_draft", { p_token: token });
+  psql(
+    "update public.admissions_settings set public_applications_open = false where id = 1",
+  );
+  assert.equal(opened.error, null, JSON.stringify(opened.error));
+  assert.deepEqual((opened.data as { state: unknown }).state, {
+    campusId: "worker",
+  });
+});
+
+test("a resume email waiting while public applications are closed is marked expired, never sent and never failed", async () => {
+  const to = email("closed");
+  await draftFor(to);
+  psql(
+    "update public.admissions_settings set public_applications_open = false where id = 1",
+  );
+  const id = psql(
+    `select id from public.admissions_email_outbox where kind = 'draft_resume' and recipient_email = '${to}'`,
+  );
+  const before = seen.length;
+  await call(deps(mailConfig()), "mail", secret());
+  assert.equal(
+    seen.slice(before).filter((s) => (s.body.to as string[])[0] === to).length,
+    0,
+  );
+  assert.equal(status(id), "expired/1/-");
 });

@@ -2,9 +2,15 @@
 // text only. Every value comes from the outbox row's
 // params, which the database limits to references, grade names, academic
 // years and, for the staff alert, the match outcome: no name, health answer
-// or document name can reach an email. A parent email has no link; the
+// or document name can reach an email. A confirmation email has no link; the
 // staff alert links only to the ERP's admissions list, which needs a
 // sign-in.
+//
+// The resume email (slice 10, kind draft_resume) is the one parent email
+// with a link: a private link to the parent's own saved application, built
+// by the worker at send time from a token it has just been given. Its
+// params are always {}; the link and the date it is kept until are passed
+// in separately and never stored.
 //
 // Rules the tests hold (templates.test.ts): no em or en dash and never the
 // word "inquiry" in a subject or body (code names keep "inquiry"); the
@@ -18,6 +24,7 @@ export const EMAIL_KINDS = [
   "inquiry_staff",
   "application_parent",
   "application_staff",
+  "draft_resume",
 ] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 
@@ -35,6 +42,34 @@ export type EmailParams = {
 };
 
 export type RenderedEmail = { subject: string; text: string };
+
+/** What a resume email needs that is not in the outbox row. */
+export type DraftLink = { url: string; expiresAt: string };
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** "20 November 2026": the date in Accra (UTC all year). */
+export function longDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) throw new Error("bad date");
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/** Only a link to /apply with a 64 hex resume fragment is ever printed. */
+const RESUME_LINK = /^https?:\/\/[^\s/#?]+\/apply#resume=[0-9a-f]{64}$/;
 
 const SIGN_OFF = "Kind regards,\nAdmissions Office\nTreasures Christian School";
 
@@ -58,6 +93,11 @@ function isObject(v: unknown): v is Record<string, unknown> {
  * database check would have refused. Throws on anything else. */
 export function parseParams(kind: EmailKind, raw: unknown): EmailParams {
   if (!isObject(raw)) throw new Error("params is not an object");
+  if (kind === "draft_resume") {
+    if (Object.keys(raw).length !== 0)
+      throw new Error("a resume email has no params");
+    return { references: [] };
+  }
   const allowed =
     kind === "application_staff"
       ? ["references", "family_matched", "outcome"]
@@ -134,6 +174,7 @@ export function renderEmail(
   kind: EmailKind,
   rawParams: unknown,
   erpBaseUrl: string,
+  draft?: DraftLink,
 ): RenderedEmail {
   const p = parseParams(kind, rawParams);
   const refs = p.references;
@@ -177,6 +218,22 @@ export function renderEmail(
           `Open the admissions list in the ERP to see the family: ${listUrl}`,
         ].join("\n\n"),
       };
+    case "draft_resume": {
+      if (!draft || !RESUME_LINK.test(draft.url))
+        throw new Error("a resume email needs its link");
+      return {
+        subject: "Your saved application",
+        text: [
+          "Dear Parent or Guardian,",
+          "You asked us to keep your application to Treasures Christian School so that you can finish it later. Use this private link to continue where you left off:",
+          `  ${draft.url}`,
+          "Anyone with this link can open and change your saved application, so please do not forward it.",
+          `Your saved application will be kept until ${longDate(draft.expiresAt)}. The health questions, uploaded files and the declaration are not saved, so you will be asked for them again when you continue.`,
+          "If you did not ask for this, you can ignore this email. The saved information will be deleted automatically.",
+          SIGN_OFF,
+        ].join("\n\n"),
+      };
+    }
     case "application_staff": {
       const notes: string[] = [];
       if (p.outcome === "inquiry_advanced")

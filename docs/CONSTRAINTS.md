@@ -95,6 +95,12 @@ Things that shape how this gets built, not just what gets built.
         NoSuchUser bounce, because the mailbox did not exist yet; the
         mailbox now works and the suppression was removed (reported by
         Eyram, 2026-10-21).
+      - [ ] **Resend click and open tracking off (slice 10, added
+        2026-10-21).** Resume emails carry a private link to a saved
+        application; click tracking would rewrite it through Resend's
+        tracking host. Eyram checks that click and open tracking are off
+        for `mail.tcsch.edu.gh` in the Resend dashboard before resume emails
+        are used for real.
       - [x] **Mail authentication.** SPF, DKIM and DMARC all showed PASS on
         the hosted test's delivered parent email (Gmail, "Show original";
         reported by Eyram, 2026-10-21).
@@ -192,6 +198,13 @@ Things that shape how this gets built, not just what gets built.
       `npx supabase db push` (see docs/JOURNAL.md).
 
 ## Data safety
+
+- **Lowering the saved application size limit means fixing existing rows
+  (recorded 2026-10-21).** `application_drafts` has a table check that
+  reads the 48 KB limit from `_application_draft_lifetime()`. A migration
+  that lowers that number must also wipe or trim any existing draft over
+  the new limit in the same migration, or the next update of such a row
+  (including the daily housekeeping wipe) fails its check.
 
 - **This project must never connect to Wilelik's real Supabase project.**
   Wilelik (the original, at `~/projects/wilelik-erp`) holds Eyram's dad's

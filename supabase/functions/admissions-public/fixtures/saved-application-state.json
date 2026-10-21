@@ -1,0 +1,46 @@
+{
+  "guardians": [
+    {
+      "surname": "Mensah",
+      "firstName": "Ama",
+      "relationship": "mother",
+      "religion": "Christian",
+      "address": "7 Saved Road",
+      "townCity": "Accra",
+      "phone": "+233240000011",
+      "email": "saved.parent@example.test"
+    },
+    {
+      "surname": "Mensah",
+      "firstName": "Kofi",
+      "relationship": "father",
+      "religion": "Prefer not to say",
+      "address": "",
+      "townCity": "",
+      "phone": "+442079460958",
+      "email": ""
+    }
+  ],
+  "secondSameAddress": true,
+  "child": {
+    "fullName": "Esi Mensah",
+    "dateOfBirth": "03/02/2019",
+    "gender": "female",
+    "nationality": "Ghanaian",
+    "sameAddress": true,
+    "address": "",
+    "townCity": "",
+    "postalCode": "GA-123-4567",
+    "country": "Ghana",
+    "currentGrade": "",
+    "currentSchool": "Little Stars",
+    "previousSchoolLocation": "12 School Lane, Accra",
+    "gradeId": "",
+    "academicYear": "2026/2027",
+    "month": "September"
+  },
+  "campusId": "",
+  "emergency": { "name": "Aunt Saved", "relationship": "Aunt", "phone": "+233200000012" },
+  "wantsScholarship": true,
+  "scholarshipDetails": "Interested in the academic scholarship."
+}

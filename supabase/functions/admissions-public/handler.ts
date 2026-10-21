@@ -65,6 +65,32 @@
 //               family was new or matched, an enquiry was advanced or a
 //               possible duplicate was flagged. No IP is passed on (D-9i).
 //
+// Saved applications (slice 10; decided by Eyram 2026-10-21). Tokens travel
+// only in the POST body, never in a URL, and are never logged:
+//
+//   draft_create   steps 1 to 3 with the 64 KB cap, then draft_ip (an HMAC
+//                  of the IP), Turnstile with action "draft", draft_global
+//                  (only after Turnstile), then create_application_draft,
+//                  which also queues the resume email. Returns the browser's
+//                  draft token once.
+//   draft_save     64 KB cap, draft_use_ip, then save_application_draft
+//                  (token gated, no Turnstile), optionally queuing a resume
+//                  email to the draft's own stored address.
+//   draft_get      draft_use_ip, then get_application_draft.
+//   draft_delete   draft_use_ip, then delete_application_draft (works while
+//                  public applications are closed: erasure is always
+//                  allowed).
+//   application    may carry draft_token; then submit_application_from_draft
+//                  is called instead, which retires the draft in the same
+//                  transaction.
+//
+// Draft refusals keep the database's message only for the DETAIL codes in
+// DRAFT_CODES (written for parents in the database) and return the code so
+// the page can act on it. A live-draft cap (draft_limit) and every rate
+// limit get one generic message that never says saved applications exist.
+// A resume email cap (draft_email_limit) undoes the save; the page keeps
+// what the parent typed and offers to save again without the email.
+//
 // This file has no Deno globals and no npm imports, so Node's test runner
 // can drive it with a fake verifier and fake RPCs (handler.test.ts).
 // index.ts wires the real ones. Secrets are passed in, never logged, and
@@ -117,7 +143,22 @@ export const MESSAGES = {
   fileRejected: "Only PDF, JPG or PNG files of 10 MB or less can be uploaded.",
   appError:
     "Something went wrong on our side. Please try again later, or call the school office to apply.",
+  draftRefused: "We could not save your application right now. Please contact the school office.",
 } as const;
+
+/** The draft refusals whose database message is shown to the parent. */
+export const DRAFT_CODES = [
+  "draft_invalid",
+  "draft_expired",
+  "draft_submitted",
+  "draft_version",
+  "draft_state",
+  "email",
+  "consent",
+] as const;
+
+const DRAFT_TOKEN = /^[0-9a-f]{64}$/;
+export const MAX_DRAFT_EMAIL_LENGTH = 254;
 
 export type Config = {
   allowedOrigins: string[];
@@ -376,7 +417,29 @@ type ParsedRequest =
       token: string;
       sessionToken: string;
       payload: Record<string, unknown>;
-    };
+      draftToken: string | null;
+    }
+  | {
+      action: "draft_create";
+      token: string;
+      email: string;
+      state: Record<string, unknown>;
+      step: number;
+      consent: boolean;
+    }
+  | {
+      action: "draft_save";
+      draftToken: string;
+      state: Record<string, unknown>;
+      step: number;
+      version: number;
+      sendEmail: boolean;
+    }
+  | { action: "draft_get"; draftToken: string }
+  | { action: "draft_delete"; draftToken: string };
+
+/** Actions whose body may use the larger cap. */
+const LARGE_BODY_ACTIONS = ["application", "draft_create", "draft_save"];
 
 function turnstileToken(value: unknown): string | null {
   return typeof value === "string" &&
@@ -405,7 +468,13 @@ function parseRequest(text: string): ParsedRequest | "unknown_action" | null {
   const b = body;
   if (b.action === "application") {
     if (
-      !onlyKeys(b, ["action", "turnstile_token", "session_token", "payload"])
+      !onlyKeys(b, [
+        "action",
+        "turnstile_token",
+        "session_token",
+        "payload",
+        "draft_token",
+      ])
     )
       return null;
     const token = turnstileToken(b.turnstile_token);
@@ -416,13 +485,21 @@ function parseRequest(text: string): ParsedRequest | "unknown_action" | null {
       !/^[0-9a-f]{64}$/.test(b.session_token)
     )
       return null;
+    if (
+      "draft_token" in b &&
+      (typeof b.draft_token !== "string" || !DRAFT_TOKEN.test(b.draft_token))
+    )
+      return null;
     return {
       action: "application",
       token,
       sessionToken: b.session_token,
       payload: b.payload,
+      draftToken: typeof b.draft_token === "string" ? b.draft_token : null,
     };
   }
+  if (typeof b.action === "string" && b.action.startsWith("draft_"))
+    return parseDraftRequest(b);
   if (!onlyKeys(b, ["action", "turnstile_token", "payload"])) return null;
 
   if (b.action === "inquiry") {
@@ -454,6 +531,79 @@ function parseRequest(text: string): ParsedRequest | "unknown_action" | null {
       extension: p.extension.toLowerCase(),
       size: p.size,
     };
+  }
+  return "unknown_action";
+}
+
+function isStep(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 5;
+}
+
+/** The four draft actions. Shapes only: the database checks the state's
+ * keys, its size, the step, the email and the token. */
+function parseDraftRequest(
+  b: Record<string, unknown>,
+): ParsedRequest | "unknown_action" | null {
+  const p = b.payload;
+  if (b.action === "draft_create") {
+    if (!onlyKeys(b, ["action", "turnstile_token", "payload"]) || !isObject(p))
+      return null;
+    if (!onlyKeys(p, ["email", "state", "step", "consent"])) return null;
+    const token = turnstileToken(b.turnstile_token);
+    if (
+      token === null ||
+      typeof p.email !== "string" ||
+      p.email.length > MAX_DRAFT_EMAIL_LENGTH ||
+      !isObject(p.state) ||
+      !isStep(p.step) ||
+      typeof p.consent !== "boolean"
+    )
+      return null;
+    return {
+      action: "draft_create",
+      token,
+      email: p.email,
+      state: p.state,
+      step: p.step,
+      consent: p.consent,
+    };
+  }
+  if (!onlyKeys(b, ["action", "payload"]) || !isObject(p)) {
+    return ["draft_save", "draft_get", "draft_delete"].includes(String(b.action))
+      ? null
+      : "unknown_action";
+  }
+  if (typeof p.draft_token !== "string" || !DRAFT_TOKEN.test(p.draft_token)) {
+    return ["draft_save", "draft_get", "draft_delete"].includes(String(b.action))
+      ? null
+      : "unknown_action";
+  }
+  if (b.action === "draft_save") {
+    if (!onlyKeys(p, ["draft_token", "state", "step", "version", "send_email"]))
+      return null;
+    if (
+      !isObject(p.state) ||
+      !isStep(p.step) ||
+      typeof p.version !== "number" ||
+      !Number.isInteger(p.version) ||
+      p.version < 1 ||
+      typeof p.send_email !== "boolean"
+    )
+      return null;
+    return {
+      action: "draft_save",
+      draftToken: p.draft_token,
+      state: p.state,
+      step: p.step,
+      version: p.version,
+      sendEmail: p.send_email,
+    };
+  }
+  if (b.action === "draft_get" || b.action === "draft_delete") {
+    if (!onlyKeys(p, ["draft_token"])) return null;
+    return b.action === "draft_get"
+      ? { action: "draft_get", draftToken: p.draft_token }
+      : { action: "draft_delete", draftToken: p.draft_token };
   }
   return "unknown_action";
 }
@@ -514,7 +664,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     return respond(400, { error: MESSAGES.badRequest }, origin);
   }
   if (
-    parsed.action !== "application" &&
+    !LARGE_BODY_ACTIONS.includes(parsed.action) &&
     new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES
   ) {
     deps.log("too_large");
@@ -526,6 +676,13 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     return handleUploadSession(req, parsed.token, deps, config, origin);
   if (parsed.action === "upload_url")
     return handleUploadUrl(parsed, deps, origin);
+  if (
+    parsed.action === "draft_create" ||
+    parsed.action === "draft_save" ||
+    parsed.action === "draft_get" ||
+    parsed.action === "draft_delete"
+  )
+    return handleDraft(req, parsed, deps, config, origin);
 
   // 4. per-IP, before spending a Turnstile call.
   let ipKey: string;
@@ -962,11 +1119,18 @@ async function handleApplication(
 
   let result: RpcResult;
   try {
-    result = await deps.rpc("submit_application", {
-      p_payload: parsed.payload,
-      p_session_token: parsed.sessionToken,
-      p_sniffed: sniffed,
-    });
+    result = parsed.draftToken
+      ? await deps.rpc("submit_application_from_draft", {
+          p_payload: parsed.payload,
+          p_session_token: parsed.sessionToken,
+          p_sniffed: sniffed,
+          p_draft_token: parsed.draftToken,
+        })
+      : await deps.rpc("submit_application", {
+          p_payload: parsed.payload,
+          p_session_token: parsed.sessionToken,
+          p_sniffed: sniffed,
+        });
   } catch {
     deps.log("application_error");
     return respond(500, { error: MESSAGES.appError }, origin);
@@ -974,6 +1138,16 @@ async function handleApplication(
   if (result.error) {
     switch (result.error.code) {
       case "TCS22": {
+        // A second window submitting a draft already submitted: the page
+        // locks the form rather than showing an error.
+        if (result.error.details === "draft_submitted") {
+          deps.log("application_draft_submitted");
+          return respond(
+            400,
+            { error: result.error.message ?? MESSAGES.badRequest, code: "draft_submitted" },
+            origin,
+          );
+        }
         deps.log("application_invalid");
         const field = safeApplicationFieldPath(result.error.details);
         return respond(
@@ -1010,4 +1184,212 @@ async function handleApplication(
   }
   deps.log("application_created");
   return respond(200, { reference }, origin);
+}
+
+/** Maps the draft RPCs' refusals (see the header). */
+export function draftRefusal(
+  error: NonNullable<RpcResult["error"]>,
+  deps: Deps,
+  origin: string,
+): Response {
+  const detail = error.details ?? "";
+  switch (error.code) {
+    case "TCS22":
+      if ((DRAFT_CODES as readonly string[]).includes(detail)) {
+        deps.log(`draft_${detail.replace(/^draft_/, "")}`);
+        return respond(
+          detail === "draft_version" ? 409 : 400,
+          { error: error.message ?? MESSAGES.badRequest, code: detail },
+          origin,
+        );
+      }
+      deps.log("draft_invalid_other");
+      return respond(400, { error: MESSAGES.badRequest }, origin);
+    case "TCS03":
+      deps.log("draft_closed");
+      return respond(409, { error: MESSAGES.appClosed, code: "closed" }, origin);
+    case "TCS29":
+      if (detail === "draft_email_limit" && error.message) {
+        deps.log("draft_email_limited");
+        return respond(429, { error: error.message, code: "draft_email_limit" }, origin);
+      }
+      deps.log("draft_limited");
+      return respond(429, { error: MESSAGES.draftRefused, code: "draft_limit" }, origin);
+    default: {
+      const code = /^[0-9A-Z]{5}$/.test(error.code ?? "") ? error.code : "unknown";
+      deps.log(`draft_failed_${code}`);
+      return respond(500, { error: MESSAGES.appError }, origin);
+    }
+  }
+}
+
+function limited(deps: Deps, origin: string, outcome: string): Response {
+  deps.log(outcome);
+  return respond(429, { error: MESSAGES.draftRefused, code: "draft_limit" }, origin);
+}
+
+function isIso(value: unknown): value is string {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
+function isMasked(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 300 && value.includes("\u2022");
+}
+
+type DraftRequest = Extract<
+  ParsedRequest,
+  { action: "draft_create" | "draft_save" | "draft_get" | "draft_delete" }
+>;
+
+async function handleDraft(
+  req: Request,
+  parsed: DraftRequest,
+  deps: Deps,
+  config: Config,
+  origin: string,
+): Promise<Response> {
+  let ipKey: string;
+  try {
+    ipKey = await hmacHex(config.ipHashKey, clientIp(req.headers));
+  } catch {
+    deps.log("ip_hash_failed");
+    return respond(503, { error: MESSAGES.draftRefused }, origin);
+  }
+  const ipOk = await underLimit(deps, {
+    p_bucket: parsed.action === "draft_create" ? "draft_ip" : "draft_use_ip",
+    p_key_hash: ipKey,
+  });
+  if (ipOk === "error") {
+    deps.log("rate_limit_error");
+    return respond(503, { error: MESSAGES.draftRefused }, origin);
+  }
+  if (!ipOk) return limited(deps, origin, "draft_ip_limited");
+
+  if (parsed.action === "draft_create") {
+    let outcome: TurnstileOutcome;
+    try {
+      outcome = await deps.verifyTurnstile(parsed.token, config.turnstileSecret);
+    } catch {
+      deps.log("turnstile_unavailable");
+      return respond(503, { error: MESSAGES.verify }, origin);
+    }
+    if (!turnstilePassed(outcome, config, "draft")) {
+      deps.log("turnstile_refused");
+      return respond(400, { error: MESSAGES.verify }, origin);
+    }
+    const globalOk = await underLimit(deps, { p_bucket: "draft_global" });
+    if (globalOk === "error") {
+      deps.log("rate_limit_error");
+      return respond(503, { error: MESSAGES.draftRefused }, origin);
+    }
+    if (!globalOk) return limited(deps, origin, "draft_global_limited");
+  }
+
+  let result: RpcResult;
+  try {
+    switch (parsed.action) {
+      case "draft_create":
+        result = await deps.rpc("create_application_draft", {
+          p_email: parsed.email,
+          p_state: parsed.state,
+          p_step: parsed.step,
+          p_consent: parsed.consent,
+        });
+        break;
+      case "draft_save":
+        result = await deps.rpc("save_application_draft", {
+          p_token: parsed.draftToken,
+          p_state: parsed.state,
+          p_step: parsed.step,
+          p_expected_version: parsed.version,
+          p_send_email: parsed.sendEmail,
+        });
+        break;
+      case "draft_get":
+        result = await deps.rpc("get_application_draft", { p_token: parsed.draftToken });
+        break;
+      case "draft_delete":
+        result = await deps.rpc("delete_application_draft", { p_token: parsed.draftToken });
+        break;
+    }
+  } catch {
+    deps.log("draft_error");
+    return respond(500, { error: MESSAGES.appError }, origin);
+  }
+  if (result.error) return draftRefusal(result.error, deps, origin);
+
+  const d = result.data;
+  const bad = () => {
+    deps.log("draft_bad_result");
+    return respond(500, { error: MESSAGES.appError }, origin);
+  };
+  switch (parsed.action) {
+    case "draft_create":
+      if (
+        !isObject(d) ||
+        typeof d.token !== "string" ||
+        !DRAFT_TOKEN.test(d.token) ||
+        !isIso(d.expires_at) ||
+        typeof d.version !== "number" ||
+        !isMasked(d.email_masked)
+      )
+        return bad();
+      deps.log("draft_created");
+      return respond(
+        200,
+        {
+          draft_token: d.token,
+          expires_at: d.expires_at,
+          version: d.version,
+          email_masked: d.email_masked,
+        },
+        origin,
+      );
+    case "draft_save":
+      if (
+        !isObject(d) ||
+        typeof d.version !== "number" ||
+        !isIso(d.expires_at) ||
+        typeof d.email_queued !== "boolean" ||
+        !isMasked(d.email_masked)
+      )
+        return bad();
+      deps.log("draft_saved");
+      return respond(
+        200,
+        {
+          version: d.version,
+          expires_at: d.expires_at,
+          email_queued: d.email_queued,
+          email_masked: d.email_masked,
+        },
+        origin,
+      );
+    case "draft_get":
+      if (
+        !isObject(d) ||
+        !isObject(d.state) ||
+        !isStep(d.step) ||
+        typeof d.version !== "number" ||
+        !isIso(d.expires_at) ||
+        !isMasked(d.email_masked)
+      )
+        return bad();
+      deps.log("draft_opened");
+      return respond(
+        200,
+        {
+          state: d.state,
+          step: d.step,
+          version: d.version,
+          expires_at: d.expires_at,
+          email_masked: d.email_masked,
+        },
+        origin,
+      );
+    case "draft_delete":
+      if (d !== true) return bad();
+      deps.log("draft_deleted");
+      return respond(200, { deleted: true }, origin);
+  }
 }

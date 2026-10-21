@@ -6,7 +6,8 @@
 //   - The mail configuration, read once per request from the function's
 //     secrets (see loadMailConfig in handler.ts): MAIL_MODE, RESEND_API_KEY,
 //     MAIL_FROM, MAIL_REPLY_TO, ADMISSIONS_STAFF_EMAIL, ERP_BASE_URL and
-//     MAIL_DAILY_CEILING (plus RESEND_API_BASE in local test mode only).
+//     MAIL_DAILY_CEILING (plus RESEND_API_BASE in local test mode only), and
+//     the optional PUBLIC_APPLY_BASE_URL for resume email links (slice 10).
 //     Set on hosted with `supabase secrets set`; none is logged or returned.
 //     MAIL_MODE unset means mail is off.
 //   - fetch for Resend, with a timeout, and Storage for the sweep, reusing

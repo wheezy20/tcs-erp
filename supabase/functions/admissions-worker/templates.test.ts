@@ -9,12 +9,19 @@ import { test } from "node:test";
 
 import {
   EMAIL_KINDS,
+  longDate,
   parseParams,
   renderEmail,
   type EmailKind,
 } from "./templates.ts";
 
 const ERP = "https://erp.example.test";
+// Passed to every render; only the resume email uses it.
+const RESUME_TOKEN = "c".repeat(64);
+const DRAFT = {
+  url: `https://apply.example.test/apply#resume=${RESUME_TOKEN}`,
+  expiresAt: "2026-11-20T06:34:29.935916+00:00",
+};
 const one = (ref: string) => ({
   reference: ref,
   grade: "Grade 3",
@@ -77,6 +84,7 @@ function cases(): Array<[EmailKind, unknown]> {
         outcome: "possible_duplicate",
       },
     ],
+    ["draft_resume", {}],
   ];
 }
 
@@ -89,7 +97,7 @@ test("every kind is covered by the cases", () => {
 
 test("no subject has an em or en dash or any other dash character", () => {
   for (const [kind, params] of cases()) {
-    const { subject } = renderEmail(kind, params, ERP);
+    const { subject } = renderEmail(kind, params, ERP, DRAFT);
     assert.doesNotMatch(
       subject,
       /[\u2012\u2013\u2014\u2015\u2212]/,
@@ -100,7 +108,7 @@ test("no subject has an em or en dash or any other dash character", () => {
 
 test("no body has an em or en dash or any other dash character", () => {
   for (const [kind, params] of cases()) {
-    const { text } = renderEmail(kind, params, ERP);
+    const { text } = renderEmail(kind, params, ERP, DRAFT);
     assert.doesNotMatch(
       text,
       /[\u2012\u2013\u2014\u2015\u2212]/,
@@ -111,7 +119,7 @@ test("no body has an em or en dash or any other dash character", () => {
 
 test("no subject or body uses the word inquiry; the emails say enquiry", () => {
   for (const [kind, params] of cases()) {
-    const { subject, text } = renderEmail(kind, params, ERP);
+    const { subject, text } = renderEmail(kind, params, ERP, DRAFT);
     assert.doesNotMatch(`${subject}\n${text}`, /inquir/i, kind);
   }
   assert.equal(
@@ -138,7 +146,7 @@ test("no subject or body uses the word inquiry; the emails say enquiry", () => {
 
 test("parent emails: no names, no links, the reference, the Admissions Office sign-off", () => {
   for (const [kind, params] of cases().filter(([k]) => k.endsWith("_parent"))) {
-    const { text } = renderEmail(kind, params, ERP);
+    const { text } = renderEmail(kind, params, ERP, DRAFT);
     assert.match(text, /^Dear Parent or Guardian,\n\n/);
     assert.match(
       text,
@@ -241,4 +249,62 @@ test("control characters and line breaks in a grade are flattened to one line", 
     ERP,
   );
   assert.match(text, /INQ-2026-0041 \(Grade 3 BCC: x, 2026\/2027\)/);
+});
+
+// ---------------------------------------------------------------- resume email (slice 10)
+
+test("the resume email: the private link, the date it is kept until, what is not saved, no name, no dash", () => {
+  const { subject, text } = renderEmail("draft_resume", {}, ERP, DRAFT);
+  assert.equal(subject, "Your saved application");
+  assert.ok(text.startsWith("Dear Parent or Guardian,"));
+  assert.ok(text.includes(`\n  ${DRAFT.url}\n`));
+  assert.equal(
+    text.split(RESUME_TOKEN).length,
+    2,
+    "the link appears exactly once",
+  );
+  assert.match(text, /kept until 20 November 2026\./);
+  assert.match(text, /please do not forward it/);
+  assert.match(
+    text,
+    /health questions, uploaded files and the declaration are not saved/,
+  );
+  assert.match(
+    text,
+    /If you did not ask for this, you can ignore this email\./,
+  );
+  assert.ok(
+    text.endsWith(
+      "Kind regards,\nAdmissions Office\nTreasures Christian School",
+    ),
+  );
+  assert.doesNotMatch(
+    text,
+    /[\u2012\u2013\u2014\u2015\u2212]|inquir|https?:\/\/erp/i,
+  );
+});
+
+test("the resume email needs its link, takes only a /apply resume link, and refuses any params", () => {
+  assert.throws(() => renderEmail("draft_resume", {}, ERP));
+  for (const url of [
+    `https://apply.example.test/apply?resume=${RESUME_TOKEN}`,
+    `https://apply.example.test/other#resume=${RESUME_TOKEN}`,
+    "https://apply.example.test/apply#resume=short",
+    `javascript:alert(1)//apply#resume=${RESUME_TOKEN}`,
+  ]) {
+    assert.throws(
+      () => renderEmail("draft_resume", {}, ERP, { ...DRAFT, url }),
+      url,
+    );
+  }
+  assert.throws(() =>
+    renderEmail("draft_resume", {}, ERP, { ...DRAFT, expiresAt: "soon" }),
+  );
+  assert.throws(() => parseParams("draft_resume", { token: RESUME_TOKEN }));
+  assert.throws(() => parseParams("draft_resume", { references: [] }));
+});
+
+test("longDate writes the Accra date in full", () => {
+  assert.equal(longDate("2026-01-01T00:30:00Z"), "1 January 2026");
+  assert.equal(longDate("2026-12-31T23:59:59Z"), "31 December 2026");
 });

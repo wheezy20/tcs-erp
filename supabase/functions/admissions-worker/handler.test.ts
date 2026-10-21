@@ -36,6 +36,16 @@ const MAIL: MailConfig = {
   staffEmail: "staff.alerts@example.test",
   erpBaseUrl: "http://localhost:8080",
   dailyCeiling: 100,
+  applyBaseUrl: "http://localhost:8080",
+};
+const LINK_TOKEN = "b".repeat(64);
+const ISSUED: RpcResult = {
+  data: {
+    status: "issued",
+    token: LINK_TOKEN,
+    expires_at: "2026-11-20T06:34:29+00:00",
+  },
+  error: null,
 };
 const REF = (r: string) => ({
   references: [{ reference: r, grade: "Grade 3", academic_year: "2026/2027" }],
@@ -73,6 +83,7 @@ function harness(
     rows?: unknown[];
     results?: SendResult[];
     mail?: MailConfig | null;
+    issue?: RpcResult | (() => Promise<RpcResult>);
   } = {},
 ): Harness {
   const calls: Harness["calls"] = [];
@@ -91,6 +102,10 @@ function harness(
         return { data: true, error: null };
       if (fn === "claim_expired_application_uploads")
         return { data: [], error: null };
+      if (fn === "issue_application_draft_link") {
+        const i = opts.issue ?? ISSUED;
+        return typeof i === "function" ? i() : i;
+      }
       return { data: null, error: { message: "unexpected" } };
     },
     mail: opts.mail === undefined ? MAIL : opts.mail,
@@ -414,10 +429,176 @@ test("a row whose params can't be rendered is failed without sending", async () 
 });
 
 test("a malformed claim answer sends nothing", async () => {
-  const h = harness({ rows: [{ id: 1 }] });
+  const h = harness({ rows: "not a list" as unknown as unknown[] });
   await handle(req({ job: "mail" }), h.deps);
   assert.deepEqual(h.sent, []);
   assert.ok(h.logs.includes("mail_claim_failed"));
+});
+
+test("a row this worker can't read is failed on its own and the rest of the batch still goes", async () => {
+  const h = harness({
+    rows: [
+      ROW("1", "inquiry_parent", "a@example.test"),
+      {
+        ...ROW("2", "inquiry_parent", "b@example.test"),
+        kind: "a_future_kind",
+      },
+      { id: 3 },
+      ROW("4", "application_parent", "d@example.test"),
+    ],
+  });
+  await handle(req({ job: "mail" }), h.deps);
+  assert.deepEqual(
+    h.sent.map((e) => e.to),
+    ["a@example.test", "d@example.test"],
+  );
+  assert.deepEqual(
+    marks(h).map((m) => `${m.p_id}:${m.p_outcome}:${m.p_error_class}`),
+    ["2:failed:other", "1:sent:null", "4:sent:null"],
+  );
+  assert.ok(h.logs.includes("mail_unreadable_row"));
+});
+
+// ---------------------------------------------------------------- resume emails (slice 10)
+
+const DRAFT_ROW = (id = "d1", attempts = 1) => ({
+  ...ROW(id, "draft_resume", "parent@example.test", {}),
+  attempts,
+});
+
+test("a resume email: the link is minted for this claim and sent once, keyed by row and attempt", async () => {
+  const h = harness({
+    rows: [DRAFT_ROW("d1", 3), ROW("5", "inquiry_parent", "e@example.test")],
+  });
+  await handle(req({ job: "mail" }), h.deps);
+  const issue = h.calls.filter((c) => c.fn === "issue_application_draft_link");
+  assert.deepEqual(
+    issue.map((c) => c.args),
+    [{ p_outbox_id: "d1", p_claim_token: "token-d1" }],
+  );
+  assert.equal(h.sent.length, 2);
+  const [draft, other] = h.sent;
+  assert.equal(draft.to, "parent@example.test");
+  assert.equal(draft.kind, "draft_resume");
+  assert.equal(draft.idempotencyKey, "outbox-d1-3");
+  assert.equal(other.idempotencyKey, "outbox-5");
+  assert.ok(
+    draft.text.includes(`http://localhost:8080/apply#resume=${LINK_TOKEN}`),
+  );
+  assert.deepEqual(
+    marks(h).map((m) => `${m.p_id}:${m.p_outcome}`),
+    ["d1:sent", "5:sent"],
+  );
+});
+
+test("the resume token is never logged and never passed to any other call", async () => {
+  for (const results of [
+    [],
+    [{ kind: "http", status: 503 } as SendResult],
+    [{ kind: "network" } as SendResult],
+  ]) {
+    const h = harness({ rows: [DRAFT_ROW()], results });
+    await handle(req({ job: "mail" }), h.deps);
+    assert.equal(h.sent.length, 1);
+    for (const l of h.logs) assert.ok(!l.includes(LINK_TOKEN), `logged: ${l}`);
+    for (const c of h.calls)
+      assert.ok(
+        !JSON.stringify(c.args).includes(LINK_TOKEN),
+        `passed to ${c.fn}`,
+      );
+  }
+});
+
+test("a resume email no longer needed is left as the database marked it; a refused one is failed; a lost claim records nothing", async () => {
+  const expired = harness({
+    rows: [DRAFT_ROW()],
+    issue: { data: { status: "expired" }, error: null },
+  });
+  await handle(req({ job: "mail" }), expired.deps);
+  assert.deepEqual(expired.sent, []);
+  assert.deepEqual(marks(expired), []);
+
+  for (const data of [
+    { status: "failed" },
+    { status: "issued", token: "short", expires_at: "2026-11-20" },
+    { status: "issued", token: LINK_TOKEN, expires_at: "soon" },
+    ["odd"],
+  ]) {
+    const h = harness({ rows: [DRAFT_ROW()], issue: { data, error: null } });
+    await handle(req({ job: "mail" }), h.deps);
+    assert.deepEqual(h.sent, [], JSON.stringify(data));
+    assert.deepEqual(
+      marks(h).map((m) => `${m.p_outcome}:${m.p_error_class}`),
+      ["failed:other"],
+    );
+  }
+
+  const lost = harness({
+    rows: [DRAFT_ROW()],
+    issue: { data: null, error: null },
+  });
+  await handle(req({ job: "mail" }), lost.deps);
+  assert.deepEqual(lost.sent, []);
+  assert.deepEqual(marks(lost), []);
+});
+
+test("a link request that errors (a second request for one claim, or the database) counts as a failed attempt", async () => {
+  for (const issue of [
+    {
+      data: null,
+      error: {
+        code: "P0001",
+        message: "A link was already issued for this claim",
+      },
+    },
+    async (): Promise<RpcResult> => {
+      throw new Error("network");
+    },
+  ]) {
+    const h = harness({
+      rows: [DRAFT_ROW(), ROW("6", "inquiry_parent", "f@example.test")],
+      issue,
+    });
+    await handle(req({ job: "mail" }), h.deps);
+    assert.deepEqual(
+      h.sent.map((e) => e.to),
+      ["f@example.test"],
+    );
+    assert.deepEqual(
+      marks(h).map((m) => `${m.p_id}:${m.p_outcome}:${m.p_error_class}`),
+      ["d1:retry:other", "6:sent:null"],
+    );
+  }
+});
+
+test("without PUBLIC_APPLY_BASE_URL resume emails wait with class config and confirmation emails still go", async () => {
+  const h = harness({
+    rows: [DRAFT_ROW(), ROW("7", "application_parent", "g@example.test")],
+    mail: { ...MAIL, applyBaseUrl: null },
+  });
+  await handle(req({ job: "mail" }), h.deps);
+  assert.ok(!h.calls.some((c) => c.fn === "issue_application_draft_link"));
+  assert.deepEqual(
+    h.sent.map((e) => e.to),
+    ["g@example.test"],
+  );
+  assert.deepEqual(
+    marks(h).map((m) => `${m.p_id}:${m.p_outcome}:${m.p_error_class}`),
+    ["d1:retry:config", "7:sent:null"],
+  );
+});
+
+test("a batch stopped by a 429 mints no link for the resume emails it puts back", async () => {
+  const h = harness({
+    rows: [ROW("8", "inquiry_parent", "h@example.test"), DRAFT_ROW()],
+    results: [{ kind: "http", status: 429 }],
+  });
+  await handle(req({ job: "mail" }), h.deps);
+  assert.ok(!h.calls.some((c) => c.fn === "issue_application_draft_link"));
+  assert.deepEqual(
+    marks(h).map((m) => `${m.p_id}:${m.p_outcome}`),
+    ["8:retry", "d1:retry"],
+  );
 });
 
 // ---------------------------------------------------------------- sweep
@@ -435,6 +616,7 @@ test("sweep runs the upload sweep's claim", async () => {
 // ---------------------------------------------------------------- config
 
 const ENV: Record<string, string> = {
+  PUBLIC_APPLY_BASE_URL: "https://apply.example.test",
   MAIL_MODE: "live",
   RESEND_API_KEY: "re_live_key_value",
   MAIL_FROM: "TCS Admissions <no-reply@mail.tcsch.edu.gh>",
@@ -564,4 +746,31 @@ test("the Resend sender never throws: errors become network or timeout, HTTP err
       })) as unknown as typeof fetch,
   );
   assert.deepEqual(await http(email, MAIL), { kind: "http", status: 422 });
+});
+
+test("PUBLIC_APPLY_BASE_URL is optional: missing or malformed leaves mail on with no resume link base", () => {
+  assert.equal(
+    loadMailConfig((n) => ENV[n])?.applyBaseUrl,
+    "https://apply.example.test",
+  );
+  for (const v of [
+    undefined,
+    "",
+    "http://apply.example.test",
+    "https://apply.example.test/path",
+    "https://localhost",
+    "https://apply.example.test?x=1",
+  ]) {
+    const c = loadMailConfig((n) =>
+      n === "PUBLIC_APPLY_BASE_URL" ? v : ENV[n],
+    );
+    assert.ok(c, String(v));
+    assert.equal(c.applyBaseUrl, null, String(v));
+  }
+  assert.equal(
+    loadMailConfig((n) =>
+      n === "PUBLIC_APPLY_BASE_URL" ? "https://apply.example.test/" : ENV[n],
+    )?.applyBaseUrl,
+    "https://apply.example.test",
+  );
 });
