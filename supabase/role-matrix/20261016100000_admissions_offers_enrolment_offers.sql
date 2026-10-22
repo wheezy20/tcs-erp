@@ -449,7 +449,9 @@ exception when others then
   if sqlerrm <> 'Application not found' then raise; end if;
 end $$;
 
--- probe: B1 generate_offer: 64-hex token returned once; only its SHA-256 stored; pending, 14 days, stage offer
+-- Changed in slice 11 (20261031110000, D-11d): no raw token is returned or
+-- stored any more; links are minted at send time (see the slice 11 probes).
+-- probe: B1 generate_offer: no token returned or stored; pending, 14 days, stage offer
 -- expect: Manager,Admissions Officer
 insert into public.families (id) values ('9e06b000-0000-4000-8000-000100000001');
 insert into public.students (id, family_id, full_name, student_id) values ('9e06b000-0000-4000-8000-000300000001', '9e06b000-0000-4000-8000-000100000001', 'Child 1 Fixture', null);
@@ -462,26 +464,20 @@ do $$
 declare r jsonb; o public.application_offers; a public.applications;
 begin
   r := public.generate_offer('9e06b000-0000-4000-8000-000400000001');
-  if (r->>'token') !~ '^[0-9a-f]{64}$' then raise exception 'token not 64 hex'; end if;
+  if r ? 'token' then raise exception 'token returned'; end if;
   if r->>'stage' <> 'offer' then raise exception 'stage not returned'; end if;
-  perform set_config('probe.token', r->>'token', true);
 end $$;
 reset role;
 do $$
-declare o public.application_offers; t text := current_setting('probe.token');
+declare o public.application_offers;
 begin
   select * into o from public.application_offers where application_id = '9e06b000-0000-4000-8000-000400000001';
-  if o.token_hash <> encode(extensions.digest(t, 'sha256'), 'hex') then raise exception 'hash is not sha256 of the token'; end if;
-  if o.token_hash = t then raise exception 'raw token stored'; end if;
+  if o.token_hash is not null then raise exception 'a hash was stored'; end if;
   if o.response <> 'pending' or o.responded_at is not null then raise exception 'not pending'; end if;
   if o.expires_at - o.sent_at <> interval '14 days' then raise exception 'ttl wrong: %', o.expires_at - o.sent_at; end if;
   if o.sent_at < now() then raise exception 'sent_at before the transaction'; end if;
   if (select stage from public.applications where id = '9e06b000-0000-4000-8000-000400000001') <> 'offer' then raise exception 'stage not offer'; end if;
-  if exists (select 1 from public.application_offers x where row_to_json(x)::text like '%' || t || '%') then
-    raise exception 'raw token found in application_offers';
-  end if;
-  if exists (select 1 from public.audit_log l where l.before::text like '%' || t || '%' or l.after::text like '%' || t || '%'
-             or l.before::text like '%' || o.token_hash || '%' or l.after::text like '%' || o.token_hash || '%') then
+  if exists (select 1 from public.audit_log l where l.before::text ~ '[0-9a-f]{64}' or l.after::text ~ '[0-9a-f]{64}') then
     raise exception 'token or hash in the audit log';
   end if;
 end $$;
@@ -504,7 +500,9 @@ do $$ begin
   end if;
 end $$;
 
--- probe: B3 generate_offer: two calls give two different tokens on two applications
+-- Changed in slice 11 (20261031110000, D-11d): no raw token is returned or
+-- stored any more; links are minted at send time (see the slice 11 probes).
+-- probe: B3 generate_offer: two calls on two applications, neither returns a token
 -- expect: Manager,Admissions Officer
 insert into public.families (id) values ('9e06b000-0000-4000-8000-000100000001');
 insert into public.students (id, family_id, full_name, student_id) values ('9e06b000-0000-4000-8000-000300000001', '9e06b000-0000-4000-8000-000100000001', 'Child 1 Fixture', null);
@@ -518,8 +516,9 @@ insert into public.application_decisions (application_id, decision_type, notes) 
 insert into public.application_decisions (application_id, decision_type, notes) values ('9e06b000-0000-4000-8000-000400000002', 'accepted', 'seeded');
 -- as role:
 do $$ begin
-  if (public.generate_offer('9e06b000-0000-4000-8000-000400000001')->>'token') = (public.generate_offer('9e06b000-0000-4000-8000-000400000002')->>'token') then
-    raise exception 'tokens repeat';
+  if (public.generate_offer('9e06b000-0000-4000-8000-000400000001') ? 'token')
+     or (public.generate_offer('9e06b000-0000-4000-8000-000400000002') ? 'token') then
+    raise exception 'token returned';
   end if;
 end $$;
 
@@ -623,7 +622,9 @@ exception when others then
   if sqlerrm <> 'An offer can''t be generated while the application is at enrolled' then raise; end if;
 end $$;
 
--- probe: B7 reset_offer: new token, new hash, old hash gone, fresh pending offer, stage back to offer
+-- Changed in slice 11 (20261031110000, D-11d): no raw token is returned or
+-- stored any more; links are minted at send time (see the slice 11 probes).
+-- probe: B7 reset_offer: no token, old hash gone, a new link generation, fresh pending offer, stage back to offer
 -- expect: Manager,Admissions Officer
 insert into public.families (id) values ('9e06b000-0000-4000-8000-000100000001');
 insert into public.students (id, family_id, full_name, student_id) values ('9e06b000-0000-4000-8000-000300000001', '9e06b000-0000-4000-8000-000100000001', 'Child 1 Fixture', null);
@@ -638,17 +639,16 @@ do $$
 declare r jsonb;
 begin
   r := public.reset_offer('9e06b000-0000-4000-8000-000400000001');
-  if (r->>'token') !~ '^[0-9a-f]{64}$' then raise exception 'token not 64 hex'; end if;
+  if r ? 'token' then raise exception 'token returned'; end if;
   if r->>'stage' <> 'offer' then raise exception 'stage not offer'; end if;
-  perform set_config('probe.token', r->>'token', true);
 end $$;
 reset role;
 do $$
-declare o public.application_offers; t text := current_setting('probe.token');
+declare o public.application_offers;
 begin
   select * into o from public.application_offers where application_id = '9e06b000-0000-4000-8000-000400000001';
-  if o.token_hash <> encode(extensions.digest(t, 'sha256'), 'hex') then raise exception 'new hash wrong'; end if;
-  if o.token_hash = encode(extensions.digest('oldtoken', 'sha256'), 'hex') then raise exception 'hash unchanged after reset'; end if;
+  if o.token_hash is not null then raise exception 'hash kept after reset'; end if;
+  if o.link_generation <> 1 then raise exception 'no new link generation'; end if;
   if exists (select 1 from public.application_offers where token_hash = encode(extensions.digest('oldtoken', 'sha256'), 'hex')) then
     raise exception 'old link still finds an offer';
   end if;
@@ -657,7 +657,9 @@ begin
   if (select stage from public.applications where id = '9e06b000-0000-4000-8000-000400000001') <> 'offer' then raise exception 'stage not offer'; end if;
 end $$;
 
--- probe: B8 reset_offer: twice in a row gives two different hashes (pending offer, lost link)
+-- Changed in slice 11 (20261031110000, D-11d): no raw token is returned or
+-- stored any more; links are minted at send time (see the slice 11 probes).
+-- probe: B8 reset_offer: twice in a row gives two new link generations (pending offer, lost link)
 -- expect: Manager,Admissions Officer
 insert into public.families (id) values ('9e06b000-0000-4000-8000-000100000001');
 insert into public.students (id, family_id, full_name, student_id) values ('9e06b000-0000-4000-8000-000300000001', '9e06b000-0000-4000-8000-000100000001', 'Child 1 Fixture', null);
@@ -667,24 +669,18 @@ insert into public.staff_admissions_capabilities (staff_id, grade_bands, all_gra
 insert into public.application_decisions (application_id, decision_type, notes) values ('9e06b000-0000-4000-8000-000400000001', 'accepted', 'seeded');
 insert into public.application_offers (application_id, token_hash, sent_at, expires_at, response) values ('9e06b000-0000-4000-8000-000400000001', encode(extensions.digest('seed1', 'sha256'), 'hex'), now() - interval '1 day', now() + interval '10 days', 'pending');
 -- as role:
--- token_hash is read as postgres: from 7b1 no signed-in role can select it.
 do $$
-declare t1 text; t2 text;
 begin
-  t1 := public.reset_offer('9e06b000-0000-4000-8000-000400000001')->>'token';
-  t2 := public.reset_offer('9e06b000-0000-4000-8000-000400000001')->>'token';
-  perform set_config('probe.t1', coalesce(t1, ''), true);
-  perform set_config('probe.t2', coalesce(t2, ''), true);
+  perform public.reset_offer('9e06b000-0000-4000-8000-000400000001');
+  perform public.reset_offer('9e06b000-0000-4000-8000-000400000001');
 end $$;
 reset role;
 do $$
-declare h text; t1 text := current_setting('probe.t1'); t2 text := current_setting('probe.t2');
+declare o public.application_offers;
 begin
-  select token_hash into h from public.application_offers where application_id = '9e06b000-0000-4000-8000-000400000001';
-  if t1 = '' or t2 = '' or t1 = t2 or h is null
-     or h <> encode(extensions.digest(t2, 'sha256'), 'hex')
-     or h = encode(extensions.digest(t1, 'sha256'), 'hex') then
-    raise exception 'reset reused a token';
+  select * into o from public.application_offers where application_id = '9e06b000-0000-4000-8000-000400000001';
+  if o.link_generation <> 2 or o.token_hash is not null then
+    raise exception 'reset did not replace the links twice';
   end if;
 end $$;
 
@@ -932,11 +928,9 @@ insert into public.application_decisions (application_id, decision_type, notes) 
 do $$
 declare t1 text; t2 text;
 begin
-  t1 := public.generate_offer('9e06b000-0000-4000-8000-000400000001')->>'token';
-  t2 := public.reset_offer('9e06b000-0000-4000-8000-000400000001')->>'token';
+  perform public.generate_offer('9e06b000-0000-4000-8000-000400000001');
+  perform public.reset_offer('9e06b000-0000-4000-8000-000400000001');
   perform public.record_offer_response('9e06b000-0000-4000-8000-000400000001', 'accepted');
-  perform set_config('probe.t1', t1, true);
-  perform set_config('probe.t2', t2, true);
 end $$;
 reset role;
 do $$
@@ -946,8 +940,9 @@ begin
   select jsonb_agg(jsonb_build_object('b', l.before, 'a', l.after, 'actor', l.actor_id, 'id', l.entity_id) order by l.occurred_at, l.after->>'response' desc, l.after->>'token_replaced')
     into rows from public.audit_log l where l.action = 'application_offer_changed';
   if jsonb_array_length(rows) <> 3 then raise exception 'expected 3 offer audit rows, got %', jsonb_array_length(rows); end if;
-  if rows::text like '%' || current_setting('probe.t1') || '%' or rows::text like '%' || current_setting('probe.t2') || '%'
-     or rows::text like '%' || o.token_hash || '%' or rows::text ~ 'token_hash' then
+  -- Slice 11: no token exists any more, so the check is that no 64 hex
+  -- string and no hash field reaches the audit rows.
+  if rows::text ~ '[0-9a-f]{64}' or rows::text ~ 'token_hash' then
     raise exception 'token or hash in audit';
   end if;
   if exists (select 1 from jsonb_array_elements(rows) e where (e->>'actor')::uuid <> auth.uid() or e->>'id' <> o.id::text) then

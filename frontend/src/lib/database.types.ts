@@ -192,6 +192,7 @@ export type Database = {
           last_http_status: number | null
           lead_id: string | null
           next_attempt_at: string
+          offer_id: string | null
           params: Json
           provider_message_id: string | null
           recipient_email: string | null
@@ -214,6 +215,7 @@ export type Database = {
           last_http_status?: number | null
           lead_id?: string | null
           next_attempt_at?: string
+          offer_id?: string | null
           params: Json
           provider_message_id?: string | null
           recipient_email?: string | null
@@ -236,6 +238,7 @@ export type Database = {
           last_http_status?: number | null
           lead_id?: string | null
           next_attempt_at?: string
+          offer_id?: string | null
           params?: Json
           provider_message_id?: string | null
           recipient_email?: string | null
@@ -257,6 +260,20 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "admissions_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admissions_email_outbox_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "application_offer_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admissions_email_outbox_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "application_offers"
             referencedColumns: ["id"]
           },
           {
@@ -825,33 +842,87 @@ export type Database = {
           },
         ]
       }
+      application_offer_links: {
+        Row: {
+          generation: number
+          id: string
+          issued_at: string
+          issued_for_claim: string
+          offer_id: string
+          outbox_id: string
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          generation: number
+          id?: string
+          issued_at?: string
+          issued_for_claim: string
+          offer_id: string
+          outbox_id: string
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          generation?: number
+          id?: string
+          issued_at?: string
+          issued_for_claim?: string
+          offer_id?: string
+          outbox_id?: string
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_offer_links_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "application_offer_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_offer_links_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "application_offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       application_offers: {
         Row: {
           application_id: string
           expires_at: string | null
           id: string
+          link_generation: number
           responded_at: string | null
           response: string
+          response_source: string | null
           sent_at: string | null
-          token_hash: string
+          token_hash: string | null
         }
         Insert: {
           application_id: string
           expires_at?: string | null
           id?: string
+          link_generation?: number
           responded_at?: string | null
           response?: string
+          response_source?: string | null
           sent_at?: string | null
-          token_hash: string
+          token_hash?: string | null
         }
         Update: {
           application_id?: string
           expires_at?: string | null
           id?: string
+          link_generation?: number
           responded_at?: string | null
           response?: string
+          response_source?: string | null
           sent_at?: string | null
-          token_hash?: string
+          token_hash?: string | null
         }
         Relationships: [
           {
@@ -1040,7 +1111,7 @@ export type Database = {
       audit_log: {
         Row: {
           action: string
-          actor_id: string
+          actor_id: string | null
           after: Json | null
           before: Json | null
           branch_id: string
@@ -1051,7 +1122,7 @@ export type Database = {
         }
         Insert: {
           action: string
-          actor_id: string
+          actor_id?: string | null
           after?: Json | null
           before?: Json | null
           branch_id: string
@@ -1062,7 +1133,7 @@ export type Database = {
         }
         Update: {
           action?: string
-          actor_id?: string
+          actor_id?: string | null
           after?: Json | null
           before?: Json | null
           branch_id?: string
@@ -5166,8 +5237,10 @@ export type Database = {
           effective_response: string | null
           expires_at: string | null
           id: string | null
+          link_generation: number | null
           responded_at: string | null
           response: string | null
+          response_source: string | null
           sent_at: string | null
         }
         Insert: {
@@ -5175,8 +5248,10 @@ export type Database = {
           effective_response?: never
           expires_at?: string | null
           id?: string | null
+          link_generation?: number | null
           responded_at?: string | null
           response?: string | null
+          response_source?: string | null
           sent_at?: string | null
         }
         Update: {
@@ -5184,8 +5259,10 @@ export type Database = {
           effective_response?: never
           expires_at?: string | null
           id?: string | null
+          link_generation?: number | null
           responded_at?: string | null
           response?: string | null
+          response_source?: string | null
           sent_at?: string | null
         }
         Relationships: [
@@ -5237,6 +5314,7 @@ export type Database = {
       }
       _admissions_mask_email: { Args: { p_email: string }; Returns: string }
       _admissions_mask_phone: { Args: { p_phone: string }; Returns: string }
+      _admissions_offer_email_max_age: { Args: never; Returns: string }
       _admissions_reference_year: { Args: { p_at?: string }; Returns: number }
       _admissions_seed_public_campus_labels: { Args: never; Returns: number }
       _admissions_sequence_text: { Args: { p_seq: number }; Returns: string }
@@ -5311,6 +5389,15 @@ export type Database = {
       _offer_effective_response: {
         Args: { p_expires_at: string; p_response: string }
         Returns: string
+      }
+      _offer_id_by_link: { Args: { p_token: string }; Returns: string }
+      _offer_queue_send: {
+        Args: { p_offer_id: string; p_send: string }
+        Returns: number
+      }
+      _offer_recipients: {
+        Args: { p_application_id: string }
+        Returns: string[]
       }
       _payroll_run_unaccounted: {
         Args: { p_run_id: string }
@@ -5984,6 +6071,10 @@ export type Database = {
         Args: { p_application_id: string; p_grade_id: string }
         Returns: Json
       }
+      correct_offer_response: {
+        Args: { p_application_id: string; p_reason: string; p_response: string }
+        Returns: Json
+      }
       correct_staff_number: {
         Args: { p_employee_id: string; p_reason: string }
         Returns: string
@@ -6610,6 +6701,17 @@ export type Database = {
         Args: { p_claim_token: string; p_outbox_id: string }
         Returns: Json
       }
+      get_offer_by_link: { Args: { p_token: string }; Returns: Json }
+      get_offer_email_status: {
+        Args: { p_application_id: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          recipient_masked: string
+          sent_at: string
+          status: string
+        }[]
+      }
       get_onboarding_context: {
         Args: { p_token: string }
         Returns: {
@@ -6673,6 +6775,10 @@ export type Database = {
       issue_employee_document: {
         Args: { p_document_id: string }
         Returns: undefined
+      }
+      issue_offer_link: {
+        Args: { p_claim_token: string; p_outbox_id: string }
+        Returns: Json
       }
       list_admissions_emails: {
         Args: { p_limit?: number; p_status?: string }
@@ -7192,6 +7298,10 @@ export type Database = {
         }
       }
       preview_employee_import: { Args: { p_rows: Json }; Returns: Json }
+      preview_offer_recipients: {
+        Args: { p_application_id: string }
+        Returns: number
+      }
       propose_employee: {
         Args: {
           p_account_no?: string
@@ -7656,6 +7766,7 @@ export type Database = {
         }
       }
       require_writable_role: { Args: never; Returns: undefined }
+      resend_offer_link: { Args: { p_application_id: string }; Returns: Json }
       reserve_application_upload: {
         Args: {
           p_document_type: string
@@ -7665,6 +7776,10 @@ export type Database = {
         Returns: Json
       }
       reset_offer: { Args: { p_application_id: string }; Returns: Json }
+      respond_to_offer: {
+        Args: { p_response: string; p_token: string }
+        Returns: Json
+      }
       reverse_journal_entry: {
         Args: { p_date?: string; p_description?: string; p_entry_id: string }
         Returns: {

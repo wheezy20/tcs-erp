@@ -583,7 +583,10 @@ end $$;
 -- as role:
 select 1;
 
--- probe: C2 refused: null token_hash
+-- Changed in slice 11 (20261031100000, D-11d): the copy link is retired,
+-- token_hash is nullable and always null, and links live in
+-- application_offer_links. This probe now pins that a null hash is accepted.
+-- probe: C2 accepted: null token_hash (slice 11)
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 insert into public.families (id) values ('9e03b000-0000-4000-8000-000100000001');
 insert into public.students (id, family_id, full_name) values
@@ -606,8 +609,9 @@ insert into public.admissions_capacity (id, academic_year, grade_id, branch_id, 
   ('9e03b000-0000-4000-8000-000900000002', '2027/2028', (select id from public.admissions_grades where name = 'Grade 3'), null, 40);
 do $$ begin
   update public.application_offers set token_hash = null where id = '9e03b000-0000-4000-8000-000800000001';
-  raise exception 'accepted a bad value';
-exception when check_violation or foreign_key_violation or not_null_violation then null;
+  if (select token_hash from public.application_offers where id = '9e03b000-0000-4000-8000-000800000001') is not null then
+    raise exception 'null token_hash not stored';
+  end if;
 end $$;
 -- as role:
 select 1;

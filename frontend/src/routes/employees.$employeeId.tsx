@@ -2086,7 +2086,7 @@ function HistoryTable({ rows }: { rows: PayConfig[] }) {
 function HistorySection({ employeeId, configIds }: { employeeId: string; configIds: string[] }) {
   const { entries, loading, error } = useEmployeeAuditHistory(employeeId, configIds);
   const { staff: roster } = useStaff();
-  const staffName = (id: string) => roster.find((s) => s.id === id)?.name ?? "Unknown";
+  const staffName = (id: string | null) => roster.find((s) => s.id === id)?.name ?? "Unknown";
 
   return (
     <section className="card-surface overflow-hidden">

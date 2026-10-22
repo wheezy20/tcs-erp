@@ -20,7 +20,7 @@ type AuditLogRow = Database["public"]["Tables"]["audit_log"]["Row"];
 
 export type AuditLogEntry = {
   id: string;
-  actorId: string;
+  actorId: string | null;
   action: string;
   entityTable: string;
   before: Record<string, unknown> | null;

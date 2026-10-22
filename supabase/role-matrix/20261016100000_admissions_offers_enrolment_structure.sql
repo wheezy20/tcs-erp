@@ -62,7 +62,9 @@ begin
   end loop;
 end $$;
 
--- probe: S4 definers pin search_path; token RPCs add extensions; invoker helpers
+-- Changed in slice 11 (20261031100000/20261031110000): generate_offer and reset_offer no longer mint a
+-- token, so they no longer need extensions on their search_path.
+-- probe: S4 definers pin search_path; invoker helpers
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$
 declare f text;
@@ -73,7 +75,7 @@ begin
     end if;
   end loop;
   foreach f in array array['public.generate_offer(uuid)', 'public.reset_offer(uuid)'] loop
-    if not (select prosecdef and coalesce('search_path=public, extensions' = any (proconfig), false) from pg_proc where oid = f::regprocedure) then
+    if not (select prosecdef and coalesce('search_path=public' = any (proconfig), false) from pg_proc where oid = f::regprocedure) then
       raise exception '% lost security definer or its search_path', f;
     end if;
   end loop;
@@ -208,7 +210,8 @@ do $$ begin
   end if;
   if (select array_agg(attname::text order by attnum) from pg_attribute
       where attrelid = 'public.application_offer_status'::regclass and attnum > 0 and not attisdropped)
-     is distinct from array['id', 'application_id', 'sent_at', 'expires_at', 'response', 'responded_at', 'effective_response'] then
+     is distinct from array['id', 'application_id', 'sent_at', 'expires_at', 'response', 'responded_at', 'effective_response',
+                            'response_source', 'link_generation'] then  -- the last two from slice 11
     raise exception 'view columns wrong';
   end if;
   if pg_get_viewdef('public.application_offer_status'::regclass) ~ 'token' then
@@ -340,21 +343,17 @@ begin
   end loop;
 end $$;
 
--- probe: S15 the token and its hash: generated from 32 random bytes, only the SHA-256 hex stored
+-- Changed in slice 11 (20261031100000/20261031110000): the copy link is retired (D-11d). Offer tokens are
+-- minted only by issue_offer_link at send time, which the slice 11 probes pin.
+-- probe: S15 generate_offer and reset_offer mint no token and store no hash
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$
 declare f text; d text;
 begin
   foreach f in array array['public.generate_offer(uuid)', 'public.reset_offer(uuid)'] loop
     d := pg_get_functiondef(f::regprocedure);
-    if d !~ 'v_token := encode\(gen_random_bytes\(32\), ''hex''\)' then
-      raise exception '% does not mint 32 random bytes', f;
-    end if;
-    if (select count(*) from regexp_matches(d, 'v_token', 'g')) <> 4 then
-      raise exception '% uses the raw token somewhere new', f;
-    end if;
-    if d !~ 'encode\(digest\(v_token, ''sha256''\), ''hex''\)' then
-      raise exception '% does not hash the token', f;
+    if d ~ 'gen_random_bytes' or d ~ 'digest\(' or d ~ 'v_token' then
+      raise exception '% still mints or hashes a token', f;
     end if;
   end loop;
 end $$;

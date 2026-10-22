@@ -5297,3 +5297,27 @@ Docs only; nothing run here. Found by Eyram on 2026-10-22 with a read-only compa
 ## 2026-10-22: TCS OS leads imported
 
 3 leads imported.
+
+## 2026-10-22: Admissions slice 11 planned and approved (the offer page and the offer email)
+
+Docs only at this point; C1 starts next. Detail in PORT-PLAN, "Slice 11 plan".
+
+- **What it builds.** A public `/offer` page where a parent accepts or declines once, from a link in a new offer email sent through the existing outbox and worker to every guardian with an email address (at most 4, one link each). Staff see the real offer state, send the link again (which kills the old one), and can correct a response given through the link, with a reason.
+- **Why no anon database function.** The page reads and answers through two `admissions-public` actions backed by service-role-only RPCs, so the anon-executable count stays 170 locally and 171 on hosted.
+- **Why no Turnstile.** The 256-bit token is the credential; the risks a token link really has (link scanners, accidental clicks) are handled by a read with no side effects and a confirm step, and a failed challenge could stop a parent accepting in time. Rate limits cover abuse.
+- **Why `audit_log.actor_id` may now be null, for one action only.** A parent has no staff identity, and every response must be audited. Only `application_offer_responded` may have a null actor; the sweep still writes nothing.
+- **Why the copy link is retired.** The raw token should exist only in the email. The migration nulls every stored offer hash; hosted holds only Eyram's test records (reported by Eyram).
+- **Golden payslip suite** on a fresh reset at d8c9ac6 before any edit: all cases pass (it is run again after C1, because the audit action check is rewritten).
+
+## 2026-10-22: Admissions slice 11 C1, the offer links and RPCs (local only)
+
+Built locally and uncommitted; nothing on hosted. Detail in PORT-PLAN, "Slice 11 C1 as built".
+
+- **What it adds.** Two migrations: offer links (hash only, one per emailed guardian, killed by a new generation on every send), the `offer` and `offer_staff` outbox kinds, three rate limit rows, two audit actions and the null actor for a parent's response; staff RPCs to send, resend, preview the address count, correct a link response with a reason, and read the email status; service-only RPCs for the page's read and answer and the worker's send-time link; the claim takes offer mail first and keeps it up to 7 days.
+- **Why a parent and a phone reply can't both win.** Every offer path locks application, decision, offer in that order and re-checks under the locks; the parent's path also re-reads the link. Eight two-session races all ended as designed.
+- **Why `token_replaced` now keys on `sent_at`.** A reset's update and its new link generation are separate statements; a reset is the only update that sets a new `sent_at`, so the audit row still says the links were replaced (found by an earlier probe).
+- **Why probes now use `is distinct from`.** Two deliberate breaks slipped past `<>` comparisons against a null result.
+- **Verification.** 53 of 53 probe files; golden payslip suite all pass before and after; anon-executable 170; lint, `tsc`, vitest 225, build, Edge unit and worker integration tests (fake provider) all pass; 21 deliberate breaks caught (one over the 20 asked for). code-reviewer: no blocking findings; fix round 1 added probes and fixed doc wording.
+- **Recorded for C2.** C1 must not reach hosted ahead of the C2 frontend; staff can withdraw an offer when the daily send cap blocks a reset.
+
+**Not done:** C2 (Edge Function actions, worker template, `/offer` page, panel, docs, handover); the commit; everything on hosted.

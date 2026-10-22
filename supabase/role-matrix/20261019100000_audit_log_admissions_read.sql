@@ -9,7 +9,7 @@
 -- Run: npx supabase db reset && ./scripts/seed-local-dev-staff.sh
 --      ./scripts/role-matrix.sh supabase/role-matrix/20261019100000_audit_log_admissions_read.sql
 
--- probe: S1 every action in the audit CHECK is classified: 9 admissions, 31 other
+-- probe: S1 every action in the audit CHECK is classified: 11 admissions, 31 other
 -- expect: anon,Attendant,Manager,Accountant,Auditor,Admissions Officer
 do $$
 declare
@@ -17,7 +17,9 @@ declare
     'admissions_capabilities_changed', 'application_stage_changed',
     'application_document_status_changed', 'application_decision_changed',
     'admissions_capacity_changed', 'application_offer_changed', 'admissions_settings_changed',
-    'application_grade_corrected', 'admissions_academic_year_changed'];
+    'application_grade_corrected', 'admissions_academic_year_changed',
+    -- 20261031100000 (slice 11): a link sent by staff, a parent's response.
+    'application_offer_link_sent', 'application_offer_responded'];
   v_other text[] := array[
     'discount_applied', 'vat_override', 'return_processed', 'sale_voided', 'invoice_voided',
     'expense_voided', 'employee_created', 'employee_approved', 'employee_rejected',

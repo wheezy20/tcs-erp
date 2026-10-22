@@ -16,7 +16,8 @@ export type AuditLogRow = {
   action: string;
   entityTable: string;
   entityId: string;
-  actorId: string;
+  /** Null only for application_offer_responded: a parent, through the offer link. */
+  actorId: string | null;
   before: Record<string, unknown> | null;
   after: Record<string, unknown> | null;
 };

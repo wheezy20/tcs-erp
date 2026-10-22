@@ -144,7 +144,8 @@ export function AuditLogPage({ role }: { role: StaffRole }) {
                       </td>
                       <td className="px-5 py-3 font-medium">{actionLabel(r.action)}</td>
                       <td className="px-5 py-3">
-                        {names.data?.get(r.actorId) ?? (names.loading ? "…" : "Unknown")}
+                        {(r.actorId && names.data?.get(r.actorId)) ??
+                          (names.loading ? "…" : "Unknown")}
                       </td>
                       <td className="px-5 py-3 text-muted-foreground">
                         {r.entityTable}
