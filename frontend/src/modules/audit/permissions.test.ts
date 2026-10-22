@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { AUDIT_ACTIONS, actionLabel, isAdmissionsAction } from "@/modules/audit/labels";
+import {
+  AUDIT_ACTIONS,
+  NO_ACTOR_LABEL,
+  actionLabel,
+  isAdmissionsAction,
+} from "@/modules/audit/labels";
 import {
   actionFilterOptions,
   canSeeAdmissionsAuditRows,
   canViewAuditLog,
 } from "@/modules/audit/permissions";
 
-// The 9 admissions actions, as the 7c probe file lists them.
+// The 11 admissions actions, as the 7c probe file lists them (two added in
+// slice 11).
 const ADMISSIONS = [
   "admissions_capabilities_changed",
   "application_stage_changed",
@@ -18,16 +24,22 @@ const ADMISSIONS = [
   "admissions_settings_changed",
   "application_grade_corrected",
   "admissions_academic_year_changed",
+  "application_offer_link_sent",
+  "application_offer_responded",
 ];
 
 describe("audit action labels", () => {
-  it("label all 40 actions, with no duplicate label", () => {
-    expect(AUDIT_ACTIONS).toHaveLength(40);
+  it("label all 42 actions, with no duplicate label", () => {
+    expect(AUDIT_ACTIONS).toHaveLength(42);
     const labels = AUDIT_ACTIONS.map(actionLabel);
-    expect(new Set(labels).size).toBe(40);
+    expect(new Set(labels).size).toBe(42);
   });
 
-  it("split into the 9 admissions actions and 31 others", () => {
+  it("name a parent's answer through the offer link when there is no actor (slice 11)", () => {
+    expect(NO_ACTOR_LABEL).toBe("Parent, through the offer link");
+  });
+
+  it("split into the 11 admissions actions and 31 others", () => {
     expect(AUDIT_ACTIONS.filter(isAdmissionsAction).sort()).toEqual([...ADMISSIONS].sort());
   });
 
@@ -53,8 +65,8 @@ describe("audit log permissions", () => {
   });
 
   it("offer every action to Manager and Auditor", () => {
-    expect(actionFilterOptions("Manager")).toHaveLength(40);
-    expect(actionFilterOptions("Auditor")).toHaveLength(40);
+    expect(actionFilterOptions("Manager")).toHaveLength(42);
+    expect(actionFilterOptions("Auditor")).toHaveLength(42);
   });
 
   it("offer the Accountant the 31 non-admissions actions, payroll and employee ones included", () => {

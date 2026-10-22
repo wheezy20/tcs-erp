@@ -20,6 +20,15 @@
 // lead in the ERP, and no name, email or phone. Both rows' params are
 // always {}; the link and the alert's fields are passed in separately.
 //
+// The offer emails (slice 11; D-11b, D-11k, decided by Eyram 2026-10-22).
+// offer goes to each guardian address with a private link to the public
+// offer page, made by the worker at send time (the token is passed in,
+// never stored), the grade, academic year and APP reference, and the
+// respond-by date: the third exception to "no links in a parent email".
+// offer_staff goes to the staff address when a parent answers through the
+// link: the reference, the response and a link to the application in the
+// ERP. No name or contact detail in either.
+//
 // Rules the tests hold (templates.test.ts): no em or en dash and never the
 // word "inquiry" in a subject or body (code names keep "inquiry"; the one
 // exception is inside the pdf_gate email's enquiry link, /inquiry); the
@@ -36,6 +45,8 @@ export const EMAIL_KINDS = [
   "draft_resume",
   "pdf_gate",
   "lead_staff",
+  "offer",
+  "offer_staff",
 ] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 
@@ -50,12 +61,21 @@ export type EmailParams = {
   family_matched?: boolean;
   outcome?:
     "new_application" | "inquiry_advanced" | "possible_duplicate" | null;
+  /** offer_staff only. */
+  application_id?: string;
+  response?: "accepted" | "declined";
 };
 
 export type RenderedEmail = { subject: string; text: string };
 
 /** What a resume email needs that is not in the outbox row. */
 export type DraftLink = { url: string; expiresAt: string };
+
+/** What an offer email needs that is not in the outbox row. */
+export type OfferLink = { url: string; respondBy: string };
+
+/** Only a link to /offer with a 64 hex token fragment is ever printed. */
+export const OFFER_LINK = /^https?:\/\/[^\s/#?]+\/offer#token=[0-9a-f]{64}$/;
 
 /** What the lead emails need that is not in the outbox row: the enquiry
  * link (pdf_gate) or the alert's fields from get_lead_alert (lead_staff). */
@@ -132,7 +152,9 @@ export function parseParams(kind: EmailKind, raw: unknown): EmailParams {
   const allowed =
     kind === "application_staff"
       ? ["references", "family_matched", "outcome"]
-      : ["references"];
+      : kind === "offer_staff"
+        ? ["references", "application_id", "response"]
+        : ["references"];
   for (const key of Object.keys(raw)) {
     if (!allowed.includes(key)) throw new Error(`unexpected params key ${key}`);
   }
@@ -177,6 +199,14 @@ export function parseParams(kind: EmailKind, raw: unknown): EmailParams {
     params.family_matched = raw.family_matched;
     params.outcome = outcome;
   }
+  if (kind === "offer_staff") {
+    if (typeof raw.application_id !== "string" || !LEAD_ID.test(raw.application_id))
+      throw new Error("application_id malformed");
+    if (raw.response !== "accepted" && raw.response !== "declined")
+      throw new Error("response malformed");
+    params.application_id = raw.application_id;
+    params.response = raw.response;
+  }
   return params;
 }
 
@@ -207,6 +237,7 @@ export function renderEmail(
   erpBaseUrl: string,
   draft?: DraftLink,
   lead?: LeadContext,
+  offer?: OfferLink,
 ): RenderedEmail {
   const p = parseParams(kind, rawParams);
   const refs = p.references;
@@ -303,6 +334,33 @@ export function renderEmail(
             `Source: ${LEAD_SOURCES[a.source]}`,
           ].join("\n"),
           `Open the lead in the ERP to see the contact details: ${erpBaseUrl.replace(/\/+$/, "")}/admissions/leads?lead=${a.lead_id}`,
+        ].join("\n\n"),
+      };
+    }
+    case "offer": {
+      if (!offer || !OFFER_LINK.test(offer.url)) throw new Error("an offer email needs its link");
+      const r = refs[0];
+      return {
+        subject: "An offer of a place at Treasures Christian School",
+        text: [
+          "Dear Parent or Guardian,",
+          `We are pleased to offer your child a place at Treasures Christian School in ${r.grade} for the ${r.academic_year} academic year. Your application reference is ${r.reference}.`,
+          "Please use this private link to accept or decline the offer:",
+          `  ${offer.url}`,
+          `The offer is open until ${longDate(offer.respondBy)}. Anyone with this link can answer the offer, so please do not forward this email.`,
+          "If you would rather give your answer by phone, or if you have any questions, please contact the admissions office or reply to this email.",
+          SIGN_OFF,
+        ].join("\n\n"),
+      };
+    }
+    case "offer_staff": {
+      const word = p.response === "accepted" ? "accepted" : "declined";
+      return {
+        subject: `Offer ${refs[0].reference} ${word} through the offer link`,
+        text: [
+          `A parent ${word} an offer through the offer link.`,
+          `Reference: ${refs[0].reference}`,
+          `Open the application in the ERP: ${erpBaseUrl.replace(/\/+$/, "")}/admissions/${p.application_id}`,
         ].join("\n\n"),
       };
     }

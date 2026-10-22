@@ -34,6 +34,13 @@ const LEAD = {
     source: "pdf_gate_admissions_overview",
   },
 };
+// Passed to every render; only the offer email uses it.
+const OFFER_TOKEN = "d".repeat(64);
+const OFFER = {
+  url: `https://apply.example.test/offer#token=${OFFER_TOKEN}`,
+  respondBy: "2026-11-05T09:00:00+00:00",
+};
+const APP_ID = "11000000-0000-4000-8000-000000000b01";
 const one = (ref: string) => ({
   reference: ref,
   grade: "Grade 3",
@@ -99,6 +106,9 @@ function cases(): Array<[EmailKind, unknown]> {
     ["draft_resume", {}],
     ["pdf_gate", {}],
     ["lead_staff", {}],
+    ["offer", { references: [one("APP-2026-0012")] }],
+    ["offer_staff", { references: [one("APP-2026-0012")], application_id: APP_ID, response: "accepted" }],
+    ["offer_staff", { references: [one("APP-2026-0012")], application_id: APP_ID, response: "declined" }],
   ];
 }
 
@@ -111,21 +121,21 @@ test("every kind is covered by the cases", () => {
 
 test("no subject has an em or en dash or any other dash character", () => {
   for (const [kind, params] of cases()) {
-    const { subject } = renderEmail(kind, params, ERP, DRAFT, LEAD);
+    const { subject } = renderEmail(kind, params, ERP, DRAFT, LEAD, OFFER);
     assert.doesNotMatch(subject, /[\u2012\u2013\u2014\u2015\u2212]/, `${kind}: ${subject}`);
   }
 });
 
 test("no body has an em or en dash or any other dash character", () => {
   for (const [kind, params] of cases()) {
-    const { text } = renderEmail(kind, params, ERP, DRAFT, LEAD);
+    const { text } = renderEmail(kind, params, ERP, DRAFT, LEAD, OFFER);
     assert.doesNotMatch(text, /[\u2012\u2013\u2014\u2015\u2212]/, `${kind}: ${text}`);
   }
 });
 
 test("no subject or body uses the word inquiry; the emails say enquiry", () => {
   for (const [kind, params] of cases()) {
-    const { subject, text } = renderEmail(kind, params, ERP, DRAFT, LEAD);
+    const { subject, text } = renderEmail(kind, params, ERP, DRAFT, LEAD, OFFER);
     // The one exception: the path of the PDF email's enquiry link.
     assert.doesNotMatch(`${subject}\n${text}`.replaceAll(INQUIRY_URL, ""), /inquir/i, kind);
   }
@@ -153,7 +163,7 @@ test("no subject or body uses the word inquiry; the emails say enquiry", () => {
 
 test("parent emails: no names, no links, the reference, the Admissions Office sign-off", () => {
   for (const [kind, params] of cases().filter(([k]) => k.endsWith("_parent"))) {
-    const { text } = renderEmail(kind, params, ERP, DRAFT, LEAD);
+    const { text } = renderEmail(kind, params, ERP, DRAFT, LEAD, OFFER);
     assert.match(text, /^Dear Parent or Guardian,\n\n/);
     assert.match(
       text,
@@ -387,4 +397,59 @@ test("lead_staff refuses an alert that isn't the database's shape", () => {
       JSON.stringify(alert),
     );
   }
+});
+
+test("offer: the grade, year and reference, the private link, the respond-by date, no name, Reply-To wording, the sign-off", () => {
+  const { subject, text } = renderEmail("offer", cases().find(([k]) => k === "offer")![1], ERP, undefined, undefined, OFFER);
+  assert.equal(subject, "An offer of a place at Treasures Christian School");
+  assert.match(text, /^Dear Parent or Guardian,\n\n/);
+  assert.match(text, /a place at Treasures Christian School in Grade 3 for the 2026\/2027 academic year/);
+  assert.match(text, /reference is APP-2026-0012\./);
+  assert.equal(text.match(/https?:\/\/\S+/g)?.length, 1);
+  assert.ok(text.includes(`\n  ${OFFER.url}\n`));
+  assert.match(text, /open until 5 November 2026\./);
+  assert.match(text, /please do not forward this email/);
+  assert.match(text, /reply to this email/);
+  assert.match(text, /\n\nKind regards,\nAdmissions Office\nTreasures Christian School$/);
+  assert.doesNotMatch(`${subject}\n${text}`, /[\u2012\u2013\u2014\u2015\u2212]/);
+});
+
+test("offer needs its link and takes only an /offer token link; params are the one APP reference", () => {
+  const params = { references: [one("APP-2026-0012")] };
+  assert.throws(() => renderEmail("offer", params, ERP));
+  for (const url of [
+    `https://apply.example.test/apply#resume=${OFFER_TOKEN}`,
+    `https://apply.example.test/offer?token=${OFFER_TOKEN}`,
+    `https://apply.example.test/offer#token=${OFFER_TOKEN.slice(1)}`,
+    `https://apply.example.test/x/offer#token=${OFFER_TOKEN}`,
+  ])
+    assert.throws(() => renderEmail("offer", params, ERP, undefined, undefined, { ...OFFER, url }), url);
+  assert.throws(() => parseParams("offer", { references: [one("INQ-2026-0001")] }));
+  assert.throws(() => parseParams("offer", { references: [one("APP-2026-0012"), one("APP-2026-0013")] }));
+  assert.throws(() => parseParams("offer", { references: [one("APP-2026-0012")], application_id: APP_ID }));
+});
+
+test("offer_staff: the reference, the response and the ERP link to the application only", () => {
+  const { subject, text } = renderEmail(
+    "offer_staff",
+    { references: [one("APP-2026-0012")], application_id: APP_ID, response: "declined" },
+    ERP + "/",
+  );
+  assert.equal(subject, "Offer APP-2026-0012 declined through the offer link");
+  assert.equal(
+    text,
+    [
+      "A parent declined an offer through the offer link.",
+      "Reference: APP-2026-0012",
+      `Open the application in the ERP: ${ERP}/admissions/${APP_ID}`,
+    ].join("\n\n"),
+  );
+  assert.doesNotMatch(text, /Grade 3|2026\/2027|@/);
+  for (const bad of [
+    { references: [one("APP-2026-0012")], application_id: "x", response: "accepted" },
+    { references: [one("APP-2026-0012")], application_id: APP_ID, response: "pending" },
+    { references: [one("APP-2026-0012")], application_id: APP_ID },
+    { references: [one("APP-2026-0012")], application_id: APP_ID, response: "accepted", name: "Ama" },
+  ])
+    assert.throws(() => parseParams("offer_staff", bad), JSON.stringify(bad));
 });

@@ -96,6 +96,24 @@ Things that shape how this gets built, not just what gets built.
         locked as already submitted. Public applications closed again
         afterwards (reported by Eyram, 2026-10-21). The anon-executable
         count after the push was not reported.
+- [ ] Offer page and offer email (slice 11, decided 2026-10-22). C1 is
+      committed as 14859e0; C2 is built locally. Neither is on hosted. Before
+      the first real offer:
+      - **C1 and C2 reach hosted together**, worker and public function
+        first, then `db push`, then the frontend straight away (PORT-PLAN,
+        "Slice 11 rollout handover"). The deployed panel before C2 expects
+        a token that no longer comes back.
+      - **Hosted test** with Eyram's own addresses, ending with the offer
+        corrected to declined; its application, offer, links and offer
+        outbox rows join the go-live cleanup by explicit id.
+      - **No live offer link after the go-live cleanup:**
+        `select count(*) from public.application_offer_links where revoked_at is null`
+        returns 0 for the test offers (they are deleted).
+      - **`PUBLIC_APPLY_BASE_URL`** is the admissions host before the first
+        real offer is sent (cutover), so a real offer email never links to
+        workers.dev.
+      - **Privacy policy.** The page's privacy line has no link until
+        `PRIVACY_POLICY.url` is set (the privacy policy item above).
 - [ ] Confirmation email go-live checks (slice 12, decided 2026-10-16,
       2026-10-18 and 2026-10-20). Committed as a929511 and 8a45e04. Applied,
       deployed and set on hosted, and a hosted test delivered the parent

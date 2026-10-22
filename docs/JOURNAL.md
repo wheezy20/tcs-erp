@@ -5321,3 +5321,16 @@ Built locally and uncommitted; nothing on hosted. Detail in PORT-PLAN, "Slice 11
 - **Recorded for C2.** C1 must not reach hosted ahead of the C2 frontend; staff can withdraw an offer when the daily send cap blocks a reset.
 
 **Not done:** C2 (Edge Function actions, worker template, `/offer` page, panel, docs, handover); the commit; everything on hosted.
+
+## 2026-10-22: Admissions slice 11 C2, the offer page, the offer email and the staff panel (local only)
+
+C1 is committed as 14859e0. C2 is built locally and uncommitted; nothing is deployed or set on hosted and no real email was sent. Detail in PORT-PLAN, "Slice 11 C2 as built" and "Slice 11 rollout handover".
+
+- **What it adds.** `offer_get` and `offer_respond` on `admissions-public`; the `offer` and `offer_staff` emails in the worker; the public `/offer` page; the staff panel's confirm steps (with the number of addresses emailed now), Send link again, per address email status, the waiting note and Correct response; the email page and audit page labels.
+- **Why the panel asks the database for the address count.** Staff see exactly what a send will do before it happens (D-11c, Eyram's change); the count comes from the same function the send uses, so it can't drift from it.
+- **Why the hosted test ends declined.** The go-live cleanup refuses an accepted offer; correcting the test offer to declined also tries D-11j on hosted.
+- **Why C1 and C2 go to hosted together.** The deployed panel still expects a token from `generate_offer`; the handover deploys the worker and public function first, then pushes, then deploys the frontend straight away.
+- **Verification.** Edge unit tests (offer 11, worker handler and lead 49, templates 21), the offer integration test 4 of 4 against the local stack with a fake provider, vitest 243, `tsc`, lint at the baseline, build; 9 deliberate breaks caught. The test-runner and code-reviewer pass follows.
+
+**Not done:** the commit; the rollout (Eyram runs it in the handover order); the hosted test and its cleanup ids.
+- **Fix round 1 (code-reviewer, no blocking findings).** Focus and a live region on the public page's state changes; the waiting note mentions an earlier link only after a reset or resend; the hosted fragment check is must-pass; `/offer` is noindex.

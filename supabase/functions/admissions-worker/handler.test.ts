@@ -102,7 +102,7 @@ function harness(
         return { data: true, error: null };
       if (fn === "claim_expired_application_uploads")
         return { data: [], error: null };
-      if (fn === "issue_application_draft_link") {
+      if (fn === "issue_application_draft_link" || fn === "issue_offer_link") {
         const i = opts.issue ?? ISSUED;
         return typeof i === "function" ? i() : i;
       }
@@ -773,4 +773,81 @@ test("PUBLIC_APPLY_BASE_URL is optional: missing or malformed leaves mail on wit
     )?.applyBaseUrl,
     "https://apply.example.test",
   );
+});
+
+// ---------------------------------------------------------------- offer emails (slice 11)
+
+const APP_ID = "11000000-0000-4000-8000-000000000b01";
+const OFFER_ROW = (id = "o1", attempts = 1) => ({
+  ...ROW(id, "offer", "guardian@example.test"),
+  attempts,
+});
+
+test("an offer email: the link is minted for this claim, printed as /offer#token=, keyed by row and attempt", async () => {
+  const h = harness({ rows: [OFFER_ROW("o1", 2)] });
+  await handle(req({ job: "mail" }), h.deps);
+  assert.deepEqual(
+    h.calls.filter((c) => c.fn === "issue_offer_link").map((c) => c.args),
+    [{ p_outbox_id: "o1", p_claim_token: "token-o1" }],
+  );
+  assert.equal(h.sent.length, 1);
+  const [e] = h.sent;
+  assert.equal(e.to, "guardian@example.test");
+  assert.equal(e.kind, "offer");
+  assert.equal(e.idempotencyKey, "outbox-o1-2");
+  assert.equal(e.subject, "An offer of a place at Treasures Christian School");
+  assert.ok(e.text.includes(`http://localhost:8080/offer#token=${LINK_TOKEN}`));
+  assert.ok(e.text.includes("open until 20 November 2026"));
+  assert.deepEqual(marks(h).map((m) => `${m.p_id}:${m.p_outcome}`), ["o1:sent"]);
+  for (const l of h.logs) assert.ok(!l.includes(LINK_TOKEN), `logged: ${l}`);
+  for (const c of h.calls)
+    assert.ok(!JSON.stringify(c.args).includes(LINK_TOKEN), `passed to ${c.fn}`);
+});
+
+test("an offer email no longer needed is left as marked; a refused link is failed; a lost claim records nothing; an error retries", async () => {
+  const expired = harness({ rows: [OFFER_ROW()], issue: { data: { status: "expired" }, error: null } });
+  await handle(req({ job: "mail" }), expired.deps);
+  assert.deepEqual(expired.sent, []);
+  assert.deepEqual(marks(expired), []);
+  for (const data of [{ status: "failed" }, { status: "issued", token: "short", expires_at: "2026-11-20" }, ["odd"]]) {
+    const h = harness({ rows: [OFFER_ROW()], issue: { data, error: null } });
+    await handle(req({ job: "mail" }), h.deps);
+    assert.deepEqual(h.sent, []);
+    assert.deepEqual(marks(h).map((m) => `${m.p_outcome}:${m.p_error_class}`), ["failed:other"]);
+  }
+  const lost = harness({ rows: [OFFER_ROW()], issue: { data: null, error: null } });
+  await handle(req({ job: "mail" }), lost.deps);
+  assert.deepEqual(marks(lost), []);
+  const err = harness({ rows: [OFFER_ROW()], issue: { data: null, error: { code: "P0001", message: "x" } } });
+  await handle(req({ job: "mail" }), err.deps);
+  assert.deepEqual(err.sent, []);
+  assert.deepEqual(marks(err).map((m) => `${m.p_outcome}:${m.p_error_class}`), ["retry:other"]);
+});
+
+test("without PUBLIC_APPLY_BASE_URL an offer email is retried with class config and nothing is minted", async () => {
+  const h = harness({ rows: [OFFER_ROW()], mail: { ...MAIL, applyBaseUrl: null } });
+  await handle(req({ job: "mail" }), h.deps);
+  assert.deepEqual(h.sent, []);
+  assert.equal(h.calls.some((c) => c.fn === "issue_offer_link"), false);
+  assert.deepEqual(marks(h).map((m) => `${m.p_outcome}:${m.p_error_class}`), ["retry:config"]);
+});
+
+test("the offer staff alert goes to the staff address with the reference, the response and the ERP link only", async () => {
+  const h = harness({
+    rows: [
+      ROW("s1", "offer_staff", null, {
+        ...REF("APP-2026-0001"),
+        application_id: APP_ID,
+        response: "accepted",
+      }),
+    ],
+  });
+  await handle(req({ job: "mail" }), h.deps);
+  assert.equal(h.sent.length, 1);
+  const [e] = h.sent;
+  assert.equal(e.to, "staff.alerts@example.test");
+  assert.equal(e.idempotencyKey, "outbox-s1");
+  assert.equal(e.subject, "Offer APP-2026-0001 accepted through the offer link");
+  assert.ok(e.text.endsWith(`http://localhost:8080/admissions/${APP_ID}`));
+  assert.equal(h.calls.some((c) => c.fn === "issue_offer_link"), false);
 });

@@ -150,12 +150,14 @@ function RootComponent() {
   // page calls, not here.
   // /inquiry is the public admissions Inquiry form (admissions slice 8) and
   // /apply the public Application form (slice 9a): a parent has no account,
-  // and the Edge Function behind each does every check.
+  // and the Edge Function behind each does every check. /offer is the
+  // public offer page (slice 11), opened from the offer email's link.
   const isAuthFreeRoute =
     pathname === "/login" ||
     pathname === "/accept-invite" ||
     pathname === "/inquiry" ||
     pathname === "/apply" ||
+    pathname === "/offer" ||
     pathname.startsWith("/onboarding/");
 
   return (

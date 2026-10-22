@@ -16,7 +16,7 @@ import type { StaffRole } from "@/data/auth-store";
 import { ALL, PAGE_SIZE, listAuditLog, listStaffNames } from "@/modules/audit/data/audit-log";
 import { dateRangeBounds, describeChanges } from "@/modules/audit/filters";
 import { useLoad } from "@/modules/audit/hooks/use-load";
-import { actionLabel } from "@/modules/audit/labels";
+import { NO_ACTOR_LABEL, actionLabel } from "@/modules/audit/labels";
 import { actionFilterOptions, canSeeAdmissionsAuditRows } from "@/modules/audit/permissions";
 
 const whenFormat = new Intl.DateTimeFormat(undefined, {
@@ -144,8 +144,9 @@ export function AuditLogPage({ role }: { role: StaffRole }) {
                       </td>
                       <td className="px-5 py-3 font-medium">{actionLabel(r.action)}</td>
                       <td className="px-5 py-3">
-                        {(r.actorId && names.data?.get(r.actorId)) ??
-                          (names.loading ? "…" : "Unknown")}
+                        {r.actorId === null
+                          ? NO_ACTOR_LABEL
+                          : (names.data?.get(r.actorId) ?? (names.loading ? "…" : "Unknown"))}
                       </td>
                       <td className="px-5 py-3 text-muted-foreground">
                         {r.entityTable}

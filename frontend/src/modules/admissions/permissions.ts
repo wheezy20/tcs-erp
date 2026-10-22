@@ -188,7 +188,12 @@ export function decisionChangeTargets(
   return [...DECISION_TYPES];
 }
 
-export type OfferState = { response: string; effectiveResponse: string } | null;
+export type OfferState = {
+  response: string;
+  effectiveResponse: string;
+  /** Slice 11: who gave the response; optional so older callers still fit. */
+  responseSource?: "offer_link" | "staff" | null;
+} | null;
 
 const GENERATE_OFFER_STAGES = ["application", "document_review", "waitlisted", "rejected"];
 
@@ -243,10 +248,36 @@ export function canRecordOfferResponse(
   );
 }
 
-/** The parent response page's link for a token. The page itself arrives in
- * slice 11 at TCS OS's path; the token is host independent. */
-export function offerLink(origin: string, token: string): string {
-  return `${origin}/offer?token=${encodeURIComponent(token)}`;
+/** resend_offer_link (slice 11): the same as recording a response: at
+ * offer, accepted decision, the offer pending and in date. Whether any
+ * guardian has an address is the database's answer (the confirm step asks). */
+export function canResendOfferLink(
+  role: Role,
+  cap: DecideCapability,
+  stage: string,
+  decisionType: string | null,
+  offer: OfferState,
+): boolean {
+  return canRecordOfferResponse(role, cap, stage, decisionType, offer);
+}
+
+/** correct_offer_response (slice 11, D-11j): a response the parent gave
+ * through the link, never once enrolled, with the decision still accepted.
+ * Accepted can become declined at offer; declined can become accepted at
+ * offer declined while the offer is in date (the database checks the date).
+ * Returns the response it would correct to, or null. */
+export function offerCorrectionTarget(
+  role: Role,
+  cap: DecideCapability,
+  stage: string,
+  decisionType: string | null,
+  offer: OfferState,
+): "accepted" | "declined" | null {
+  if (!decides(role, cap) || decisionType !== "accepted" || offer?.responseSource !== "offer_link")
+    return null;
+  if (offer.response === "accepted" && stage === "offer") return "declined";
+  if (offer.response === "declined" && stage === "offer_declined") return "accepted";
+  return null;
 }
 
 // ------------------------------------------------------------ enrolment and grade

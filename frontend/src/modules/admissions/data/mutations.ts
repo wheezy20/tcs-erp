@@ -100,31 +100,69 @@ export async function changeDecision(
   return decisionResult(data);
 }
 
-export type IssuedOffer = {
-  /** The raw token, returned exactly once. Never stored anywhere. */
-  token: string;
+/** What generate_offer, reset_offer and resend_offer_link return (slice
+ * 11). No token: the link is made when each email is sent, and exists only
+ * in the email. */
+export type SentOffer = {
   expiresAt: string | null;
+  /** How many guardian addresses were queued an email (0 when none has an
+   * address). */
+  emailsQueued: number;
 };
 
-function issuedOffer(data: unknown): IssuedOffer {
+function sentOffer(data: unknown): SentOffer {
   const o = asObject(data);
-  const token = asText(o.token);
-  if (!token) throw new Error("The offer was saved but no link came back. Reset the offer.");
-  return { token, expiresAt: asText(o.expires_at) };
+  const n = o.emails_queued;
+  return {
+    expiresAt: asText(o.expires_at),
+    emailsQueued: typeof n === "number" && Number.isInteger(n) && n >= 0 ? n : 0,
+  };
 }
 
-export async function generateOffer(applicationId: string): Promise<IssuedOffer> {
+export async function generateOffer(applicationId: string): Promise<SentOffer> {
   const { data, error } = await supabase.rpc("generate_offer", {
     p_application_id: applicationId,
   });
   if (error) throw error;
-  return issuedOffer(data);
+  return sentOffer(data);
 }
 
-export async function resetOffer(applicationId: string): Promise<IssuedOffer> {
+export async function resetOffer(applicationId: string): Promise<SentOffer> {
   const { data, error } = await supabase.rpc("reset_offer", { p_application_id: applicationId });
   if (error) throw error;
-  return issuedOffer(data);
+  return sentOffer(data);
+}
+
+/** Sends the link again for an open offer; every earlier link stops working. */
+export async function resendOfferLink(applicationId: string): Promise<SentOffer> {
+  const { data, error } = await supabase.rpc("resend_offer_link", {
+    p_application_id: applicationId,
+  });
+  if (error) throw error;
+  return sentOffer(data);
+}
+
+/** How many addresses a send would email right now (the confirm step). */
+export async function previewOfferRecipients(applicationId: string): Promise<number> {
+  const { data, error } = await supabase.rpc("preview_offer_recipients", {
+    p_application_id: applicationId,
+  });
+  if (error) throw error;
+  return typeof data === "number" ? data : 0;
+}
+
+/** Corrects a response the parent gave through the offer link (D-11j). */
+export async function correctOfferResponse(
+  applicationId: string,
+  response: "accepted" | "declined",
+  reason: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("correct_offer_response", {
+    p_application_id: applicationId,
+    p_response: response,
+    p_reason: reason,
+  });
+  if (error) throw error;
 }
 
 export async function recordOfferResponse(

@@ -39,13 +39,20 @@ export const EMAIL_KIND_LABELS: Record<string, string> = {
   application_staff: "Application staff alert",
   pdf_gate: "Admissions Overview PDF",
   lead_staff: "Lead staff alert",
+  offer: "Offer link",
+  offer_staff: "Offer response staff alert",
 };
 
 /** The note under a status, worded for the email's kind: the PDF has its
- * own limit of 2 a day per address (slice 13). */
+ * own limit of 2 a day per address (slice 13); an offer link email is
+ * dropped when a newer link replaces it or the offer is no longer open, and
+ * may wait up to 7 days (slice 11). */
 export function statusNote(kind: string, status: string): string | undefined {
   if (status === "suppressed" && kind === "pdf_gate") {
     return "This address already had 2 Admissions Overview emails in 24 hours, so this one was held back.";
+  }
+  if (status === "expired" && kind === "offer") {
+    return "Never sent: a newer link replaced it, the offer was answered, withdrawn or expired, or it waited more than 7 days.";
   }
   return EMAIL_STATUS_NOTES[status as EmailStatus];
 }

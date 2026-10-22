@@ -282,3 +282,54 @@ export const SAVE_COPY = {
   submittedBody:
     "The school has received it. You should have a confirmation email with your application number. Please contact the school office if you have any questions.",
 } as const;
+
+// ---------------------------------------------------------------- the offer page (slice 11)
+
+/** The public /offer page (D-11a, D-11f, D-11l). The page shows the child's
+ * first name, the grade, the academic year, the campus and the respond by
+ * date, and nothing else about the child or the family. */
+export const OFFER_COPY = {
+  pageTitle: "Your Admissions Offer",
+  subtitle: "Please let us know whether you would like to accept this offer.",
+  loading: "Opening your offer…",
+  intro: (firstName: string) =>
+    `Treasures Christian School is pleased to offer ${firstName} a place.`,
+  gradeLabel: "Grade",
+  yearLabel: "Academic year",
+  campusLabel: "Campus",
+  respondByLabel: "Please respond by",
+  accept: "Accept the offer",
+  decline: "Decline the offer",
+  confirmAcceptTitle: "Accept this offer?",
+  confirmDeclineTitle: "Decline this offer?",
+  confirmAccept: (firstName: string) =>
+    `You are about to accept the offer of a place for ${firstName}. You can't change your answer from this page afterwards.`,
+  confirmDecline: (firstName: string) =>
+    `You are about to decline the offer of a place for ${firstName}. You can't change your answer from this page afterwards.`,
+  confirmAcceptButton: "Yes, accept the offer",
+  confirmDeclineButton: "Yes, decline the offer",
+  back: "Go back",
+  sending: "Sending your answer…",
+  acceptedTitle: "Thank you, your acceptance has been recorded",
+  acceptedBody: "The admissions office will contact you about the next steps.",
+  declinedTitle: "Thank you, your answer has been recorded",
+  declinedBody:
+    "We are sorry you will not be joining us. If you change your mind, please contact the admissions office.",
+  answeredTitle: "This offer has already been answered",
+  answeredBody: (response: "accepted" | "declined") =>
+    `Our records show that this offer was ${response}. If that is not right, please contact the admissions office.`,
+  invalidTitle: "This link can no longer be used",
+  invalidBody:
+    "It may have expired, or been replaced by a newer link in a later email. Please contact the admissions office.",
+  missingTitle: "This link is incomplete",
+  missingBody: "Please open the link from your offer email again, exactly as it was sent.",
+  limit:
+    "There have been too many attempts from this connection. Please wait a few minutes and try again.",
+  error:
+    "Something went wrong on our side. Please try again later, or contact the admissions office.",
+  retry: "Try again",
+  /** The line under the answer buttons, in two parts around the privacy
+   * policy, which is linked from PRIVACY_POLICY. */
+  privacyBefore: "Your answer is recorded with your child's application and handled in line with",
+  privacyAfter: ".",
+} as const;

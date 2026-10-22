@@ -768,3 +768,35 @@ body.tcs-public-body {
 .tcs-public .tcs-message .tcs-save-actions {
   margin-top: 0.75rem;
 }
+
+/* The offer page (slice 11): the offer's details as a short list. */
+.tcs-public .tcs-offer-details {
+  margin: 1.25rem 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.tcs-public .tcs-offer-details dt {
+  color: var(--tcs-text-muted);
+}
+
+.tcs-public .tcs-offer-details dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.tcs-public .tcs-offer-privacy {
+  margin: 1.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--tcs-text-muted);
+  text-align: center;
+}
+
+/* The offer page's content region takes focus on each new state; no ring
+   on the region itself, the content inside carries its own focus styles. */
+.tcs-public .tcs-offer-body:focus {
+  outline: none;
+}

@@ -34,9 +34,10 @@ function functionUrl(): string {
   return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admissions-public`;
 }
 
-type Answer = { status: number; body: unknown };
+export type Answer = { status: number; body: unknown };
 
-async function call(body: unknown): Promise<Answer> {
+/** One POST to admissions-public; status 0 when the network failed. */
+export async function call(body: unknown): Promise<Answer> {
   try {
     const res = await fetch(functionUrl(), {
       method: "POST",

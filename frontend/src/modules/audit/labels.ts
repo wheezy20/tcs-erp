@@ -1,5 +1,5 @@
 // Display labels for every audit_log action (the audit_log_action_check
-// list, 40 values as of 20261026100000). An action missing here still
+// list, 42 values as of 20261031100000). An action missing here still
 // shows, as its raw value.
 
 /** Admissions actions start with one of these, and no other action does
@@ -47,6 +47,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   application_document_status_changed: "Application document status changed",
   application_decision_changed: "Application decision changed",
   application_offer_changed: "Application offer changed",
+  application_offer_link_sent: "Application offer link sent",
+  application_offer_responded: "Application offer answered by the parent",
   application_grade_corrected: "Application grade corrected",
   admissions_capacity_changed: "Admissions capacity changed",
   admissions_settings_changed: "Admissions settings changed",
@@ -54,6 +56,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
 };
 
 export const AUDIT_ACTIONS = Object.keys(AUDIT_ACTION_LABELS);
+
+/** Who did it, when no staff member did: only a parent's answer through
+ * the offer link has no actor (slice 11, D-11i). */
+export const NO_ACTOR_LABEL = "Parent, through the offer link";
 
 export function actionLabel(action: string): string {
   return AUDIT_ACTION_LABELS[action] ?? action;

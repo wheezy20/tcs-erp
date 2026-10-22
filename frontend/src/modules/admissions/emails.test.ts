@@ -173,3 +173,18 @@ describe("lead emails (slice 13)", () => {
     expect(statusNote("pdf_gate", "sent")).toBeUndefined();
   });
 });
+
+describe("offer emails (slice 11)", () => {
+  it("labels the two offer kinds and keeps the staff alert's address hidden", () => {
+    expect(EMAIL_KIND_LABELS.offer).toBe("Offer link");
+    expect(EMAIL_KIND_LABELS.offer_staff).toBe("Offer response staff alert");
+    expect(recipientLabel("offer_staff", null)).toBe("Staff alert address");
+    expect(recipientLabel("offer", "g•••@e•••.test")).toBe("g•••@e•••.test");
+  });
+
+  it("explains a dropped offer link email by its own rules, not the 48 hour one", () => {
+    expect(statusNote("offer", "expired")).toContain("a newer link replaced it");
+    expect(statusNote("offer", "expired")).toContain("7 days");
+    expect(statusNote("offer_staff", "expired")).toBe(EMAIL_STATUS_NOTES.expired);
+  });
+});

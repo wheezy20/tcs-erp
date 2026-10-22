@@ -76,6 +76,21 @@
 //               (never a name, email or phone). null means the claim is no
 //               longer held; nothing is recorded. An error is a retry.
 //
+// Offer emails (slice 11, D-11b, D-11g, D-11k):
+//   offer        issue_offer_link between claim and send mints a link for
+//                this claim and stores only its hash, exactly as for resume
+//                emails: the token lives in memory and the request to
+//                Resend, never logged, marked or stored. The link is
+//                PUBLIC_APPLY_BASE_URL/offer#token=<token>. issued: send it
+//                with Idempotency-Key "outbox-<row id>-<attempt>"; expired:
+//                no longer needed (a newer link, the offer answered,
+//                expired or withdrawn, or past 7 days), already marked;
+//                null: the claim is no longer held; an error: a retry.
+//                Without PUBLIC_APPLY_BASE_URL the row is retried with
+//                class config.
+//   offer_staff  the reference, the response and the ERP link to the
+//                application, from the row's params; no name or contact.
+//
 // A claimed row this worker can't read (an unknown kind, a bad shape) is
 // marked failed on its own; the rest of the batch still goes.
 //
@@ -95,6 +110,7 @@ import {
   type DraftLink,
   type EmailKind,
   type LeadContext,
+  type OfferLink,
 } from "./templates.ts";
 
 export const MAX_BODY_BYTES = 1024;
@@ -537,6 +553,12 @@ export async function runMailJob(
       if (link === "done") continue;
       draft = link;
     }
+    let offer: OfferLink | undefined;
+    if (row.kind === "offer") {
+      const link = await offerLink(deps, config, row);
+      if (link === "done") continue;
+      offer = link;
+    }
     let lead: LeadContext | undefined;
     let attachments: Attachment[] | undefined;
     if (row.kind === "pdf_gate") {
@@ -562,7 +584,7 @@ export async function runMailJob(
     let rendered;
     try {
       if (!to || !EMAIL.test(to)) throw new Error("no recipient");
-      rendered = renderEmail(row.kind, row.params, config.erpBaseUrl, draft, lead);
+      rendered = renderEmail(row.kind, row.params, config.erpBaseUrl, draft, lead, offer);
     } catch {
       deps.log("mail_render_failed");
       await mark(deps, row, {
@@ -577,7 +599,7 @@ export async function runMailJob(
     const result = await deps.send(
       {
         idempotencyKey:
-          row.kind === "draft_resume"
+          row.kind === "draft_resume" || row.kind === "offer"
             ? `outbox-${row.id}-${row.attempts}`
             : `outbox-${row.id}`,
         from: config.from,
@@ -716,6 +738,56 @@ async function draftLink(
     return "done";
   }
   return { url: `${config.applyBaseUrl}/apply#resume=${token}`, expiresAt };
+}
+
+/** The link for one claimed offer email, or "done" when the row has
+ * already been dealt with (see the header). Never logs the token. */
+async function offerLink(
+  deps: Deps,
+  config: MailConfig,
+  row: ClaimedRow,
+): Promise<OfferLink | "done"> {
+  if (!config.applyBaseUrl) {
+    deps.log("mail_offer_no_base_url");
+    await mark(deps, row, retryConfig);
+    return "done";
+  }
+  let res: RpcResult;
+  try {
+    res = await deps.rpc("issue_offer_link", {
+      p_outbox_id: row.id,
+      p_claim_token: row.claim_token,
+    });
+  } catch {
+    res = { data: null, error: { code: "network" } };
+  }
+  if (res.error) {
+    deps.log("mail_offer_link_error");
+    await mark(deps, row, { ...retryConfig, errorClass: "other" });
+    return "done";
+  }
+  const d = res.data;
+  if (d === null) {
+    deps.log("mail_offer_claim_lost");
+    return "done";
+  }
+  const o = typeof d === "object" && !Array.isArray(d) ? (d as Record<string, unknown>) : {};
+  if (o.status === "expired") {
+    deps.log("mail_offer_not_needed");
+    return "done";
+  }
+  if (
+    o.status !== "issued" ||
+    typeof o.token !== "string" ||
+    !/^[0-9a-f]{64}$/.test(o.token) ||
+    typeof o.expires_at !== "string" ||
+    Number.isNaN(Date.parse(o.expires_at))
+  ) {
+    deps.log("mail_offer_link_refused");
+    await mark(deps, row, failedOther);
+    return "done";
+  }
+  return { url: `${config.applyBaseUrl}/offer#token=${o.token}`, respondBy: o.expires_at };
 }
 
 async function readCapped(req: Request, max: number): Promise<string | null> {

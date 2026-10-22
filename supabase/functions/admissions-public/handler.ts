@@ -102,6 +102,24 @@
 //                  limit. A malformed ADMISSIONS_LEAD_ORIGINS refuses only
 //                  this action; enquiries and applications keep working.
 //
+// Offer responses (slice 11; D-11a to D-11n, decided by Eyram 2026-10-22).
+// The parent's link carries a 64 hex token in its fragment; the page sends
+// it here in the POST body only, and it is never logged:
+//
+//   offer_get      offer_ip (an HMAC of the IP), offer_global, then
+//                  get_offer_by_link: 200 {state: "open", first_name,
+//                  grade, academic_year, campus, respond_by} or 200
+//                  {state: "answered", response}. Writes nothing.
+//   offer_respond  the same limits, then respond_to_offer: 200 {status:
+//                  "recorded" | "answered", response}.
+//   both           no Turnstile (D-11e: the token is the credential; the
+//                  page's confirm step and a read with no side effects
+//                  handle link scanners). A link that opens nothing,
+//                  whatever the reason (unknown, malformed, replaced,
+//                  expired, withdrawn), gets one answer: 404 {error, code:
+//                  "offer_invalid"}. Every limit gets 429 {error, code:
+//                  "offer_limit"}. No intake switch applies (D-11n).
+//
 // Draft refusals keep the database's message only for the DETAIL codes in
 // DRAFT_CODES (written for parents in the database) and return the code so
 // the page can act on it. A live-draft cap (draft_limit) and every rate
@@ -166,6 +184,12 @@ export const MESSAGES = {
     "We couldn't send the Admissions Overview just now. Please contact the school office.",
   leadClosed:
     "The Admissions Overview download is not available right now. Please contact the school office.",
+  offerInvalid:
+    "This link can no longer be used. It may have expired or been replaced by a newer one. Please contact the admissions office.",
+  offerLimit:
+    "There have been too many attempts from this connection. Please wait a few minutes and try again, or contact the admissions office.",
+  offerError:
+    "Something went wrong on our side. Please try again later, or contact the admissions office.",
 } as const;
 
 /** The lead fields capture_lead reads; anything else in the payload is
@@ -475,7 +499,9 @@ type ParsedRequest =
     }
   | { action: "draft_get"; draftToken: string }
   | { action: "draft_delete"; draftToken: string }
-  | { action: "pdf_gate"; token: string; payload: Record<string, unknown> };
+  | { action: "pdf_gate"; token: string; payload: Record<string, unknown> }
+  | { action: "offer_get"; offerToken: string }
+  | { action: "offer_respond"; offerToken: string; response: "accepted" | "declined" };
 
 /** Actions whose body may use the larger cap. */
 const LARGE_BODY_ACTIONS = ["application", "draft_create", "draft_save"];
@@ -539,6 +565,7 @@ function parseRequest(text: string): ParsedRequest | "unknown_action" | null {
   }
   if (typeof b.action === "string" && b.action.startsWith("draft_"))
     return parseDraftRequest(b);
+  if (b.action === "offer_get" || b.action === "offer_respond") return parseOfferRequest(b);
   if (!onlyKeys(b, ["action", "turnstile_token", "payload"])) return null;
 
   if (b.action === "inquiry") {
@@ -581,6 +608,22 @@ function parseRequest(text: string): ParsedRequest | "unknown_action" | null {
     };
   }
   return "unknown_action";
+}
+
+/** The two offer actions. Only the shape is checked here: any string token
+ * up to 200 characters goes to the database, so a malformed token gets the
+ * same answer as an unknown one. */
+function parseOfferRequest(b: Record<string, unknown>): ParsedRequest | null {
+  const p = b.payload;
+  if (!onlyKeys(b, ["action", "payload"]) || !isObject(p)) return null;
+  if (typeof p.token !== "string" || p.token.length > 200) return null;
+  if (b.action === "offer_get") {
+    if (!onlyKeys(p, ["token"])) return null;
+    return { action: "offer_get", offerToken: p.token };
+  }
+  if (!onlyKeys(p, ["token", "response"])) return null;
+  if (p.response !== "accepted" && p.response !== "declined") return null;
+  return { action: "offer_respond", offerToken: p.token, response: p.response };
 }
 
 function isStep(value: unknown): value is number {
@@ -741,6 +784,8 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     parsed.action === "draft_delete"
   )
     return handleDraft(req, parsed, deps, config, origin);
+  if (parsed.action === "offer_get" || parsed.action === "offer_respond")
+    return handleOffer(req, parsed, deps, config, origin);
 
   // 4. per-IP, before spending a Turnstile call.
   let ipKey: string;
@@ -1290,6 +1335,105 @@ function isIso(value: unknown): value is string {
 
 function isMasked(value: unknown): value is string {
   return typeof value === "string" && value.length <= 300 && value.includes("\u2022");
+}
+
+type OfferRequest = Extract<ParsedRequest, { action: "offer_get" | "offer_respond" }>;
+
+function offerInvalid(deps: Deps, origin: string, outcome: string): Response {
+  deps.log(outcome);
+  return respond(404, { error: MESSAGES.offerInvalid, code: "offer_invalid" }, origin);
+}
+
+function shortText(value: unknown, max: number): value is string {
+  return typeof value === "string" && value.length >= 1 && value.length <= max;
+}
+
+/** offer_get and offer_respond (slice 11). The limits come before any
+ * token lookup; the database decides everything about the token. Only the
+ * fields listed here ever reach the response. */
+async function handleOffer(
+  req: Request,
+  parsed: OfferRequest,
+  deps: Deps,
+  config: Config,
+  origin: string,
+): Promise<Response> {
+  let ipKey: string;
+  try {
+    ipKey = await hmacHex(config.ipHashKey, clientIp(req.headers));
+  } catch {
+    deps.log("ip_hash_failed");
+    return respond(503, { error: MESSAGES.offerError }, origin);
+  }
+  for (const args of [{ p_bucket: "offer_ip", p_key_hash: ipKey }, { p_bucket: "offer_global" }]) {
+    const ok = await underLimit(deps, args);
+    if (ok === "error") {
+      deps.log("rate_limit_error");
+      return respond(503, { error: MESSAGES.offerError }, origin);
+    }
+    if (!ok) {
+      deps.log(args.p_bucket === "offer_ip" ? "offer_ip_limited" : "offer_global_limited");
+      return respond(429, { error: MESSAGES.offerLimit, code: "offer_limit" }, origin);
+    }
+  }
+
+  let result: RpcResult;
+  try {
+    result =
+      parsed.action === "offer_get"
+        ? await deps.rpc("get_offer_by_link", { p_token: parsed.offerToken })
+        : await deps.rpc("respond_to_offer", {
+            p_token: parsed.offerToken,
+            p_response: parsed.response,
+          });
+  } catch {
+    deps.log("offer_error");
+    return respond(500, { error: MESSAGES.offerError }, origin);
+  }
+  if (result.error) {
+    deps.log(`offer_db_error_${result.error.code ?? "unknown"}`);
+    return respond(500, { error: MESSAGES.offerError }, origin);
+  }
+  const d = result.data;
+  if (d === null || d === undefined) return offerInvalid(deps, origin, "offer_invalid");
+  const bad = () => {
+    deps.log("offer_bad_result");
+    return respond(500, { error: MESSAGES.offerError }, origin);
+  };
+  if (!isObject(d)) return bad();
+  const answered = (r: unknown) => r === "accepted" || r === "declined";
+
+  if (parsed.action === "offer_get") {
+    if (d.state === "answered" && answered(d.response)) {
+      deps.log("offer_read_answered");
+      return respond(200, { state: "answered", response: d.response }, origin);
+    }
+    if (
+      d.state !== "open" ||
+      !shortText(d.first_name, 255) ||
+      !shortText(d.grade, 100) ||
+      !shortText(d.academic_year, 20) ||
+      !(d.campus === null || shortText(d.campus, 255)) ||
+      !isIso(d.respond_by)
+    )
+      return bad();
+    deps.log("offer_read_open");
+    return respond(
+      200,
+      {
+        state: "open",
+        first_name: d.first_name,
+        grade: d.grade,
+        academic_year: d.academic_year,
+        campus: d.campus,
+        respond_by: d.respond_by,
+      },
+      origin,
+    );
+  }
+  if ((d.status !== "recorded" && d.status !== "answered") || !answered(d.response)) return bad();
+  deps.log(d.status === "recorded" ? "offer_recorded" : "offer_already_answered");
+  return respond(200, { status: d.status, response: d.response }, origin);
 }
 
 type DraftRequest = Extract<

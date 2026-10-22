@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is committed (C1 dcbff52, C2 3ec9468, C3 bebd811). Its three migrations are applied on hosted, `admissions-worker` and `admissions-public` are deployed, `PUBLIC_APPLY_BASE_URL` is set, the frontend is deployed, and the hosted test passed (reported by Eyram, 2026-10-21); see "Slice 10 rollout reported". Slice 13 is planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 committed as 5680ff8; live on production and the hosted test passed on tcsch.edu.gh, the website posting pdf_gate to the ERP (reported by Eyram, 2026-10-22); see "Slice 13 plan", the three "as built" sections, "Slice 13 rollout handover" and "Slice 13 rollout reported". Slice 11 is planned and approved with changes (2026-10-22); see "Slice 11 plan". The cutover critical path and its decisions (2026-10-21) are under slice 15, "Cutover decisions". The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is committed (C1 dcbff52, C2 3ec9468, C3 bebd811). Its three migrations are applied on hosted, `admissions-worker` and `admissions-public` are deployed, `PUBLIC_APPLY_BASE_URL` is set, the frontend is deployed, and the hosted test passed (reported by Eyram, 2026-10-21); see "Slice 10 rollout reported". Slice 13 is planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 committed as 5680ff8; live on production and the hosted test passed on tcsch.edu.gh, the website posting pdf_gate to the ERP (reported by Eyram, 2026-10-22); see "Slice 13 plan", the three "as built" sections, "Slice 13 rollout handover" and "Slice 13 rollout reported". Slice 11 is planned and approved with changes (2026-10-22); C1 committed as 14859e0; C2 built locally, uncommitted; see "Slice 11 plan", "Slice 11 C1 as built", "Slice 11 C2 as built" and "Slice 11 rollout handover". The cutover critical path and its decisions (2026-10-21) are under slice 15, "Cutover decisions". The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -44,7 +44,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 8b | Public enquiry form polish and two intake switches | committed (32eae11, c3943d8, 7d80735), migrations applied on hosted (reported by Eyram, 2026-10-14) | 8 |
 | 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) committed as c822b56; migration `20261024100000` applied on hosted and `admissions-public` deployed on hosted at version 3 (reported by Eyram, 2026-10-15). 9a checkpoint 2 committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). 9b checkpoint C1 (look foundation and `/inquiry`) committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15); 9b checkpoint C2 (`/apply` six-step layout) committed as 8393551; 9b checkpoint C3 (`/apply` content) committed as 14582d0, deployed with C2 and checked on hosted by Eyram (reported by Eyram, 2026-10-15); C4 close-out written locally 2026-10-15, docs only, uncommitted (decided 2026-10-15; split into 9a and 9b on 2026-10-13) | 8 |
 | 10 | Application drafts: save/resume tokens | committed (dcbff52, 3ec9468, bebd811); applied and deployed on hosted, hosted test passed (reported by Eyram, 2026-10-21) | 9 |
-| 11 | Public offer response page and offer email | planned and approved with changes (2026-10-22), C1 in progress; before cutover if it fits by about 20 Nov 2026, otherwise shortly after with the staff copy link hidden (decided 2026-10-21; if C1 is not finished by about 10 Nov, the hide change ships on its own) | 8, 6b, 12 |
+| 11 | Public offer response page and offer email | planned and approved with changes (2026-10-22); C1 committed (14859e0), C2 built locally; before cutover if it fits by about 20 Nov 2026, otherwise shortly after with the staff copy link hidden (decided 2026-10-21; if C1 is not finished by about 10 Nov, the hide change ships on its own) | 8, 6b, 12 |
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | C1 committed (a929511), C2 and C3 committed (8a45e04). Migrations applied, `admissions-worker` deployed (version 1), secrets and worker URL set, frontend deployed, and a hosted test delivered both emails (reported by Eyram, 2026-10-20 and 2026-10-21). See "Slice 12 as built" and "Slice 12 rollout reported" | 8 (and 6, 9, 10 for the emails it sends) |
 | 13 | Lead capture and the PDF gate (marketing site repointed to the Edge Function) | planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 committed as 5680ff8; live on production and the hosted test passed on tcsch.edu.gh, the website posting pdf_gate to the ERP (reported by Eyram, 2026-10-22); see "Slice 13 plan", the three "as built" sections, "Slice 13 rollout handover" and "Slice 13 rollout reported" | 8, 12 |
 | 14 | Bulk email + one-click unsubscribe | not started; after cutover (2026-10-21) | 12, 13 |
@@ -64,6 +64,7 @@ Every gate here must be closed before the step it names. Each one is also listed
   - **Test enquiry from the 9b C1 rollout (reported by Eyram, 2026-10-15).** One test enquiry submitted while checking C1.
   - **Two test enquiries from the slice 12 hosted test (reported by Eyram, 2026-10-21),** with their outbox rows (a parent confirmation and a staff alert each).
   - **Slice 10 hosted test (reported by Eyram, 2026-10-21).** The test draft and its links (submitted, so its answers and email are already wiped; housekeeping deletes the row 30 days after submission); the test application with its document rows and files, and its parent confirmation and staff alert outbox rows; and the `draft_resume` outbox rows of that draft (the submit removes them unless one was being sent at that moment, so check for any left), plus the Resend log copy of the test resume email.
+  - **Slice 11 hosted test (planned, not yet run).** The test application, its offer, the offer's links and its `offer` and `offer_staff` outbox rows, each by the explicit ids captured in "Slice 11 rollout handover", step 10. The test ends with the offer corrected to declined, so the cleanup's "accepted offer" stop condition is not hit.
   - **Slice 13 test leads (reported by Eyram, 2026-10-22).** The leads from the preview and production hosted tests, with their outbox rows (PDF emails and staff alerts, removed with each lead by the cascade). Four leads, all with Eyram's own address, deleted only by explicit id: `88f6d4fc-7b3b-4e67-a7b6-b749152a3b38`, `db02ef82-1770-4a8c-aa95-9c562bac74af`, `beb25834-6c29-4fcf-8138-80d641dbdf4a`, `0270d733-7ffc-47ed-a6dd-5401b5d2f138`. The three imported real TCS OS leads are never on this list.
   - **Test applications from the 9b C3 hosted check (reported by Eyram, 2026-10-15).** The check included a second submission that produced the match panel (family matched by guardian email, child matched by name and date of birth, differences listed, record unchanged), so it made at least two applications, with their documents and files. The second was a new application for a family already on record, not an inquiry advancing.
 - **Stored declaration version (decided 2026-10-21: stored, built with the privacy policy link).** Q16 left declaration text versioning out of 9b. Before real intake, decide whether each application stores which declaration text the parent agreed to (for example a version key next to `declaration_agreed_at`), since the privacy policy link will change that text. See "Backlog from slice 9".
@@ -1717,6 +1718,173 @@ The text above is the original plan, kept for history. Slice 11 was planned agai
 - **A reset to kill a leaked link can hit the cap** (3 sends in 24 hours). Staff can still withdraw the offer by changing the decision, which kills every link at once. The panel copy and the handover say so.
 - **Notes, accepted as they are:** a resend while the worker is mid-send can deliver one email whose link was just revoked (it opens nothing; the parent gets the newer email too); a correction overwrites `responded_at` (the audit rows keep the history of responses); a parent's decline moves the stage with no `application_stage_changed` row (the `application_offer_responded` row records it); expired older offer emails add to the expired count on the health strip; link rows are kept until their offer is deleted.
 
+### Slice 11 C2 as built (2026-10-22, local only, uncommitted)
+
+C1 is committed (14859e0). C2 adds no migration.
+
+- **`admissions-public`:** actions `offer_get` and `offer_respond`.
+  - Exact `ADMISSIONS_ALLOWED_ORIGINS` only; a marketing origin gets 403.
+  - Body `{action, payload: {token[, response]}}` and nothing else; any token string up to 200 characters goes to the database, so a malformed token gets the same answer as an unknown one.
+  - `offer_ip` (HMAC of the IP) before any lookup, then `offer_global`; no Turnstile (D-11e).
+  - A link that opens nothing gets 404 `{error, code: "offer_invalid"}`; every limit 429 `{error, code: "offer_limit"}`.
+  - The read passes on exactly the D-11a fields; the answer exactly `status` and `response`.
+  - The token is never logged or returned. A database error is logged by its code only.
+  - Tests: `offer.test.ts`, 11.
+- **`admissions-worker`:**
+  - `offer` calls `issue_offer_link` between claim and send, and prints `PUBLIC_APPLY_BASE_URL/offer#token=<token>`, with `Idempotency-Key: outbox-<id>-<attempt>`.
+  - `expired` means the row is already marked; null means the claim was lost; an error is a retry; a missing base URL retries with class config.
+  - `offer_staff` goes to `ADMISSIONS_STAFF_EMAIL` with the reference, the response and `ERP_BASE_URL/admissions/<application id>` only.
+  - Templates and handler tests added (templates 21, handler and lead 49), plus `offer.integration.test.ts` (4, local stack, fake provider): generate, two emails with two links, the read, resend kills both old links, accept once, the second guardian sees it answered, the staff alert.
+- **Offer email (as drafted for review):** subject "An offer of a place at Treasures Christian School". The body:
+  - Dear Parent or Guardian;
+  - "We are pleased to offer your child a place at Treasures Christian School in <grade> for the <year> academic year. Your application reference is <APP>.";
+  - the private link;
+  - "The offer is open until <date>. Anyone with this link can answer the offer, so please do not forward this email.";
+  - "If you would rather give your answer by phone, or if you have any questions, please contact the admissions office or reply to this email.";
+  - the Admissions Office sign-off. No name, no dash.
+- **Staff alert:** subject "Offer <APP> accepted through the offer link" (or declined); the body is that sentence, the reference and the ERP link. No name, no grade, no contact detail.
+- **`/offer` (public, auth-free):**
+  - It reads `#token=` once and removes it through the router's history; the token stays in component memory only.
+  - States: loading, open (first name, grade, academic year, campus, respond by date, Accept and Decline), confirm ("You can't change your answer from this page afterwards"), thank-you, already answered, the generic "This link can no longer be used", "This link is incomplete", and a retry for a limit or an error.
+  - The privacy line links from `PRIVACY_POLICY` (no link until the policy is published).
+  - All copy is in `OFFER_COPY` in `public-copy.ts`; the no-dash test covers the copy and the page sources. The route sets `referrer` to `no-referrer`.
+- **Staff offer panel:**
+  - The copy link and its warning are removed.
+  - Generate offer, Reset offer and Send link again each open a confirm step that asks the database how many addresses would be emailed now (`preview_offer_recipients`) and says so, with the 3 a day note. A refusal by the limit adds: "To stop the current link at once, change the decision instead: that withdraws the offer, and every link stops working."
+  - The status shows "through the offer link" or "recorded by staff".
+  - "Offer link emails" lists each address of the current link, masked, with its status. A link still waiting after 10 minutes gets: "The new link has not gone out yet. Email sending may be switched off, or today's email limit may have been reached. It goes out on its own when sending resumes, as long as the offer is still open. Any earlier link has already stopped working, so you may want to phone the parent."
+  - Correct response (D-11j) opens a dialog that says what happens to the stage and asks for a reason on one line (no names or contact details).
+  - Pure logic in `offer-panel.ts` and `permissions.ts` (`canResendOfferLink`, `offerCorrectionTarget`), with vitest.
+- **Email page:** labels "Offer link" and "Offer response staff alert"; an expired offer email says why ("a newer link replaced it, the offer was answered, withdrawn or expired, or it waited more than 7 days").
+- **Audit page:** labels for the two new actions; a row with no actor shows "Parent, through the offer link".
+- **Deliberate breaks:** 9, all caught (one only after a test was added for the token in the log when the call throws): the IP limit before the lookup, the field filter, the generic 404, the token in a log, the link path, the per-attempt key, the staff alert's fields, a `?token=` link being read, the address count in the confirm step.
+- **code-reviewer:** no blocking findings. Fix round 1 (should fix):
+  - The public page now moves focus to its content region on every state change, and the region is `aria-live="polite"` (the loading line is a status).
+  - The waiting note mentions an earlier link only after a reset or a resend.
+  - Hosted test step 9.5 (the fragment removed at once) is marked must-pass, since no automated test covers it.
+  - Also: `/offer` sets `robots` to `noindex`.
+  - Notes, accepted as they are: the confirm count is read when the dialog opens, and the toast reports what was actually queued; a 404 from a missing function would read as an invalid link, which the handover order prevents; a shared IP spends the `offer_ip` budget (30 an hour) together; the frontend deploy rebuilds, so the push-to-frontend gap includes a build.
+- **Verification (test-runner, end of C2, before fix round 1):** fresh reset; no duplicate overloads; anon-executable 170; types regen identical; 53 of 53 probe files green; Edge unit tests admissions-public 62, 11 and 11 (offer), worker 34, 15 and 21; integration tests worker 7, lead 3, offer 4, public 7, upload 7, submit 6, draft 6, all against the local stack and a fake provider (no real email); lint 0 errors and 13 warnings (baseline); `tsc` clean; vitest 243 of 243; build ok; no service role key in `dist/client`; Prettier clean on the changed frontend files; no dashes added. Golden payslip suite not run (no SQL, payroll or audit change in C2).
+
+### Slice 11 rollout handover (Eyram runs every step; none run here)
+
+C1 (the two migrations) and C2 (the functions and the frontend) go to hosted together. The deployed panel still expects a token from `generate_offer`; once the migrations are pushed, it would tell staff to reset, which spends the daily cap. So the worker and the public function go first, then the database, then the frontend straight away. Intake is closed and no real offer exists, so nobody should be using the offer panel during the gap; keep it to a few minutes anyway. Do the steps in order and stop at any check that doesn't match.
+
+**0. Before you start.**
+
+- C1 (14859e0) and C2 committed; `git status` clean, on `main`.
+- Resend click and open tracking still off for `mail.tcsch.edu.gh` (the offer email carries a private link).
+- `MAIL_MODE` is live on hosted (reported 2026-10-21), so step 9 sends real email, to your own addresses only.
+- Rehearse the frontend build now, so the deploy after the push is a known-good command:
+
+  ```sh
+  cd frontend && ./scripts/deploy-production.sh --build-only
+  ```
+
+**1. Backup.** Dashboard, Database, Backups: a backup from today exists.
+
+**2. Deploy the worker first.** It knows the two offer kinds; until the push there are none.
+
+```sh
+npx supabase functions deploy admissions-worker --no-verify-jwt
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  "https://<project-ref>.supabase.co/functions/v1/admissions-worker" \
+  -H 'content-type: application/json' -d '{"job":"mail"}'
+# 401
+```
+
+**3. Deploy the public function.** Its two new actions call functions that exist only after the push, so until then they answer 503 or 500. No page calls them yet.
+
+```sh
+npx supabase functions deploy admissions-public --no-verify-jwt
+```
+
+**4. Dry run.**
+
+```sh
+npx supabase db push --dry-run
+```
+
+It must list exactly these two, in this order, and nothing else: `20261031100000_admissions_offer_links.sql`, `20261031110000_admissions_offer_rpcs.sql`.
+
+Dry run note: the first migration sets `token_hash` to null on every hosted offer. Hosted holds only your test offers and applications (reported by Eyram, 2026-10-22), so no real link is lost; those old copy links never worked anyway.
+
+**5. Push, then deploy the frontend straight away.**
+
+```sh
+npx supabase db push
+cd frontend && ./scripts/deploy-production.sh
+```
+
+Never a bare `wrangler deploy` (CONSTRAINTS.md, "Deployment").
+
+**6. Read-only checks (SQL editor).**
+
+```sql
+select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');      -- 171 on hosted
+select count(*) from public.application_offers where token_hash is not null;          -- 0
+select has_table_privilege('anon', 'public.application_offer_links', 'select'),
+       has_table_privilege('authenticated', 'public.application_offer_links', 'select'),
+       has_table_privilege('service_role', 'public.application_offer_links', 'select'); -- f, f, f
+select conname from pg_constraint where conname = 'audit_log_actor_check';            -- 1 row
+select jobname from cron.job where jobname like 'admissions-%' order by jobname;      -- the same 4 jobs
+```
+
+**7. Secrets.** None new. `PUBLIC_APPLY_BASE_URL` already holds `https://tcs-erp.weyramkodzo.workers.dev`, so test offer emails link there. It changes to `https://admissions.tcsch.edu.gh` at cutover ("Cutover runbook", step 4); an offer email sent after that carries the admissions host, because the link is made when each email is sent.
+
+**8. A quick check of the public action** (from a terminal, with the workers.dev origin, which is on `ADMISSIONS_ALLOWED_ORIGINS`):
+
+```sh
+curl -s -X POST "https://<project-ref>.supabase.co/functions/v1/admissions-public" \
+  -H 'content-type: application/json' -H 'origin: https://tcs-erp.weyramkodzo.workers.dev' \
+  -d "{\"action\":\"offer_get\",\"payload\":{\"token\":\"$(printf 'f%.0s' {1..64})\"}}"
+# {"error":"This link can no longer be used. ...","code":"offer_invalid"}
+```
+
+**9. Hosted test with your own addresses.** Every record made here joins the go-live cleanup list (step 10).
+
+1. Sign in as Manager and open Public applications. On `/apply`, submit one application with the child named "ZZ Test Do Not Process", guardian 1 with your own email and guardian 2 with a plus address of it (for example `you+offer@gmail.com`), so there are two recipients. Close Public applications again.
+2. On the application, record an accepted decision (your Manager account holds can_decide since the 6a production step). Press Generate offer. The confirm step says the link is emailed to 2 addresses now. Confirm.
+3. The panel shows Waiting for the parent, and under Offer link emails both masked addresses, Waiting to be sent, then Sent within about two minutes.
+4. In your inbox, two emails "An offer of a place at Treasures Christian School":
+   - From `TCS Admissions <no-reply@mail.tcsch.edu.gh>`, Reply-To `admissions@tcsch.edu.gh`;
+   - no child name and no dashes; the grade, the academic year and the APP reference;
+   - the respond by date;
+   - one link `https://tcs-erp.weyramkodzo.workers.dev/offer#token=...`, different in the two emails. Hover it: not rewritten by a tracking host.
+5. **Must pass (no automated test covers it):** open the first email's link in a private window. The address bar loses `#token=...` at once, and Back doesn't bring it back. The page shows the first name, Grade, Academic year, Campus and Please respond by. Close the window without answering.
+6. On the panel press Send link again. The confirm step says 2 addresses; confirm. Open the first email's old link: "This link can no longer be used". Two new emails arrive.
+7. Open a new link, press Accept the offer, then Yes, accept the offer. The thank-you shows. Open the same link again: "This offer has already been answered". Open the other new link: also already answered.
+8. The panel shows Accepted by the parent, through the offer link. The staff alert reaches `admissions@tcsch.edu.gh`: subject "Offer APP-... accepted through the offer link", the reference and the ERP link only. Audit Log: "Application offer link sent" rows by you, and "Application offer answered by the parent" with the actor "Parent, through the offer link".
+9. **End the test declined (the go-live cleanup refuses an accepted offer).** Press Correct response, give a reason such as "Hosted test, correcting to declined", and save. The panel shows Declined by the parent, recorded by staff, and the stage moves to Offer declined. The audit row shows the reason and both sources.
+10. Optionally on the Admissions Emails page: the rows show as "Offer link" and "Offer response staff alert", all Sent.
+
+**10. Record the ids for the go-live cleanup (read-only, SQL editor).** Replace `<APP>` with the test application's reference, then note every id it lists:
+
+```sql
+select 'application' as what, a.id::text from public.applications a where a.application_reference = '<APP>'
+union all
+select 'offer', o.id::text from public.application_offers o
+  join public.applications a on a.id = o.application_id where a.application_reference = '<APP>'
+union all
+select 'offer_link', l.id::text from public.application_offer_links l
+  join public.application_offers o on o.id = l.offer_id
+  join public.applications a on a.id = o.application_id where a.application_reference = '<APP>'
+union all
+select 'outbox_' || e.kind, e.id::text from public.admissions_email_outbox e
+  join public.application_offers o on o.id = e.offer_id
+  join public.applications a on a.id = o.application_id where a.application_reference = '<APP>'
+order by 1, 2;
+```
+
+Expect 1 application, 1 offer, 4 links, 4 `outbox_offer` rows and 1 `outbox_offer_staff` row, plus whatever step 9 made in addition. Send me the list and the references, and I'll add them to the go-live cleanup list by id. The application's own confirmation and staff alert rows join the list as for the earlier tests.
+
+**If something goes wrong.**
+
+- `npx supabase secrets set MAIL_MODE=off` stops all sending at the next run.
+- A single offer is stopped by changing its decision, which withdraws it and kills every link.
+- If the frontend deploy fails after the push, deploy again before anyone uses the offer panel; Generate and Reset still work on the database, but the old panel would show a broken link message.
+
 ## Slice 12 — Transactional email
 
 **Delivers:**
@@ -2886,6 +3054,7 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 | Staff IDs (HR, `20261026100000`, added 2026-10-16) | none: the migration is built locally only and not applied on hosted. After the push, any employee approved on hosted gets a 2026 ID. Rule for now: test approvals happen locally only | employee names through `employee_id`; the ID itself is not personal | **left, by rule, not by script.** `staff_numbers.employee_id` is `on delete restrict` and a trigger refuses deleting any issued row, so a test employee who got an ID can't be deleted. The `staff_number_issued` audit rows are kept (append-only). `staff_number_counters` only moves forward; any reset or ID removal needs its own reviewed hand script | the delete trigger, the restrict key and the append-only audit log; see CONSTRAINTS.md, the staff ID checklist item |
 | `admissions_email_outbox` (slice 12) | the rows of the two slice 12 hosted test enquiries (reported by Eyram, 2026-10-21), and any later hosted test: a confirmation row and a staff alert row each (`application_ids` holds the test application ids, `params` their references) | the recipient email address and the references | deleted by the same script, matched by the test application ids | the Resend log keeps its own copy outside the database for its retention period |
 | Application drafts (slice 10, on hosted as reported by Eyram, 2026-10-21) | the test drafts and their links (`application_drafts`, `application_draft_links`), named by draft id from the hosted test; the `draft_resume` rows in `admissions_email_outbox`, matched by `draft_id`; and the Resend log copies of the test resume emails | the email address and the answers a test draft holds (names and test child details; never health answers, files or declaration) | deleted by the same script: link rows first, then drafts, then the outbox rows; no document rows or files are involved | housekeeping deletes a submitted draft 30 days after submission and wipes an expired one, but an open test draft must be deleted by hand; the Resend log keeps its own copy of each test resume email outside the database, for its retention period |
+| Offers, offer links and offer emails (slice 11) | the slice 11 hosted test's offer (`application_offers`), its links (`application_offer_links`, hashes only) and its `offer` and `offer_staff` rows in `admissions_email_outbox`, each listed by explicit id from the hosted test ("Slice 11 rollout handover", step 10) | the guardian email addresses on the outbox rows and the reference in their params; links hold only hashes | deleted by the same script by their listed ids, before the application; the offer's links and offer outbox rows would also go with the offer by cascade, but the script deletes them by id and checks the count | audit rows (`application_offer_link_sent`, `application_offer_responded`, `application_offer_changed`) are kept, as for every other test record; the Resend log keeps its own copy of the test emails |
 | Later slices (will exist) | slice 11 offer tokens, slice 13 leads, slice 14 campaigns and unsubscribe rows | varies | each slice that adds a table adds a row here before the cleanup is run | to be planned with each slice |
 
 **Stop conditions (the script refuses, and Eyram decides separately):** a test record at `enrolled` or with a `student_id` (a STUDENT counter was used); an accepted offer; a target family that also holds a student with a non-test application; a guardian email of a target family that also appears in a non-test family; a file in the bucket attached to a non-test application; either public switch open.

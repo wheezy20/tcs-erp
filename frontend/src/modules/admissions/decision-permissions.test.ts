@@ -10,7 +10,8 @@ import {
   decisionChangeTargets,
   documentsNotApproved,
   enrolState,
-  offerLink,
+  canResendOfferLink,
+  offerCorrectionTarget,
   type DecideCapability,
 } from "@/modules/admissions/permissions";
 import { STAGES } from "@/modules/admissions/labels";
@@ -94,8 +95,56 @@ describe("offers", () => {
     ).toBe(false);
   });
 
-  it("builds the parent link at TCS OS's path with the token as given", () => {
-    expect(offerLink("https://example.test", "ab12")).toBe("https://example.test/offer?token=ab12");
+  it("sends the link again only where a response could be recorded (slice 11)", () => {
+    expect(canResendOfferLink("Manager", "granted", "offer", "accepted", PENDING)).toBe(true);
+    expect(canResendOfferLink("Admissions Officer", "granted", "offer", "accepted", PENDING)).toBe(
+      true,
+    );
+    expect(canResendOfferLink("Auditor", "granted", "offer", "accepted", PENDING)).toBe(false);
+    expect(canResendOfferLink("Manager", "denied", "offer", "accepted", PENDING)).toBe(false);
+    expect(canResendOfferLink("Manager", "granted", "offer", "accepted", EXPIRED)).toBe(false);
+    expect(canResendOfferLink("Manager", "granted", "offer", "accepted", ACCEPTED)).toBe(false);
+  });
+});
+
+describe("offer corrections (slice 11, D-11j)", () => {
+  const LINK_ACCEPTED = { ...ACCEPTED, responseSource: "offer_link" as const };
+  const LINK_DECLINED = { ...DECLINED, responseSource: "offer_link" as const };
+  const STAFF_ACCEPTED = { ...ACCEPTED, responseSource: "staff" as const };
+
+  it("accepted becomes declined at offer; declined becomes accepted at offer declined", () => {
+    expect(offerCorrectionTarget("Manager", "granted", "offer", "accepted", LINK_ACCEPTED)).toBe(
+      "declined",
+    );
+    expect(
+      offerCorrectionTarget(
+        "Admissions Officer",
+        "granted",
+        "offer_declined",
+        "accepted",
+        LINK_DECLINED,
+      ),
+    ).toBe("accepted");
+  });
+
+  it("never for a staff-recorded response, once enrolled, without the capability, or for a non-writer", () => {
+    expect(
+      offerCorrectionTarget("Manager", "granted", "offer", "accepted", STAFF_ACCEPTED),
+    ).toBeNull();
+    expect(
+      offerCorrectionTarget("Manager", "granted", "enrolled", "accepted", LINK_ACCEPTED),
+    ).toBeNull();
+    expect(
+      offerCorrectionTarget("Manager", "denied", "offer", "accepted", LINK_ACCEPTED),
+    ).toBeNull();
+    expect(
+      offerCorrectionTarget("Auditor", "granted", "offer", "accepted", LINK_ACCEPTED),
+    ).toBeNull();
+    expect(
+      offerCorrectionTarget("Manager", "granted", "offer", "waitlisted", LINK_ACCEPTED),
+    ).toBeNull();
+    expect(offerCorrectionTarget("Manager", "granted", "offer", "accepted", PENDING)).toBeNull();
+    expect(offerCorrectionTarget("Manager", "granted", "offer", "accepted", null)).toBeNull();
   });
 });
 

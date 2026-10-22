@@ -18,6 +18,7 @@ import {
   DRAFT_REFUSED,
   PRIVACY_POLICY,
   SAVE_COPY,
+  OFFER_COPY,
 } from "@/modules/admissions/public-copy";
 
 const DASHES = /[–—]/;
@@ -48,6 +49,7 @@ describe("public form copy", () => {
       SAVE_COPY,
       PRIVACY_POLICY,
       DRAFT_REFUSED,
+      OFFER_COPY,
     ]))
       expect(s, s).not.toMatch(DASHES);
     expect(applicationThankYou("Kofi", "Grade 3", "2026/2027")).not.toMatch(DASHES);
@@ -146,6 +148,9 @@ describe("public form copy", () => {
       "components/public-page-parts.tsx",
       "public-form.css",
       "public-copy.ts",
+      "components/offer-page.tsx",
+      "offer-page.ts",
+      "data/public-offer.ts",
     ]) {
       const text = readFileSync(resolve(__dirname, file), "utf8");
       expect(DASHES.test(text), file).toBe(false);
