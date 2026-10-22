@@ -174,6 +174,14 @@ Things that shape how this gets built, not just what gets built.
         `tcsch.edu.gh`, `www.tcsch.edu.gh` and `tcsch.vercel.app`, and
         `ADMISSIONS_LEAD_ORIGINS` holds the same three origins. Exact hosts
         only, no `*.vercel.app` pattern.
+      - **Expected anon-executable count: 170 locally, 171 on hosted**
+        (recorded 2026-10-22). The hosted extra is `rls_auto_enable()`, the
+        Supabase platform's event trigger function behind the project's
+        "automatically enable RLS" setting; it isn't in the repo, a fresh
+        local reset doesn't have it, and PostgreSQL refuses to run it when
+        called directly. The probe files stay pinned at 170. A hosted count
+        other than 171 is compared by name (PORT-PLAN, "Checking hosted
+        against local") before a rollout continues.
       - **Never add the marketing hosts to `ADMISSIONS_ALLOWED_ORIGINS`**
         (recorded 2026-10-21). That list is for the staff app and the intake
         forms; an origin on both lists passes both gates, so a page on the

@@ -5264,3 +5264,36 @@ C1 is committed as 1a76b6c and C2 as 98ff213. C3 is built locally and uncommitte
 - **Verification (test-runner end of slice pass).** Fresh reset; no duplicate overloads; types identical; anon-executable 170; 52 of 52 probe files; Edge unit tests 136; integration 7, 7, 6, 6, 7 and 3 with a fake provider; `tsc` clean; lint 0 errors and 13 warnings (baseline); vitest 225; build ok; no service role key in `dist/client`; Prettier clean on the C3 files; no dashes added. No new deliberate breaks (the slice's 22 ran in C1 and C2). Golden payroll suite not run (no payroll or audit action change).
 
 **Not done:** the commit; the whole rollout (Eyram runs it, in the handover order); the marketing site change (described, not made); the import of the three leads.
+
+## 2026-10-22: Slice 13 rollout reported
+
+Docs only; nothing run here. Reported by Eyram on 2026-10-22. Detail in PORT-PLAN, "Slice 13 rollout reported".
+
+- **Live.** Slice 13 (C1 1a76b6c, C2 98ff213, C3 5680ff8) is live on production. The school website's Admissions Overview form now posts `pdf_gate` to the ERP; TCS OS no longer receives new website leads.
+- **Why a merge commit by the Vercel owner.** Vercel Hobby blocks deployments of commits whose author is not the account owner, so branch `erp-pdf-gate` was merged to `main` by the owner with a merge commit.
+- **Hosted test on tcsch.edu.gh passed:** lead listed (Manager and Admissions Officer in full, Auditor masked), email with the PDF, staff alert without contact details, per-address limit, closed switch 409.
+- **Why localhost can't test against hosted.** `admissions-public` on hosted refuses any non-https or loopback origin in `ADMISSIONS_LEAD_ORIGINS`, by design, so hosted checks need a real https host.
+- **Cleanup.** Eyram's test leads join the go-live cleanup list by id (ids to come).
+
+**To confirm:** the lead switch's current state; the test lead ids. **Not reported:** `MAIL_DAILY_CEILING` raised to 200; the preview host removed from the origin list and the Turnstile widget; the anon count after the push; the import of the three real TCS OS leads.
+
+## 2026-10-22: Slice 13 rollout, further answers
+
+Docs only; nothing run here. Reported by Eyram on 2026-10-22; detail in PORT-PLAN, "Slice 13 rollout reported".
+
+- **Lead switch closed.** `MAIL_DAILY_CEILING` is still 60 (about 15 leads a day mailed) until the Resend plan is confirmed.
+- **No preview host ever existed.** The hosted test ran on the production site; localhost was removed from the ERP Turnstile widget.
+- **Test leads.** Four, all with Eyram's own address, added to the go-live cleanup list by id.
+- **Why the anon count is open.** Hosted shows 171 functions in `public` that anon can execute; a fresh local reset shows 170, the number every probe file pins. The hosted number was never checked before, and slices 10 to 13 added none, so the extra exists only on hosted. A read-only comparison query (outside the repo) names it; open until Eyram runs it.
+
+## 2026-10-22: Hosted anon-executable count explained (171)
+
+Docs only; nothing run here. Found by Eyram on 2026-10-22 with a read-only comparison of hosted against a fresh local reset.
+
+- **What it is.** Hosted has 171 functions in `public` that anon can execute; the repo gives 170. The extra is `rls_auto_enable()`, a Supabase platform event trigger function created by the hosted project's "automatically enable RLS" setting. 171 is now the expected hosted count; the local probes stay pinned at 170.
+- **Why it is left alone.** It belongs to the platform, not the repo, and PostgreSQL refuses to run an event trigger function called directly, so anon's execute right on it gives nothing.
+- **Method kept.** Comparing by name: the anon-executable list from a fresh local reset becomes a `values` list in a read-only hosted query that shows extra and missing functions with owner, extension and grants. Recorded in PORT-PLAN, "Checking hosted against local"; the query itself is regenerated each time and never kept in the repo.
+
+## 2026-10-22: TCS OS leads imported
+
+3 leads imported.
