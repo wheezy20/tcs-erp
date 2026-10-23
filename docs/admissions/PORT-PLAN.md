@@ -1641,7 +1641,7 @@ The text above is the original plan, kept for history. Slice 11 was planned agai
 **Decisions (Eyram, 2026-10-22):**
 
 - **D-11a, what the page shows.** The student's first name, the grade, the academic year, the campus public label and the respond-by date. Nothing else about the child or the family.
-- **D-11b, recipients.** Every guardian on the family with an email address, de-duplicated, at most 4, one link each. The first answer wins; another guardian's link then shows the answered state.
+- **D-11b, recipients.** Every guardian on the family with an email address, de-duplicated, at most 4, one link each. The first answer wins; another guardian's link then shows the answered state. Confirmed 2026-10-23 after the hosted test: guardians on record only, never an address typed on a matched family's form (see "Slice 11 recipient finding").
 - **D-11c, when emails go.** Generate and reset send at once; "Send link again" keeps the expiry and replaces only the link. Change by Eyram: the panel shows a confirm step before Generate, Reset or Send link again, saying how many addresses will be emailed right now.
 - **D-11d, copy link.** Retired. The raw token exists only in the email. `token_hash` on `application_offers` becomes nullable and is set to null on every row by the migration. Hosted holds only Eyram's test offers and applications (reported by Eyram, 2026-10-22); the dry run notes say so.
 - **D-11e, no Turnstile** on `offer_get` and `offer_respond`. The 256-bit token is the credential and Turnstile protects nothing it doesn't. The real risks are link scanners and accidental clicks, which the side-effect-free read and the confirm step on the page handle. A failed challenge on an old phone would stop a parent accepting in time. Precedent: `draft_get` and `draft_save`. Per IP and global rate limits cover the cost of abuse. Recorded in DESIGN.md.
@@ -1884,6 +1884,16 @@ Expect 1 application, 1 offer, 4 links, 4 `outbox_offer` rows and 1 `outbox_offe
 - `npx supabase secrets set MAIL_MODE=off` stops all sending at the next run.
 - A single offer is stopped by changing its decision, which withdraws it and kills every link.
 - If the frontend deploy fails after the push, deploy again before anyone uses the offer panel; Generate and Reset still work on the database, but the old panel would show a broken link message.
+
+### Slice 11 recipient finding (2026-10-23)
+
+**Found in the hosted test (reported by Eyram, 2026-10-23).** On APP-2026-0005 the application confirmation went to two addresses and the offer link to one. The application matched an existing family through guardian 1's address. On a match, `submit_application` never adds or changes guardians (D-9b); guardian 2's typed address was recorded only in `application_match_flags.differences` (`new: true`). The confirmation email goes to the typed addresses first, then to the guardians on record (D-12h), so it reached both. `_offer_recipients` reads only `guardians`, so the offer reached the guardian on record.
+
+**Decision (Eyram, 2026-10-23): expected behaviour; the rule stays.** The offer link is a credential: whoever holds it can accept or decline the place. A typed address on a matched family's submission is unverified, and anyone who knows a family's address could add one of their own as "guardian 2". So offer links go only to guardians on record. A confirmation email has no link, so sending it to typed addresses stays safe.
+
+**Made visible (built 2026-10-23, local only, uncommitted, frontend only).** The confirm step for Generate offer, Reset offer and Send link again adds "1 address from the application form is not on the family record and will not get the link." (or "N addresses ... are not ..."), a count only, never an address. It reads only the `differences` column of `application_match_flags` (the same table and RLS as the Submission check panel: Manager, Auditor, and an Admissions Officer in scope, which covers everyone who sees the send buttons); no migration, no new RPC. The count is advisory: if it can't be read the line is left out and the send is not blocked. Pure logic `guardiansNotOnRecord` (`submission-check.ts`) and `notOnRecordLine` (`offer-panel.ts`), with vitest.
+
+**Not built (Eyram, 2026-10-23):** any way for staff to promote a typed address onto the family record. Listed under "Can wait" in "Cutover decisions" as a candidate for after cutover; it would be a new write permission and needs its own gate.
 
 ## Slice 12 — Transactional email
 
@@ -2694,7 +2704,7 @@ From the critical path planning pass of 2026-10-21 (plan only). Go or no go on T
 
 - **Before cutover:** slice 13 (PDF gate only); slice 15 minimal (host routing: `/` 302 to `/inquiry`, `/admin` 302 to the staff host, old API paths `410`, staff paths off the admissions host, a static notice at `/api/admissions/unsubscribe/<token>/` saying how to stop emails); the privacy policy published and linked; the stored declaration version; the go-live cleanup; the open Resend and hosted checks; Turnstile hostnames and `ADMISSIONS_ALLOWED_ORIGINS` with `https://admissions.tcsch.edu.gh`; real staff accounts and capabilities; the counter bump.
 - **Shortly after:** slice 11 if it slips (before the first real offer; staff record replies with `record_offer_response` meanwhile, and the copy link on the offer panel is hidden, because `/offer` would not exist); the TCS OS lead import (within the 30 day read-only window); the bounce rate check.
-- **Can wait:** slice 14; quick interest; `app.tcsch.edu.gh`; bounce webhooks.
+- **Can wait:** slice 14; quick interest; `app.tcsch.edu.gh`; bounce webhooks; a staff way to add a reviewed typed guardian to a family record (candidate from the slice 11 recipient finding, 2026-10-23; a new write permission, so its own gate).
 
 **Decisions:**
 

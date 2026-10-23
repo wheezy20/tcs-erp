@@ -36,6 +36,8 @@ import {
   type SentOffer,
 } from "@/modules/admissions/data/mutations";
 import { listStaffNames } from "@/modules/admissions/data/reference";
+import { getMatchDifferences } from "@/modules/admissions/data/submission-check";
+import { guardiansNotOnRecord } from "@/modules/admissions/submission-check";
 import { EnrolmentControls } from "@/modules/admissions/components/enrolment-controls";
 import { useLoad } from "@/modules/admissions/hooks/use-load";
 import {
@@ -44,6 +46,7 @@ import {
   SEND_TITLES,
   CORRECTION_REASON_MAX,
   correctionBody,
+  notOnRecordLine,
   correctionReasonProblem,
   offerWaitingNote,
   responseSourceLabel,
@@ -537,18 +540,26 @@ function SendConfirm({
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState<number | null>(null);
   const [countError, setCountError] = useState<string | null>(null);
+  const [notOnRecord, setNotOnRecord] = useState(0);
   const [saving, setSaving] = useState(false);
 
   async function openDialog() {
     setOpen(true);
     setCount(null);
     setCountError(null);
+    setNotOnRecord(0);
+    // Advisory only: if the match flags can't be read, the line is left out
+    // and the send is not blocked.
+    void getMatchDifferences(applicationId)
+      .then((d) => setNotOnRecord(guardiansNotOnRecord(d)))
+      .catch(() => setNotOnRecord(0));
     try {
       setCount(await previewOfferRecipients(applicationId));
     } catch (err) {
       setCountError(getErrorMessage(err, "Could not count the guardian addresses."));
     }
   }
+  const unrecorded = notOnRecordLine(notOnRecord);
 
   async function confirm() {
     setSaving(true);
@@ -582,6 +593,7 @@ function SendConfirm({
                 : sendConfirmBody(kind, count)}
           </DialogDescription>
         </DialogHeader>
+        {unrecorded && count !== null && <p className="text-sm">{unrecorded}</p>}
         <p className="text-xs text-muted-foreground">{OFFER_SEND_LIMIT_NOTE}</p>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>

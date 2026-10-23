@@ -14,6 +14,19 @@ export type MatchFlag = {
   gradeNames: Record<string, string>;
 };
 
+/** Only the differences snapshot, for the offer panel's confirm step
+ * (slice 11). The same table and RLS as getMatchFlag; null when there is
+ * no match flag or RLS hides it. */
+export async function getMatchDifferences(applicationId: string): Promise<unknown> {
+  const { data, error } = await supabase
+    .from("application_match_flags")
+    .select("differences")
+    .eq("application_id", applicationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.differences ?? null;
+}
+
 /** The match flag for one application, or null when there is none (a new
  * family, or an application not made through the public form). RLS
  * returns it only to Manager, Auditor and an Admissions Officer in scope. */

@@ -7,6 +7,7 @@ import {
   addresses,
   correctionBody,
   correctionReasonProblem,
+  notOnRecordLine,
   offerWaitingNote,
   responseSourceLabel,
   sendConfirmBody,
@@ -111,5 +112,18 @@ describe("no dashes", () => {
       correctionBody("declined"),
     ])
       expect(s).not.toMatch(DASHES);
+  });
+});
+
+describe("addresses from the form that are not on record (slice 11)", () => {
+  it("adds a count line only when there are some, never an address", () => {
+    expect(notOnRecordLine(0)).toBeNull();
+    expect(notOnRecordLine(1)).toBe(
+      "1 address from the application form is not on the family record and will not get the link.",
+    );
+    expect(notOnRecordLine(2)).toBe(
+      "2 addresses from the application form are not on the family record and will not get the link.",
+    );
+    expect(notOnRecordLine(1)).not.toMatch(/@|[\u2013\u2014]/);
   });
 });

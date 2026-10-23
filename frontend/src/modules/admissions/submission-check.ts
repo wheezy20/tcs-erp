@@ -45,6 +45,21 @@ function show(field: string, value: unknown, gradeNames: Record<string, string>)
   return text;
 }
 
+/** How many distinct addresses the parent typed for a guardian who is not
+ * on the matched family's record ("new": a matched family's guardians are
+ * never added to, D-9b). Those addresses got the confirmation email but
+ * never get an offer link, which goes only to guardians on record
+ * (slice 11). A count only; the addresses are never shown here. */
+export function guardiansNotOnRecord(differences: unknown): number {
+  if (!isRecord(differences) || !Array.isArray(differences.guardians)) return 0;
+  const emails = new Set<string>();
+  for (const g of differences.guardians) {
+    if (isRecord(g) && g.new === true && typeof g.email === "string" && g.email.trim() !== "")
+      emails.add(g.email.trim().toLowerCase());
+  }
+  return emails.size;
+}
+
 /** The snapshot as rows for a table. Unknown shapes are skipped, never
  * guessed at. The text is a stranger's: React escapes it when shown. */
 export function differenceRows(

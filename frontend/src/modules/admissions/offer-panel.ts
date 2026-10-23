@@ -34,6 +34,17 @@ export function sendConfirmBody(kind: OfferSend, n: number): string {
   }
 }
 
+/** The confirm step's extra line when the application form named guardian
+ * addresses that are not on the family record (slice 11, decided by Eyram
+ * 2026-10-23): the offer link is a credential, so it goes only to guardians
+ * on record. Null when there are none. */
+export function notOnRecordLine(n: number): string | null {
+  if (n <= 0) return null;
+  return n === 1
+    ? "1 address from the application form is not on the family record and will not get the link."
+    : `${n} addresses from the application form are not on the family record and will not get the link.`;
+}
+
 export const SEND_TITLES: Record<OfferSend, string> = {
   generate: "Generate offer",
   reset: "Reset offer",

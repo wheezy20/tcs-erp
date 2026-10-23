@@ -5334,3 +5334,12 @@ C1 is committed as 14859e0. C2 is built locally and uncommitted; nothing is depl
 
 **Not done:** the commit; the rollout (Eyram runs it in the handover order); the hosted test and its cleanup ids.
 - **Fix round 1 (code-reviewer, no blocking findings).** Focus and a live region on the public page's state changes; the waiting note mentions an earlier link only after a reset or resend; the hosted fragment check is must-pass; `/offer` is noindex.
+
+## 2026-10-23: Slice 11 recipient finding (hosted test)
+
+Reported by Eyram from the slice 11 hosted test; the change below is local only and uncommitted. Detail in PORT-PLAN, "Slice 11 recipient finding".
+
+- **What happened.** On APP-2026-0005 the confirmation reached two addresses and the offer link one. The application matched an existing family, so guardian 2's typed address was never added to the record (D-9b) and sits only in the match flags.
+- **Why it stays (Eyram).** The offer link is a credential; an address typed on a matched family's form is unverified, so only guardians on record get the link. The confirmation has no link, so it may still go to typed addresses.
+- **What changed.** The confirm step before Generate, Reset and Send link again now says how many addresses from the application form are not on the family record and will not get the link (a count only). Frontend only: it reads the match flags' `differences` under their existing policy; no migration, no new RPC. vitest 247, `tsc`, lint at the baseline, build pass.
+- **Candidate after cutover.** A staff way to add a reviewed typed guardian to the family record; a new write permission, not built.
