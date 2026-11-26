@@ -72,16 +72,25 @@ Things that shape how this gets built, not just what gets built.
       the decision on slice 15 piece C.
 - [ ] Go-live test data cleanup (planned 2026-10-15, slice 9b C4). Every test
       inquiry, application, file, family, upload session and saved application draft on hosted is
-      removed before real intake opens, once, after the privacy policy, the
-      confirmation email and the last hosted test. Eyram names each test
+      removed before real intake opens, the last of it after the privacy
+      policy, the confirmation email and the last hosted test. Eyram names each test
       record by reference; files go through the Storage API or the
       dashboard; audit rows are kept. Script built and rehearsed locally
-      (`docs/admissions/go-live-cleanup.sql`, 2026-11-26); nothing run on
-      hosted. See PORT-PLAN,
-      "Go-live test data cleanup plan". Decided 2026-10-21: it runs once, on
-      cutover day, after the real host test, whose two records are on its
-      list; real leads are on hosted by then, so leads are deleted only by an
-      explicit id list, never a row not on the list.
+      (`docs/admissions/go-live-cleanup.sql`, 2026-11-26). See PORT-PLAN,
+      "Go-live test data cleanup plan". Leads are deleted only by an
+      explicit id list, never a row not on the list (decided 2026-10-21).
+      Two runs (decided 2026-11-26, replacing "runs once"):
+      - [x] **RUN 1** committed on hosted on 2026-11-26 (reported by Eyram):
+        every test record made before then (12 applications, 8 families,
+        11 students, 7 documents and files, 1 offer, 3 links, 4 test leads,
+        23 outbox rows); the three imported leads kept; a data dump taken
+        first, outside the repo.
+      - [ ] **RUN 2** on cutover day, after the real host test: every record
+        made in the hosted full test window (26 to 30 Nov, which starts
+        from a clean database) plus the two real host test records. Any
+        record made in that window must be added to the RUN 2 list.
+      - [ ] **Counter bump** (`INQ-2026` and `APP-2026` to 101): not run;
+        once, after RUN 2's verification.
 - [ ] Stored declaration version (backlog, 2026-10-15). Decided 2026-10-21:
       each application records which declaration text was agreed, built
       together with the privacy policy link, before real intake.
@@ -113,9 +122,8 @@ Things that shape how this gets built, not just what gets built.
       rollout reported"). Before the first real offer:
       - [x] **C1 and C2 reached hosted together** (22 and 23 Oct).
       - [x] **Hosted test** on APP-2026-0005, ended corrected to declined.
-        Its application, offer, links and offer outbox rows join the go-live
-        cleanup by explicit id; **the ids are not captured yet** (handover
-        step 10).
+        Its application, offer, links and offer outbox rows were removed by
+        go-live cleanup RUN 1 on 2026-11-26 (handover step 10 superseded).
       - **Address bar check** (handover step 9.5, must pass): not reported.
       - **"1 email waiting, 2 held back"** on the email health strip during
         the test: unresolved.

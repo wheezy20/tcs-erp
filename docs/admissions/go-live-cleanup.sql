@@ -3,8 +3,14 @@
 -- cleanup plan".
 --
 -- Run by hand by Eyram in the Supabase SQL editor of the HOSTED ERP project,
--- on cutover day, after the real host test. Rehearsed locally first. Never
--- part of a migration or seed file. Nobody else runs it against hosted.
+-- twice (decided 2026-11-26): RUN 1 before cutover, for the test data
+-- already there (committed 2026-11-26; the id list below is RUN 1's, kept as
+-- the record); RUN 2 on cutover day, after the real host test, for every
+-- record made after RUN 1: the hosted full test window (26 to 30 Nov) and
+-- the two real host test records (new id list, same script, same guards).
+-- The counter bump runs once, after RUN 2; not run yet.
+-- Rehearsed locally first. Never part of a migration or seed file. Nobody
+-- else runs it against hosted.
 --
 -- Four parts, each run on its own:
 --
@@ -159,7 +165,11 @@ group by kind, status order by kind, status;
 --     run F1 again: it must return no rows.
 with refs(ref) as (
   select unnest(array[
-    'PLACEHOLDER: paste the v_refs list from PART 3 here'
+    -- RUN 1 (2026-11-26 list). For RUN 2, replace with RUN 2's v_refs.
+    'INQ-2026-0001', 'INQ-2026-0002', 'INQ-2026-0003', 'INQ-2026-0004',
+    'INQ-2026-0005', 'INQ-2026-0006', 'INQ-2026-0007',
+    'APP-2026-0001', 'APP-2026-0002', 'APP-2026-0003', 'APP-2026-0004',
+    'APP-2026-0005'
   ]::text[])
 ), t as (
   select a.id from public.applications a
@@ -200,30 +210,54 @@ order by p.path;
 do $cleanup$
 declare
   -- ======================== PART 2: THE ID LIST ===========================
+  -- RUN 1 COMMITTED on hosted 2026-11-26 with this list (fingerprint
+  -- 43b0ea756feb853d92365293e546a04d). Rerunning it refuses at "not found".
+  -- Filled 2026-11-26 for RUN 1 (the pre cutover test data) from the hosted
+  -- discovery output. Every row D2, D6 and D7 showed is listed; of D5, the
+  -- four slice 13 test leads are listed and the three imported leads are
+  -- protected below.
+  --
+  -- RUN 2 (cutover day): every id below is gone, so replace the lists, do
+  -- not add to them. Run D2 to D7 again: everything they show except the
+  -- three protected leads (and any real lead captured after RUN 1) was made
+  -- after RUN 1, in the hosted full test window or by the two real host
+  -- test records. List every such reference in v_refs, its drafts, offers,
+  -- offer links and outbox rows, and the test leads in v_lead_ids ('{}'
+  -- for a kind with none). Keep v_protected_lead_ids as it is.
+  -- Then F1 with the new v_refs, the files, the dry run, the commit, exactly
+  -- as in RUN 1. Same script, same guards.
+  --
   -- Enquiry and application references (INQ-... or APP-...), one per record.
+  -- RUN 1: all 12 from D2 (D2 showed 12 rows).
   v_refs text[] := array[
-    'PLACEHOLDER: INQ ref of the ZZ Test Do Not Process enquiry (slice 8b)',
-    'PLACEHOLDER: INQ ref of the 9b C1 rollout test enquiry',
-    'PLACEHOLDER: APP ref of the 9a D-9k live test application',
-    'PLACEHOLDER: APP refs of the 9b C3 hosted check (one entry each)',
-    'PLACEHOLDER: INQ refs of the slice 12 test enquiries (one entry each)',
-    'PLACEHOLDER: APP ref of the slice 10 test application',
-    'APP-2026-0005',
-    'PLACEHOLDER: INQ ref of the cutover day real host test enquiry',
-    'PLACEHOLDER: APP ref of the cutover day real host test application'
+    'INQ-2026-0001',
+    'INQ-2026-0002',
+    'INQ-2026-0003',
+    'APP-2026-0001',
+    'INQ-2026-0004',
+    'APP-2026-0002',
+    'APP-2026-0003',
+    'INQ-2026-0005',
+    'INQ-2026-0006',
+    'INQ-2026-0007',
+    'APP-2026-0004',
+    'APP-2026-0005'
   ];
-  -- Saved application drafts (application_drafts.id). Their links go with them.
-  v_draft_ids text[] := array[
-    'PLACEHOLDER: draft id of the slice 10 test draft (D4)'
-  ];
+  -- Saved application drafts (application_drafts.id). Their links go with
+  -- them. RUN 1: none (D4 returned no rows).
+  v_draft_ids text[] := '{}';
   -- Offers (application_offers.id) and every one of their links.
+  -- RUN 1: the one offer of APP-2026-0005 and its three links (D6).
   v_offer_ids text[] := array[
-    'PLACEHOLDER: offer id of APP-2026-0005 (D6)'
+    '282bf51d-509e-4663-adcf-039e52c0be37'
   ];
   v_offer_link_ids text[] := array[
-    'PLACEHOLDER: every link id of that offer (D6, both generations)'
+    '61572bfe-74fc-4c65-ae4a-2ad1585cce20',
+    'c3ec9a45-ade6-4bf9-849c-39664fc449ec',
+    'ecb4bd7f-8483-4bd3-8ce5-5c3d6e4aa91f'
   ];
-  -- Test leads from the slice 13 hosted test.
+  -- Test leads. RUN 1: the four slice 13 hosted test leads (D5, "captured
+  -- by the ERP").
   v_lead_ids text[] := array[
     '88f6d4fc-7b3b-4e67-a7b6-b749152a3b38',
     'db02ef82-1770-4a8c-aa95-9c562bac74af',
@@ -232,15 +266,49 @@ declare
   ];
   -- Every outbox row of the targets (D7): confirmations, staff alerts,
   -- draft_resume, offer, offer_staff, pdf_gate and lead_staff rows.
+  -- RUN 1: all 23 rows D7 showed (D7b totals 23).
   v_outbox_ids text[] := array[
-    'PLACEHOLDER: every outbox id D7 shows for the records above'
+    -- INQ-2026-0005
+    'ccea635b-829e-4672-a934-74ed9183fc51',
+    'ec943a72-cf37-40fd-98c4-6d2e6465b202',
+    -- INQ-2026-0006
+    'c3561bc1-83c1-45c9-bef4-f982becd8fb4',
+    'f7a6be23-fcdc-43a8-971c-0b89ffdb9e40',
+    -- INQ-2026-0007
+    '02832851-1dfe-4748-b661-3a6b8d19dd2d',
+    '1a9ec903-503b-4519-9ba2-a1500bb5698c',
+    -- APP-2026-0004
+    '627124a2-41b2-4e52-b58b-32fb67549014',
+    'ef64def6-0c84-4745-900d-41ac2bc0bc62',
+    -- lead 88f6d4fc
+    '1a181657-e6f3-4690-853b-01f660483867',
+    'ce65fd8f-3e63-4c57-a8cb-8176c7777ede',
+    -- lead db02ef82
+    '75b5b0b1-8114-4a90-bcae-1487bc226a1f',
+    'c376dedb-9509-484c-8715-af2030357636',
+    -- lead beb25834
+    'db28cedd-6a2e-4de2-bd8c-469ada65575c',
+    '37dad528-51cf-4c06-8d46-5880d473b038',
+    -- lead 0270d733
+    '270b589e-c073-46a4-9b4f-f257eb2f0990',
+    '83c58013-3ff1-4ca7-b004-fc4a2f631a66',
+    -- APP-2026-0005 confirmations and staff alert
+    '575d0936-7119-4b75-8467-fc16ea21cef3',
+    '57cd8901-96e2-469e-adbe-83df2745deb7',
+    '8968e126-a2ee-448f-9f5d-ff1812066808',
+    -- APP-2026-0005 offer emails (offer 282bf51d)
+    'db2ab35e-5d57-41d7-9e6e-168cf6957421',
+    'dbec88f3-ea77-4e69-8ff4-bc5d6990f9d3',
+    '34c36d1d-2b1b-4cfb-bd12-a7a6a3875a48',
+    'e0f9cec9-10de-47c1-9e2e-145bd298b064'
   ];
-  -- The imported real leads (Isaac, Solace, Esther), from D5. Never deleted:
-  -- the block refuses if any of these is listed above, or is missing.
+  -- The imported real leads, from D5 ("no ERP email, likely imported").
+  -- Never deleted: the block refuses if any of these is listed above, or is
+  -- missing. Keep these three for RUN 2.
   v_protected_lead_ids text[] := array[
-    'PLACEHOLDER: lead id of the first imported real lead',
-    'PLACEHOLDER: lead id of the second imported real lead',
-    'PLACEHOLDER: lead id of the third imported real lead'
+    '1de8c442-ae64-485f-9a98-721b9d73a558',
+    '829bda67-4bd3-46d8-9e6a-76c8e1ade09a',
+    '66d63190-413a-421f-b7b2-3d7be5b97c60'
   ];
   -- The date the ERP started taking leads on hosted (slice 13 rollout).
   -- Every test lead must be on or after it; imported leads are older.
@@ -567,7 +635,8 @@ $cleanup$;
 -- V4. In the staff app, the application list shows no test record and the
 --     Audit Log page still loads with the kept rows.
 
--- COUNTER BUMP. Run only after the commit run and V1 to V4. Separate from
+-- COUNTER BUMP. Run only after RUN 2's commit run and V1 to V4, not after
+-- RUN 1. Separate from
 -- the cleanup on purpose, and commented out so running the whole file can
 -- never reach it: select the four lines below (without the leading "-- ")
 -- and run them on their own. It only ever raises a counter, so running it
