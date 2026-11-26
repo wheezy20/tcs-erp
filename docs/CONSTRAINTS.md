@@ -66,13 +66,18 @@ Things that shape how this gets built, not just what gets built.
       in `frontend/src/modules/admissions/public-copy.ts`, `placeholder` is set
       to false in the same change, and it is deployed. While the placeholder is
       live the page says it is a placeholder. The marketing site links
-      `https://admissions.tcsch.edu.gh/privacy` once DNS moves.
+      `https://admissions.tcsch.edu.gh/privacy` once DNS moves. Still open
+      on 2026-11-26: the placeholder is live on workers.dev (deployed as
+      71931e6a). The declaration wording is frozen from 2026-11-26 pending
+      the decision on slice 15 piece C.
 - [ ] Go-live test data cleanup (planned 2026-10-15, slice 9b C4). Every test
       inquiry, application, file, family, upload session and saved application draft on hosted is
       removed before real intake opens, once, after the privacy policy, the
       confirmation email and the last hosted test. Eyram names each test
       record by reference; files go through the Storage API or the
-      dashboard; audit rows are kept. Plan only, nothing run. See PORT-PLAN,
+      dashboard; audit rows are kept. Script built and rehearsed locally
+      (`docs/admissions/go-live-cleanup.sql`, 2026-11-26); nothing run on
+      hosted. See PORT-PLAN,
       "Go-live test data cleanup plan". Decided 2026-10-21: it runs once, on
       cutover day, after the real host test, whose two records are on its
       list; real leads are on hosted by then, so leads are deleted only by an

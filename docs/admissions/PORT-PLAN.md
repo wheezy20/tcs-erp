@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is committed (C1 dcbff52, C2 3ec9468, C3 bebd811). Its three migrations are applied on hosted, `admissions-worker` and `admissions-public` are deployed, `PUBLIC_APPLY_BASE_URL` is set, the frontend is deployed, and the hosted test passed (reported by Eyram, 2026-10-21); see "Slice 10 rollout reported". Slice 13 is planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 committed as 5680ff8; live on production and the hosted test passed on tcsch.edu.gh, the website posting pdf_gate to the ERP (reported by Eyram, 2026-10-22); see "Slice 13 plan", the three "as built" sections, "Slice 13 rollout handover" and "Slice 13 rollout reported". Slice 11 is committed (C1 14859e0, C2 3aa79f3, the recipient warning 0c4c7ed); its rollout was completed on hosted on 22 and 23 Oct and the hosted test ran on APP-2026-0005 (reported by Eyram, 2026-11-26); see "Slice 11 plan", the two "as built" sections, "Slice 11 rollout handover", "Slice 11 rollout reported" and "Slice 11 recipient finding". Slice 15 C1 (host routing for the admissions host, the unsubscribe notice, the corrected runbook and the `/privacy` placeholder page) is built locally on 2026-11-26, uncommitted; see "Slice 15 C1 as built". The cutover critical path and its decisions (2026-10-21) are under slice 15, "Cutover decisions". The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is committed (C1 dcbff52, C2 3ec9468, C3 bebd811). Its three migrations are applied on hosted, `admissions-worker` and `admissions-public` are deployed, `PUBLIC_APPLY_BASE_URL` is set, the frontend is deployed, and the hosted test passed (reported by Eyram, 2026-10-21); see "Slice 10 rollout reported". Slice 13 is planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 committed as 5680ff8; live on production and the hosted test passed on tcsch.edu.gh, the website posting pdf_gate to the ERP (reported by Eyram, 2026-10-22); see "Slice 13 plan", the three "as built" sections, "Slice 13 rollout handover" and "Slice 13 rollout reported". Slice 11 is committed (C1 14859e0, C2 3aa79f3, the recipient warning 0c4c7ed); its rollout was completed on hosted on 22 and 23 Oct and the hosted test ran on APP-2026-0005 (reported by Eyram, 2026-11-26); see "Slice 11 plan", the two "as built" sections, "Slice 11 rollout handover", "Slice 11 rollout reported" and "Slice 11 recipient finding". Slice 15 C1 (host routing for the admissions host, the unsubscribe notice, the corrected runbook and the `/privacy` placeholder page) is committed as 4379e16 and the frontend deployed as version 71931e6a on 2026-11-26; `/privacy`, `/login` and `/inquiry` returned 200 on workers.dev (reported by Eyram, 2026-11-26). The routing is inactive until the admissions host is attached to the Worker. The go-live cleanup script `docs/admissions/go-live-cleanup.sql` is built and rehearsed locally (2026-11-26, uncommitted); see "Go-live test data cleanup plan". The cutover critical path and its decisions (2026-10-21) are under slice 15, "Cutover decisions". The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -48,7 +48,7 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | C1 committed (a929511), C2 and C3 committed (8a45e04). Migrations applied, `admissions-worker` deployed (version 1), secrets and worker URL set, frontend deployed, and a hosted test delivered both emails (reported by Eyram, 2026-10-20 and 2026-10-21). See "Slice 12 as built" and "Slice 12 rollout reported" | 8 (and 6, 9, 10 for the emails it sends) |
 | 13 | Lead capture and the PDF gate (marketing site repointed to the Edge Function) | planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 committed as 5680ff8; live on production and the hosted test passed on tcsch.edu.gh, the website posting pdf_gate to the ERP (reported by Eyram, 2026-10-22); see "Slice 13 plan", the three "as built" sections, "Slice 13 rollout handover" and "Slice 13 rollout reported" | 8, 12 |
 | 14 | Bulk email + one-click unsubscribe | not started; after cutover (2026-10-21) | 12, 13 |
-| 15 | Cutover, domain, TCS OS shutdown (nothing is imported except TCS OS leads, after cutover) | C1 (host routing, unsubscribe notice, corrected runbook, `/privacy` placeholder page) built locally 2026-11-26, uncommitted, awaiting review; piece C (declaration version) decided 2026-11-27; go or no go on 1 Dec 2026, cutover planned for 2 Dec 2026 (see "Cutover decisions") | 11, 12, 13 |
+| 15 | Cutover, domain, TCS OS shutdown (nothing is imported except TCS OS leads, after cutover) | C1 (host routing, unsubscribe notice, corrected runbook, `/privacy` placeholder page) committed as 4379e16, frontend deployed as 71931e6a on 2026-11-26, checked on workers.dev (reported by Eyram); routing inactive until the admissions host is attached; go-live cleanup script built and rehearsed locally; piece C (declaration version) decided 2026-11-27; go or no go on 1 Dec 2026, cutover planned for 2 Dec 2026 (see "Cutover decisions") | 11, 12, 13 |
 
 Slice 0 is independent of admissions and can run first or in parallel.
 
@@ -64,7 +64,7 @@ Every gate here must be closed before the step it names. Each one is also listed
   - **Test enquiry from the 9b C1 rollout (reported by Eyram, 2026-10-15).** One test enquiry submitted while checking C1.
   - **Two test enquiries from the slice 12 hosted test (reported by Eyram, 2026-10-21),** with their outbox rows (a parent confirmation and a staff alert each).
   - **Slice 10 hosted test (reported by Eyram, 2026-10-21).** The test draft and its links (submitted, so its answers and email are already wiped; housekeeping deletes the row 30 days after submission); the test application with its document rows and files, and its parent confirmation and staff alert outbox rows; and the `draft_resume` outbox rows of that draft (the submit removes them unless one was being sent at that moment, so check for any left), plus the Resend log copy of the test resume email.
-  - **Slice 11 hosted test (run 22 and 23 Oct, reported by Eyram, 2026-11-26).** APP-2026-0005 (with its documents, files and its own confirmation and staff alert outbox rows), its offer (ended declined, so the cleanup's "accepted offer" stop condition is not hit), the offer's links (two generations) and its `offer` and `offer_staff` outbox rows. **The ids are not captured yet:** run "Slice 11 rollout handover", step 10, and list them here before the cleanup script is written.
+  - **Slice 11 hosted test (run 22 and 23 Oct, reported by Eyram, 2026-11-26).** APP-2026-0005 (with its documents, files and its own confirmation and staff alert outbox rows), its offer (ended declined, so the cleanup's "accepted offer" stop condition is not hit), the offer's links (two generations) and its `offer` and `offer_staff` outbox rows. **The ids are not captured yet:** they come from discovery queries D2, D6 and D7 in `docs/admissions/go-live-cleanup.sql` (step 10 is superseded).
   - **Slice 13 test leads (reported by Eyram, 2026-10-22).** The leads from the preview and production hosted tests, with their outbox rows (PDF emails and staff alerts, removed with each lead by the cascade). Four leads, all with Eyram's own address, deleted only by explicit id: `88f6d4fc-7b3b-4e67-a7b6-b749152a3b38`, `db02ef82-1770-4a8c-aa95-9c562bac74af`, `beb25834-6c29-4fcf-8138-80d641dbdf4a`, `0270d733-7ffc-47ed-a6dd-5401b5d2f138`. The three imported real TCS OS leads are never on this list.
   - **Test applications from the 9b C3 hosted check (reported by Eyram, 2026-10-15).** The check included a second submission that produced the match panel (family matched by guardian email, child matched by name and date of birth, differences listed, record unchanged), so it made at least two applications, with their documents and files. The second was a new application for a family already on record, not an inquiry advancing.
 - **Stored declaration version (decided 2026-10-21: stored, built with the privacy policy link).** Q16 left declaration text versioning out of 9b. Before real intake, decide whether each application stores which declaration text the parent agreed to (for example a version key next to `declaration_agreed_at`), since the privacy policy link will change that text. See "Backlog from slice 9".
@@ -1859,7 +1859,7 @@ curl -s -X POST "https://<project-ref>.supabase.co/functions/v1/admissions-publi
 9. **End the test declined (the go-live cleanup refuses an accepted offer).** Press Correct response, give a reason such as "Hosted test, correcting to declined", and save. The panel shows Declined by the parent, recorded by staff, and the stage moves to Offer declined. The audit row shows the reason and both sources.
 10. Optionally on the Admissions Emails page: the rows show as "Offer link" and "Offer response staff alert", all Sent.
 
-**10. Record the ids for the go-live cleanup (read-only, SQL editor).** Replace `<APP>` with the test application's reference, then note every id it lists:
+**10. Record the ids for the go-live cleanup (read-only, SQL editor).** **Superseded 2026-11-26** by discovery queries D2, D6 and D7 in `docs/admissions/go-live-cleanup.sql`, which list the same ids for every record at once; this query is kept for the record only. Replace `<APP>` with the test application's reference, then note every id it lists:
 
 ```sql
 select 'application' as what, a.id::text from public.applications a where a.application_reference = '<APP>'
@@ -1894,7 +1894,7 @@ As reported by Eyram on 2026-11-26; nothing was run here. Nothing beyond these p
 - **Hosted test on APP-2026-0005** (two guardian emails typed, one on record; see "Slice 11 recipient finding"): Generate offer; Send link again (link generation 2); accepted through the link; the staff alert arrived; then corrected to declined with the reason "just testing". After the frontend redeploy for the recipient warning, the Reset dialog showed the "not on the family record" line.
 - **Skipped:** the retest with a fresh family (both guardians on record), which would show two offer emails.
 - **Not reported:** step 9.5, the address bar losing `#token=` at once (marked must pass; no automated test covers it).
-- **Not captured yet:** the step 10 ids for the go-live cleanup.
+- **Not captured yet:** the ids for the go-live cleanup; they now come from discovery queries D2, D6 and D7 in `docs/admissions/go-live-cleanup.sql` (step 10 superseded 2026-11-26).
 - **Unresolved:** the email health strip showed "1 email waiting, 2 held back" during the test. Not explained yet; it should be read from the outbox (by kind and status, with `last_error_class`) before the cleanup, so nothing is left waiting or held back that a test produced.
 - **Test records** join the go-live cleanup list ("Go-live gates still open").
 
@@ -2705,7 +2705,9 @@ The unsubscribe probe is token-gated and idempotent: a second call keeps the fir
 
 **Size:** one Worker routing change and a written runbook. The migration script is Eyram-reviewed and Eyram-run.
 
-### Slice 15 C1 as built (2026-11-26, local only, uncommitted)
+### Slice 15 C1 as built (2026-11-26; committed as 4379e16, deployed as 71931e6a)
+
+**Rollout (reported by Eyram, 2026-11-26):** committed as 4379e16; the frontend deployed as version 71931e6a; `/privacy`, `/login` and `/inquiry` returned 200 on workers.dev. The host routing stays inactive until the admissions host is attached to the Worker at cutover (or the rehearsal host, D-15i). **The declaration wording is frozen from 2026-11-26** pending Eyram's decision on piece C: no change to `DECLARATION_SECTIONS` or `DECLARATION_COPY` until then, so that the fallback (record the live declaration's commit and the go-live time) stays true.
 
 Plan approved by Eyram on 2026-11-26 as one checkpoint: piece A (host routing, the unsubscribe notice, the corrected runbook) and piece B (the `/privacy` page). Piece C (the stored declaration version) is not started; Eyram decides on 2026-11-27, with the fallback in the plan (record the declaration's commit and the go-live time, and add the column after cutover with a backfill). No migration, no Edge Function change, nothing deployed.
 
@@ -3090,11 +3092,11 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 8. Who maintains the marketing site, and can its two widgets be repointed, or must the ERP serve those exact paths?
 9. Partly answered 2026-10-11: all TCS OS applications and inquiries are test data. Still open: are the 6 leads and 17 guardians who received TCS OS campaigns real or test data? That decides whether their unsubscribe links need handling at cutover. **Answered 2026-10-21 (reported by Eyram):** all test data except three real PDF gate leads (one consented, two not, none unsubscribed). Their old unsubscribe links reach the static notice at the old path after cutover; the leads are imported after cutover (slice 13, "TCS OS lead import").
 
-## Go-live test data cleanup plan (written 2026-10-15, plan only)
+## Go-live test data cleanup plan (written 2026-10-15; script built and rehearsed locally 2026-11-26)
 
 **Changes decided 2026-10-21:** (1) real leads will be on hosted before the cleanup (the marketing site is repointed around 6 Nov), so leads and their outbox rows are deleted only by an explicit id list, never a row not on the list, and the "either public switch open" stop condition covers only the two intake switches (see "Slice 13 plan"); (2) the cleanup runs once, on cutover day, after the real host test, and that test's two records are on its list (see "Cutover decisions").
 
-**Status:** plan only. Nothing has been run, nothing has been written to any database, and nothing here has connected to hosted. Every step marked **[E]** is Eyram's. The run itself is a hand data migration on production, so it is a confirmation gate: the script is written, reviewed and dry-run before anything is committed.
+**Status:** script built and rehearsed locally (2026-11-26, uncommitted); nothing has been run on hosted. Every step marked **[E]** is Eyram's. The run itself is a hand data migration on production, so it is a confirmation gate: the script is written, reviewed and dry-run before anything is committed.
 
 **Facts the plan rests on (from the migrations):**
 
@@ -3116,7 +3118,7 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 | Upload sessions and reservations | one session per upload visit; one reservation per file started | none readable (token hashes, types, paths) | delete the reservations of every session made before the cut-off, then those sessions, once no file remains at their paths | reservations restrict session deletes |
 | `audit_log` rows | stage changes, document status changes, any decision or offer on a test record, and every switch change (`admissions_settings_changed`) | references, stages, document types, staff ids; no names or emails written by these triggers | **kept.** They are true history: the tests happened. The cleanup is recorded in JOURNAL with the list of references removed, so a reader can tell those rows apart | append-only by design |
 | `public_rate_limits` rows | counters for `submit_ip`, `submit_global`, `inquiry_email`, `application_email`, `upload_ip`, `upload_global` | none readable (HMAC keys, counts) | **left.** Windows are 1 hour or 1 day and stop counting on their own; nothing purges them yet (checkpoint 1 item (d)) | none |
-| Reference counters | `INQ-2026` and `APP-2026` advanced by the tests | none | **left.** The first real reference continues the sequence, leaving a gap. Resetting would reuse references that the kept audit rows already name. Eyram's call; the recommendation is no reset | none |
+| Reference counters | `INQ-2026` and `APP-2026` advanced by the tests | none | **raised to 101 after the cleanup** (decided 2026-10-21, "Counter bump always"), by the separate statement at the end of `go-live-cleanup.sql`; never reset, because the kept audit rows already name the test references | none |
 | Staff IDs (HR, `20261026100000`, added 2026-10-16) | none: the migration is built locally only and not applied on hosted. After the push, any employee approved on hosted gets a 2026 ID. Rule for now: test approvals happen locally only | employee names through `employee_id`; the ID itself is not personal | **left, by rule, not by script.** `staff_numbers.employee_id` is `on delete restrict` and a trigger refuses deleting any issued row, so a test employee who got an ID can't be deleted. The `staff_number_issued` audit rows are kept (append-only). `staff_number_counters` only moves forward; any reset or ID removal needs its own reviewed hand script | the delete trigger, the restrict key and the append-only audit log; see CONSTRAINTS.md, the staff ID checklist item |
 | `admissions_email_outbox` (slice 12) | the rows of the two slice 12 hosted test enquiries (reported by Eyram, 2026-10-21), and any later hosted test: a confirmation row and a staff alert row each (`application_ids` holds the test application ids, `params` their references) | the recipient email address and the references | deleted by the same script, matched by the test application ids | the Resend log keeps its own copy outside the database for its retention period |
 | Application drafts (slice 10, on hosted as reported by Eyram, 2026-10-21) | the test drafts and their links (`application_drafts`, `application_draft_links`), named by draft id from the hosted test; the `draft_resume` rows in `admissions_email_outbox`, matched by `draft_id`; and the Resend log copies of the test resume emails | the email address and the answers a test draft holds (names and test child details; never health answers, files or declaration) | deleted by the same script: link rows first, then drafts, then the outbox rows; no document rows or files are involved | housekeeping deletes a submitted draft 30 days after submission and wipes an expired one, but an open test draft must be deleted by hand; the Resend log keeps its own copy of each test resume email outside the database, for its retention period |
@@ -3140,90 +3142,43 @@ How long TCS OS can keep running, to set the pace of this port. From a read-only
 2. **Files.** Database backups do not include Storage files. Download every file that query D3 lists into a local folder before deleting it.
 3. **The dry-run output.** Save the results of D1 to D7 as CSV next to the backup. That is the record of exactly what was removed.
 
-**Dry run [E], read-only, in the SQL editor.** Replace `<refs>` with the list Eyram named, for example `array['INQ-2026-0001', 'APP-2026-0003']` (made-up references).
+**The script (built 2026-11-26; plan approved by Eyram the same day).** `docs/admissions/go-live-cleanup.sql`, run by Eyram in the hosted SQL editor on cutover day after the real host test, rehearsed locally first. It replaces the earlier D1 to D7 drafts and the earlier "recommended shape". Four parts, each run on its own:
 
-```sql
--- D1. Switches now, and every time they changed.
-select public_intake_open, public_applications_open from public.admissions_settings;
-select occurred_at, actor_id, before, after from public.audit_log
-where action = 'admissions_settings_changed' order by occurred_at;
+- **Part 1, discovery (read only, run query by query).**
+  - D0: which project this is (`current_database()`, the `applications` row count, the anon function count, 171 on hosted, 170 locally, and whether `rls_auto_enable()` exists, true only on hosted).
+  - D1: the three switches and every change.
+  - D2: every enquiry and application, with the family, other applications in the family, documents, offers and match flags.
+  - D3: every stored file and what it belongs to.
+  - D4: every draft.
+  - D5: every lead, marked "captured by the ERP" (its `lead:<id>` staff alert exists) or "no ERP email, likely imported".
+  - D6: every offer and its links.
+  - D7 and D7b: every outbox row, and the counts by kind and status (this also settles "1 email waiting, 2 held back").
+  - Email addresses are masked to the first character and the first two characters of the domain, and a student name shows in full only if it is a "ZZ Test" name, so the output can be pasted back.
+- **F1:** the stored files of the targets (document files and upload reservation files), to back up and delete in the dashboard before Part 3. Run it again afterwards: it must return no rows. If D3 shows more than about 20 files, `scripts/delete-storage-paths.sh` is written then (decided 2026-11-26).
+- **Part 2, the id list:** at the top of the Part 3 block, the one place Eyram edits: references, draft ids, offer ids and every link id, lead ids (the four slice 13 test leads filled in), outbox ids, and the protected lead ids of the three imported real leads. Anything not captured is a `PLACEHOLDER: ...` entry, and the block refuses while one is left. The two cutover day test records are placeholders until that day.
+- **Part 3, the cleanup:** one `do` block, one transaction.
+  - **Guards**, each aborting with a message naming what failed: no placeholder; enquiry and application switches closed (the lead switch is not checked); every listed id exists exactly once; the imported leads are protected by two locks (not on the protected list, and every listed lead has its `lead:<id>` staff alert and a created date on or after 2026-10-22); nothing enrolled or holding a student ID, and no student in a target family with a student ID or with no application; the settings table has exactly one row; no accepted offer ("correct it to declined first"); every application in a target family is a target, and no target guardian email appears in another family; no other application's match flag points at a target; listed equals derived, both ways, for offers, offer links, drafts and outbox rows, and no outbox row is being sent or names a non-target application; no target file is left in `storage.objects`.
+  - **Deletes** in key order: outbox rows, offer links, offers, draft links, drafts, leads, documents, upload reservations, upload sessions, applications, students, families (guardians go with their family). Each count must equal the derived count. Rows that go with an application by cascade (notes, decisions, health, emergency contacts, match flags) are counted in the report.
+  - **The switch (decided 2026-11-26):** with `v_confirm_fingerprint` null it is a dry run and always ends with "DRY RUN OK", the counts and a fingerprint (an md5 of every row id it deletes), keeping nothing. Pasting that fingerprint in is the only edit for the commit run, which commits only if the same rows would be deleted.
+- **Part 4:** verification (D queries and F1 again, the switches, the staff app), then the counter bump: commented out so running the whole file never reaches it, run on its own by selecting it; it only raises `INQ-2026` and `APP-2026` to 101 and is safe to run twice. If cutover slips into 2027, stop and ask first. The editor may show only "Success. No rows returned" for the commit run: no error means it committed.
 
--- D2. Every admissions record on hosted. Before go-live, every row should be a test.
-select a.inquiry_reference, a.application_reference, a.stage, a.created_at,
-       s.full_name, s.date_of_birth, s.student_id,
-       (select string_agg(g.email, ', ') from public.guardians g where g.family_id = s.family_id) as guardian_emails
-from public.applications a join public.students s on s.id = a.student_id
-order by a.created_at;
+**Sequence [E] on cutover day:** switches closed (D1); the backups above; fill in the id list from the discovery output; F1, back up and delete those files in the dashboard, F1 again (no rows); Part 3 dry run, read the counts; Part 3 commit run with the fingerprint; Part 4 verification; the counter bump; record the date, references and counts in JOURNAL.
 
--- D3. Every file in the bucket and what it belongs to.
-select o.name, o.created_at,
-       coalesce(a.application_reference, a.inquiry_reference) as belongs_to,
-       (a.inquiry_reference = any(<refs>) or a.application_reference = any(<refs>)) as is_target,
-       r.consumed_at, r.cleaned_at
-from storage.objects o
-left join public.application_documents d on d.storage_path = o.name
-left join public.applications a on a.id = d.application_id
-left join public.application_upload_reservations r on r.storage_path = o.name
-where o.bucket_id = 'admissions-documents'
-order by o.created_at;
+**Leftover upload sessions** that belong to no target are left to housekeeping (no personal data; deleted 30 days after expiry; decided 2026-11-26).
 
--- D4. Target applications and what the delete would cascade.
-with t as (select id from public.applications
-           where inquiry_reference = any(<refs>) or application_reference = any(<refs>))
-select a.inquiry_reference, a.application_reference, a.stage,
-       (select count(*) from public.application_documents x where x.application_id = a.id) as documents,
-       (select count(*) from public.application_health_info x where x.application_id = a.id) as health,
-       (select count(*) from public.application_emergency_contacts x where x.application_id = a.id) as contacts,
-       (select count(*) from public.application_notes x where x.application_id = a.id) as notes,
-       (select count(*) from public.application_decisions x where x.application_id = a.id) as decisions,
-       (select count(*) from public.application_offers x where x.application_id = a.id) as offers,
-       (select count(*) from public.application_match_flags x where x.application_id = a.id) as flags
-from public.applications a where a.id in (select id from t);
--- Must be zero: flags on non-target applications that point at a target.
--- (same t) select count(*) from public.application_match_flags f
---   where f.matched_application_id in (select id from t) and f.application_id not in (select id from t);
+**Audit rows are kept, and nothing is weakened.** `audit_log` has no foreign key to any table the script touches (`entity_id` is text), and none of those tables has a delete trigger, so the deletes neither conflict with nor write audit rows. The script never touches `audit_log`. The JOURNAL entry after the run records what was removed.
 
--- D5. Students and families that would go, and the guard on shared emails.
---   students to delete: every application of the student is a target;
---   families to delete: every student of the family is in the list above;
---   guard: guardian emails of those families that also appear in any other family (must be none).
+**A failed or aborted run** keeps nothing from the block (one transaction). Files deleted beforehand stay deleted (backed up first); once they are gone the file guard passes on a rerun. A second run after a commit refuses at "not found" and changes nothing. The counter bump is separate and only raises.
 
--- D6. Upload sessions and reservations made before the cut-off.
-select count(*) filter (where consumed_at is not null) as used,
-       count(*) filter (where cleaned_at is not null) as cleaned,
-       count(*) filter (where consumed_at is null and cleaned_at is null) as open
-from public.application_upload_reservations r
-join public.application_upload_sessions s on s.id = r.session_id
-where s.created_at < '<cut-off>';
+**Local rehearsal (2026-11-26, local only).** After a fresh `db reset`, a rehearsal seed (scratchpad, not in the repo) added offer links, outbox rows of every kind, a submitted draft with a link and a resume email, an upload session with reservations, storage rows for every document and reservation path, two ERP-captured test leads and three imported-style leads (September and October dates, no ERP email). Targets were three seed families (7 applications, 2 offers); everything else had to survive.
 
--- D7. Audit rows that mention the targets (kept; listed for the record).
-select occurred_at, action, entity_table, entity_id, before, after
-from public.audit_log
-where after ->> 'application_reference' = any(<refs>)
-   or entity_id in (select id::text from public.applications
-                    where inquiry_reference = any(<refs>) or application_reference = any(<refs>))
-order by occurred_at;
-```
-
-D5 is written out in full in the script, with the same `<refs>`. The dry run also records the expected count for each table, which the commit run checks.
-
-**Sequence [E]:**
-
-1. Both public switches closed (D1), and kept closed until real intake opens, so no new record arrives between the dry run and the run.
-2. The backups above.
-3. Delete the files that D3 marks as targets, plus the unattached leftovers from test sessions, through the dashboard (Storage, `admissions-documents`, select by path, delete). For more than a handful of files, the Storage API call `DELETE /storage/v1/object/admissions-documents` with a `prefixes` list, the same call `storage.ts` uses, with the service role key kept out of shell history. Re-run D3: no target path remains.
-4. Run the cleanup script in dry-run mode, then in commit mode (below).
-5. Run the verification queries.
-6. Record the date, the references removed and the counts in JOURNAL (the database keeps no audit row of the deletes).
-
-**The cleanup script (recommended shape).** One reviewed SQL file, `docs/admissions/go-live-cleanup.sql`, written when the cleanup is due, in the style of `hosted-annex-setup.sql`, and run by Eyram in the SQL editor. One `do` block, so it is one transaction:
-
-1. Constants at the top: the list of references, the cut-off time, the expected counts from the dry run, and `v_commit boolean := false`.
-2. Guards, each raising an exception that names what failed: both switches closed; every named reference exists exactly once; the stop conditions above; no file remains in `storage.objects` at any target document path or at any reservation path being deleted; no non-target match flag points at a target.
-3. Deletes in this order: `application_documents` of the targets (D-4f); the target `applications`; students whose every application was a target; families whose every student was removed; reservations of sessions made before the cut-off, then those sessions.
-4. After each delete, the row count must equal the expected count, or it raises.
-5. Re-select: no target reference remains.
-6. If `v_commit` is false, it raises a final exception "dry run OK" with the counts, which rolls everything back. Eyram sets `v_commit := true` only after reading that message.
+- Placeholder run (the file as written): refused.
+- Files still present: refused ("7 target file(s) still in storage"); the target storage rows were then removed locally to stand in for the dashboard.
+- Dry run: "DRY RUN OK", every table unchanged.
+- Ten deliberate breaks, each refused with every table unchanged (two more were added after review: a sibling student with no application in a target family, and a missing settings row; both refused, rerun on a fresh reset): application switch open; an accepted test offer; a protected lead listed; an imported-style lead listed without being protected; an outbox row derived but not listed; a reference listed but missing; a shared family (one application left off); a target guardian email in a real family; a change between the dry run and the commit (fingerprint mismatch); plus the file guard above.
+- Commit with the fingerprint: 7 applications, 7 students, 3 families, 4 guardians, 5 documents, 2 offers, 2 offer links, 1 draft, 1 draft link, 2 leads, 9 outbox rows, 1 upload session and 3 reservations deleted; no row changed or added in any table; `audit_log` unchanged; the three imported-style leads, the real outbox row and every other application untouched; storage rows untouched by SQL.
+- Run again: refused at "not found", nothing changed.
+- Counter bump twice: 101 both times.
 
 **Why a hand script and not a migration in `supabase/migrations/`:** a migration runs on every local `db reset` and on any future project, where the references don't exist. Its guards would then need a "do nothing if absent" branch, which weakens them, and the test references and names would sit in the schema history for good. A hand script runs once, where the records are, with strict guards. If Eyram prefers a migration so the run is in the history, it must do nothing unless every named reference is present, and the review must check that branch.
 
