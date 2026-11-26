@@ -152,12 +152,14 @@ function RootComponent() {
   // /apply the public Application form (slice 9a): a parent has no account,
   // and the Edge Function behind each does every check. /offer is the
   // public offer page (slice 11), opened from the offer email's link.
+  // /privacy is the school's public privacy policy page (slice 15 B).
   const isAuthFreeRoute =
     pathname === "/login" ||
     pathname === "/accept-invite" ||
     pathname === "/inquiry" ||
     pathname === "/apply" ||
     pathname === "/offer" ||
+    pathname === "/privacy" ||
     pathname.startsWith("/onboarding/");
 
   return (

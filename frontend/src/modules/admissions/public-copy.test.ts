@@ -17,6 +17,8 @@ import {
   joinNames,
   DRAFT_REFUSED,
   PRIVACY_POLICY,
+  PRIVACY_PAGE_COPY,
+  ADMISSIONS_HOST_COPY,
   SAVE_COPY,
   OFFER_COPY,
 } from "@/modules/admissions/public-copy";
@@ -48,6 +50,8 @@ describe("public form copy", () => {
       DECLARATION_COPY,
       SAVE_COPY,
       PRIVACY_POLICY,
+      PRIVACY_PAGE_COPY,
+      ADMISSIONS_HOST_COPY,
       DRAFT_REFUSED,
       OFFER_COPY,
     ]))
@@ -189,7 +193,7 @@ describe("save and finish later copy (slice 10)", () => {
     expect(DRAFT_REFUSED).not.toMatch(/saved|draft|already|exist/i);
   });
 
-  it("the privacy policy has no link until one is published", () => {
-    expect(PRIVACY_POLICY.url).toBeNull();
+  it("the privacy policy links to the ERP's own /privacy page, relatively (slice 15 B)", () => {
+    expect(PRIVACY_POLICY.url).toBe("/privacy");
   });
 });

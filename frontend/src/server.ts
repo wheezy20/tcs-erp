@@ -1,5 +1,6 @@
 import "./lib/error-capture";
 
+import { routeAdmissionsHost } from "./lib/admissions-host";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
@@ -47,6 +48,10 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      // The admissions host's own rules (slice 15 A). Null on every other
+      // host, including the workers.dev staff host, so nothing changes there.
+      const hostResponse = routeAdmissionsHost(request);
+      if (hostResponse) return hostResponse;
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

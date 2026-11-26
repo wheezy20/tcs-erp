@@ -800,3 +800,24 @@ body.tcs-public-body {
 .tcs-public .tcs-offer-body:focus {
   outline: none;
 }
+
+/* The privacy policy page (slice 15 B). */
+.tcs-public .tcs-privacy h1 {
+  font-family: var(--tcs-font-heading);
+  font-weight: 700;
+  font-size: 1.3rem;
+  color: var(--tcs-primary);
+  margin: 0 0 1rem;
+}
+
+.tcs-public .tcs-privacy p {
+  margin: 0 0 0.75rem;
+}
+
+.tcs-public .tcs-privacy-placeholder {
+  border: 1px solid var(--tcs-border);
+  background: var(--tcs-bg);
+  border-radius: var(--tcs-radius);
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+}

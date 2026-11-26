@@ -214,12 +214,55 @@ export function applicationThankYou(name: string, grade: string, year: string): 
 
 // ---------------------------------------------------------------- privacy policy
 
-/** The school's privacy policy: the one place its link is set. A published
- * policy is a go-live gate; until it exists the words are shown without a
- * link. The policy must describe saved applications (slice 10). */
+/** The school's privacy policy: the one place its link is set. The link is
+ * relative, so it works on the workers.dev host and on the admissions host
+ * alike (slice 15 B). The page's body is PRIVACY_PAGE_COPY below. The
+ * policy must describe saved applications (slice 10). */
 export const PRIVACY_POLICY = {
   text: "the school's privacy policy",
-  url: null as string | null,
+  url: "/privacy" as string | null,
+} as const;
+
+/** The /privacy page (slice 15 B). PLACEHOLDER: the body below is not the
+ * school's policy. Eyram replaces `paragraphs` with the real text, and
+ * `placeholder` goes to false in the same change. Replacing it is a go-live
+ * gate before intake opens (CONSTRAINTS.md). While `placeholder` is true the
+ * page says so at the top, so it can never pass for the real policy. */
+export const PRIVACY_PAGE_COPY = {
+  placeholder: true,
+  pageTitle: "Privacy Policy",
+  placeholderNotice:
+    "This page is a placeholder. The school's privacy policy will be published here before admissions open.",
+  paragraphs: [
+    "Treasures Christian School will publish its privacy policy for admissions on this page.",
+    "If you have a question about how the school handles the information you give on an enquiry, an application or an offer, please contact the admissions office at admissions@tcsch.edu.gh.",
+  ] as readonly string[],
+  contactLine: "Admissions office: admissions@tcsch.edu.gh",
+} as const;
+
+// ---------------------------------------------------------------- the admissions host (slice 15)
+
+/** What the Worker answers on the admissions host for paths the ERP does
+ * not serve there (slice 15 A; D-15g, D-15h). Plain words, no dashes. */
+export const ADMISSIONS_HOST_COPY = {
+  unsubscribeTitle: "Stopping admissions emails",
+  unsubscribeBody: [
+    "This link came from the school's previous admissions system, which is no longer in use. Opening it has not changed anything.",
+    "To stop receiving admissions emails from Treasures Christian School, please email admissions@tcsch.edu.gh and ask to be removed from the mailing list.",
+  ] as readonly string[],
+  goneTitle: "This address is no longer in use",
+  goneBody: [
+    "The school's admissions pages have moved. To make an enquiry, please use the enquiry form.",
+  ] as readonly string[],
+  unsupportedTitle: "This request is not supported",
+  unsupportedBody: [
+    "This page can only be opened in a web browser. To make an enquiry, please use the enquiry form.",
+  ] as readonly string[],
+  notFoundTitle: "Page not found",
+  notFoundBody: [
+    "There is no page at this address. To make an enquiry, please use the enquiry form.",
+  ] as readonly string[],
+  enquiryLink: "Go to the enquiry form",
 } as const;
 
 // ---------------------------------------------------------------- save and finish later (slice 10)

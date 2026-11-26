@@ -1,6 +1,6 @@
 # Admissions port plan (TCS OS → TCS ERP)
 
-**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is committed (C1 dcbff52, C2 3ec9468, C3 bebd811). Its three migrations are applied on hosted, `admissions-worker` and `admissions-public` are deployed, `PUBLIC_APPLY_BASE_URL` is set, the frontend is deployed, and the hosted test passed (reported by Eyram, 2026-10-21); see "Slice 10 rollout reported". Slice 13 is planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 committed as 5680ff8; live on production and the hosted test passed on tcsch.edu.gh, the website posting pdf_gate to the ERP (reported by Eyram, 2026-10-22); see "Slice 13 plan", the three "as built" sections, "Slice 13 rollout handover" and "Slice 13 rollout reported". Slice 11 is planned and approved with changes (2026-10-22); C1 committed as 14859e0; C2 built locally, uncommitted; see "Slice 11 plan", "Slice 11 C1 as built", "Slice 11 C2 as built" and "Slice 11 rollout handover". The cutover critical path and its decisions (2026-10-21) are under slice 15, "Cutover decisions". The rest is plan. Decisions recorded below; the rest are open.
+**Status:** slices 0 to 5, 6a, 6b and 7a built and committed (7a is de1aff9); 6a, 6b and 7a applied on hosted, and the 7a frontend deployed on 2026-10-12. Slice 7b split 2026-10-12: 7b1 (detail page actions, grade correction) committed as f04a336; 7b2 (admin screens) committed as bed38c9. Slice 7c is committed as 7a07d6a (built 2026-10-13). The 7b2 and 7c migrations are applied on hosted (reported 2026-10-14), and the 7b2 and 7c frontends are live (reported by Eyram, 2026-10-14). Slice 8 is committed (c71b363, 6842848) and slice 8b is committed (32eae11, c3943d8, 7d80735); their migrations are applied on hosted (reported by Eyram, 2026-10-14). Slice 8 and 9 planning decisions are recorded 2026-10-13. Slice 9 checkpoint 1 (the upload backend) is committed as c822b56, its migration `20261024100000` is applied on hosted, and `admissions-public` is deployed on hosted at version 3 (reported by Eyram, 2026-10-15). Slice 9 checkpoint 2 is committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). Slice 9b checkpoint C1 (the look foundation and `/inquiry`) is committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15). Slice 9b checkpoint C2 (`/apply` in the six-step layout) is committed as 8393551. Slice 9b checkpoint C3 (`/apply` content) is committed as 14582d0, deployed to hosted together with C2, and checked on hosted by Eyram, including a second submission that produced the match panel (reported by Eyram, 2026-10-15). Slice 9b checkpoint C4 (the close-out: checklist, contract test, docs, go-live cleanup plan) is committed as 64a7e4a. Slice 12 (confirmation email and scheduled cleanup): C1 committed as a929511, C2 and C3 as 8a45e04. Its three migrations and the staff ID migration are applied on hosted, `admissions-worker` is deployed (version 1), the function secrets and the worker URL are set, and the frontend is deployed (reported by Eyram, 2026-10-20 and 2026-10-21); see "Slice 12 rollout reported". Slice 10 (application drafts, save and finish later) is committed (C1 dcbff52, C2 3ec9468, C3 bebd811). Its three migrations are applied on hosted, `admissions-worker` and `admissions-public` are deployed, `PUBLIC_APPLY_BASE_URL` is set, the frontend is deployed, and the hosted test passed (reported by Eyram, 2026-10-21); see "Slice 10 rollout reported". Slice 13 is planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 committed as 5680ff8; live on production and the hosted test passed on tcsch.edu.gh, the website posting pdf_gate to the ERP (reported by Eyram, 2026-10-22); see "Slice 13 plan", the three "as built" sections, "Slice 13 rollout handover" and "Slice 13 rollout reported". Slice 11 is committed (C1 14859e0, C2 3aa79f3, the recipient warning 0c4c7ed); its rollout was completed on hosted on 22 and 23 Oct and the hosted test ran on APP-2026-0005 (reported by Eyram, 2026-11-26); see "Slice 11 plan", the two "as built" sections, "Slice 11 rollout handover", "Slice 11 rollout reported" and "Slice 11 recipient finding". Slice 15 C1 (host routing for the admissions host, the unsubscribe notice, the corrected runbook and the `/privacy` placeholder page) is built locally on 2026-11-26, uncommitted; see "Slice 15 C1 as built". The cutover critical path and its decisions (2026-10-21) are under slice 15, "Cutover decisions". The rest is plan. Decisions recorded below; the rest are open.
 **Scope:** porting TCS OS's live admissions module (`~/projects/tcs-os/backend/modules/admissions/`) into this repo, one slice at a time. Each slice goes through one pass of the slice loop in `CLAUDE.md`.
 **Settled inputs (not reopened here):** Main and Annex are two `branches` rows. There's a fifth role, **Admissions Officer** (decided 2026-09-29; it supersedes the earlier "four roles plus capabilities" decision), plus an admissions capabilities layer for narrowing inside admissions. There is no dual intake. See `docs/CONSTRAINTS.md` and `docs/PLANNING.md`, 2026-09-29, and "Decisions recorded" below.
 
@@ -44,11 +44,11 @@ At cutover, `admissions.tcsch.edu.gh` is attached to the ERP Worker. The ERP's p
 | 8b | Public enquiry form polish and two intake switches | committed (32eae11, c3943d8, 7d80735), migrations applied on hosted (reported by Eyram, 2026-10-14) | 8 |
 | 9 | Public Application form: direct submit, uploads, matching, rules | 9a checkpoint 1 (upload backend) committed as c822b56; migration `20261024100000` applied on hosted and `admissions-public` deployed on hosted at version 3 (reported by Eyram, 2026-10-15). 9a checkpoint 2 committed as 92346dd and applied on hosted; Eyram reports slice 9a is built and live on hosted (reported by Eyram, 2026-10-15). 9b checkpoint C1 (look foundation and `/inquiry`) committed as dffe810, deployed to hosted and checked by Eyram (reported by Eyram, 2026-10-15); 9b checkpoint C2 (`/apply` six-step layout) committed as 8393551; 9b checkpoint C3 (`/apply` content) committed as 14582d0, deployed with C2 and checked on hosted by Eyram (reported by Eyram, 2026-10-15); C4 close-out written locally 2026-10-15, docs only, uncommitted (decided 2026-10-15; split into 9a and 9b on 2026-10-13) | 8 |
 | 10 | Application drafts: save/resume tokens | committed (dcbff52, 3ec9468, bebd811); applied and deployed on hosted, hosted test passed (reported by Eyram, 2026-10-21) | 9 |
-| 11 | Public offer response page and offer email | planned and approved with changes (2026-10-22); C1 committed (14859e0), C2 built locally; before cutover if it fits by about 20 Nov 2026, otherwise shortly after with the staff copy link hidden (decided 2026-10-21; if C1 is not finished by about 10 Nov, the hide change ships on its own) | 8, 6b, 12 |
+| 11 | Public offer response page and offer email | committed (C1 14859e0, C2 3aa79f3, recipient warning 0c4c7ed); migrations applied, functions and frontend deployed, read-only checks and the hosted test passed (reported by Eyram, 2026-11-26); see "Slice 11 rollout reported" for what is still open | 8, 6b, 12 |
 | 12 | Transactional email (outbox, mailer, templates, resend-failed) | C1 committed (a929511), C2 and C3 committed (8a45e04). Migrations applied, `admissions-worker` deployed (version 1), secrets and worker URL set, frontend deployed, and a hosted test delivered both emails (reported by Eyram, 2026-10-20 and 2026-10-21). See "Slice 12 as built" and "Slice 12 rollout reported" | 8 (and 6, 9, 10 for the emails it sends) |
 | 13 | Lead capture and the PDF gate (marketing site repointed to the Edge Function) | planned and approved with changes (2026-10-21); C1 (database) committed as 1a76b6c; C2 committed as 98ff213; C3 committed as 5680ff8; live on production and the hosted test passed on tcsch.edu.gh, the website posting pdf_gate to the ERP (reported by Eyram, 2026-10-22); see "Slice 13 plan", the three "as built" sections, "Slice 13 rollout handover" and "Slice 13 rollout reported" | 8, 12 |
 | 14 | Bulk email + one-click unsubscribe | not started; after cutover (2026-10-21) | 12, 13 |
-| 15 | Cutover, domain, TCS OS shutdown (nothing is imported except TCS OS leads, after cutover) | not started; go or no go on 1 Dec 2026, cutover planned for 2 Dec 2026 (see "Cutover decisions") | 11 (if it fits), 12, 13 |
+| 15 | Cutover, domain, TCS OS shutdown (nothing is imported except TCS OS leads, after cutover) | C1 (host routing, unsubscribe notice, corrected runbook, `/privacy` placeholder page) built locally 2026-11-26, uncommitted, awaiting review; piece C (declaration version) decided 2026-11-27; go or no go on 1 Dec 2026, cutover planned for 2 Dec 2026 (see "Cutover decisions") | 11, 12, 13 |
 
 Slice 0 is independent of admissions and can run first or in parallel.
 
@@ -64,7 +64,7 @@ Every gate here must be closed before the step it names. Each one is also listed
   - **Test enquiry from the 9b C1 rollout (reported by Eyram, 2026-10-15).** One test enquiry submitted while checking C1.
   - **Two test enquiries from the slice 12 hosted test (reported by Eyram, 2026-10-21),** with their outbox rows (a parent confirmation and a staff alert each).
   - **Slice 10 hosted test (reported by Eyram, 2026-10-21).** The test draft and its links (submitted, so its answers and email are already wiped; housekeeping deletes the row 30 days after submission); the test application with its document rows and files, and its parent confirmation and staff alert outbox rows; and the `draft_resume` outbox rows of that draft (the submit removes them unless one was being sent at that moment, so check for any left), plus the Resend log copy of the test resume email.
-  - **Slice 11 hosted test (planned, not yet run).** The test application, its offer, the offer's links and its `offer` and `offer_staff` outbox rows, each by the explicit ids captured in "Slice 11 rollout handover", step 10. The test ends with the offer corrected to declined, so the cleanup's "accepted offer" stop condition is not hit.
+  - **Slice 11 hosted test (run 22 and 23 Oct, reported by Eyram, 2026-11-26).** APP-2026-0005 (with its documents, files and its own confirmation and staff alert outbox rows), its offer (ended declined, so the cleanup's "accepted offer" stop condition is not hit), the offer's links (two generations) and its `offer` and `offer_staff` outbox rows. **The ids are not captured yet:** run "Slice 11 rollout handover", step 10, and list them here before the cleanup script is written.
   - **Slice 13 test leads (reported by Eyram, 2026-10-22).** The leads from the preview and production hosted tests, with their outbox rows (PDF emails and staff alerts, removed with each lead by the cascade). Four leads, all with Eyram's own address, deleted only by explicit id: `88f6d4fc-7b3b-4e67-a7b6-b749152a3b38`, `db02ef82-1770-4a8c-aa95-9c562bac74af`, `beb25834-6c29-4fcf-8138-80d641dbdf4a`, `0270d733-7ffc-47ed-a6dd-5401b5d2f138`. The three imported real TCS OS leads are never on this list.
   - **Test applications from the 9b C3 hosted check (reported by Eyram, 2026-10-15).** The check included a second submission that produced the match panel (family matched by guardian email, child matched by name and date of birth, differences listed, record unchanged), so it made at least two applications, with their documents and files. The second was a new application for a family already on record, not an inquiry advancing.
 - **Stored declaration version (decided 2026-10-21: stored, built with the privacy policy link).** Q16 left declaration text versioning out of 9b. Before real intake, decide whether each application stores which declaration text the parent agreed to (for example a version key next to `declaration_agreed_at`), since the privacy policy link will change that text. See "Backlog from slice 9".
@@ -1885,13 +1885,26 @@ Expect 1 application, 1 offer, 4 links, 4 `outbox_offer` rows and 1 `outbox_offe
 - A single offer is stopped by changing its decision, which withdraws it and kills every link.
 - If the frontend deploy fails after the push, deploy again before anyone uses the offer panel; Generate and Reset still work on the database, but the old panel would show a broken link message.
 
+### Slice 11 rollout reported (2026-10-22 and 2026-10-23)
+
+As reported by Eyram on 2026-11-26; nothing was run here. Nothing beyond these points is claimed as applied or checked on hosted.
+
+- **Rollout, in the handover order.** `admissions-worker` deployed, then `admissions-public`, then both migrations (`20261031100000`, `20261031110000`) pushed, then the frontend deployed.
+- **Read-only checks passed:** anon-executable count 171 (the expected hosted figure); no `token_hash` left on any offer; no API role can read `application_offer_links`; `audit_log_actor_check` present; the same 4 cron jobs; `offer_get` with a made-up token answered the generic refusal.
+- **Hosted test on APP-2026-0005** (two guardian emails typed, one on record; see "Slice 11 recipient finding"): Generate offer; Send link again (link generation 2); accepted through the link; the staff alert arrived; then corrected to declined with the reason "just testing". After the frontend redeploy for the recipient warning, the Reset dialog showed the "not on the family record" line.
+- **Skipped:** the retest with a fresh family (both guardians on record), which would show two offer emails.
+- **Not reported:** step 9.5, the address bar losing `#token=` at once (marked must pass; no automated test covers it).
+- **Not captured yet:** the step 10 ids for the go-live cleanup.
+- **Unresolved:** the email health strip showed "1 email waiting, 2 held back" during the test. Not explained yet; it should be read from the outbox (by kind and status, with `last_error_class`) before the cleanup, so nothing is left waiting or held back that a test produced.
+- **Test records** join the go-live cleanup list ("Go-live gates still open").
+
 ### Slice 11 recipient finding (2026-10-23)
 
 **Found in the hosted test (reported by Eyram, 2026-10-23).** On APP-2026-0005 the application confirmation went to two addresses and the offer link to one. The application matched an existing family through guardian 1's address. On a match, `submit_application` never adds or changes guardians (D-9b); guardian 2's typed address was recorded only in `application_match_flags.differences` (`new: true`). The confirmation email goes to the typed addresses first, then to the guardians on record (D-12h), so it reached both. `_offer_recipients` reads only `guardians`, so the offer reached the guardian on record.
 
 **Decision (Eyram, 2026-10-23): expected behaviour; the rule stays.** The offer link is a credential: whoever holds it can accept or decline the place. A typed address on a matched family's submission is unverified, and anyone who knows a family's address could add one of their own as "guardian 2". So offer links go only to guardians on record. A confirmation email has no link, so sending it to typed addresses stays safe.
 
-**Made visible (built 2026-10-23, local only, uncommitted, frontend only).** The confirm step for Generate offer, Reset offer and Send link again adds "1 address from the application form is not on the family record and will not get the link." (or "N addresses ... are not ..."), a count only, never an address. It reads only the `differences` column of `application_match_flags` (the same table and RLS as the Submission check panel: Manager, Auditor, and an Admissions Officer in scope, which covers everyone who sees the send buttons); no migration, no new RPC. The count is advisory: if it can't be read the line is left out and the send is not blocked. Pure logic `guardiansNotOnRecord` (`submission-check.ts`) and `notOnRecordLine` (`offer-panel.ts`), with vitest.
+**Made visible (built 2026-10-23, committed as 0c4c7ed, deployed: the Reset dialog showed the line on hosted, reported by Eyram, 2026-11-26; frontend only).** The confirm step for Generate offer, Reset offer and Send link again adds "1 address from the application form is not on the family record and will not get the link." (or "N addresses ... are not ..."), a count only, never an address. It reads only the `differences` column of `application_match_flags` (the same table and RLS as the Submission check panel: Manager, Auditor, and an Admissions Officer in scope, which covers everyone who sees the send buttons); no migration, no new RPC. The count is advisory: if it can't be read the line is left out and the send is not blocked. Pure logic `guardiansNotOnRecord` (`submission-check.ts`) and `notOnRecordLine` (`offer-panel.ts`), with vitest.
 
 **Not built (Eyram, 2026-10-23):** any way for staff to promote a typed address onto the family record. Listed under "Can wait" in "Cutover decisions" as a candidate for after cutover; it would be a new write permission and needs its own gate.
 
@@ -2686,11 +2699,50 @@ The unsubscribe probe is token-gated and idempotent: a second call keeps the fir
 
 **Anon surface:** adds only the Worker's legacy-host routing (redirects, `410`s and a static notice at the old unsubscribe path). No lead paths: the marketing site is repointed instead (D-13a, 2026-10-21). **Confirmation gate.**
 
-**Decisions for Eyram:** D-15a through D-15f in the consolidated list.
+**Decisions for Eyram:** D-15a through D-15f in the consolidated list; D-15g to D-15j decided 2026-11-26 (below and in the consolidated list).
 
 **Gate (2026-10-14):** admissions.tcsch.edu.gh does not move to the ERP until a confirmation email exists (slice 12) or Eyram accepts the gap in writing.
 
 **Size:** one Worker routing change and a written runbook. The migration script is Eyram-reviewed and Eyram-run.
+
+### Slice 15 C1 as built (2026-11-26, local only, uncommitted)
+
+Plan approved by Eyram on 2026-11-26 as one checkpoint: piece A (host routing, the unsubscribe notice, the corrected runbook) and piece B (the `/privacy` page). Piece C (the stored declaration version) is not started; Eyram decides on 2026-11-27, with the fallback in the plan (record the declaration's commit and the go-live time, and add the column after cutover with a backfill). No migration, no Edge Function change, nothing deployed.
+
+**Decisions (Eyram, 2026-11-26):**
+
+- **D-15g.** Staff paths on the admissions host answer 404, not a redirect, so the public host never points at the staff app.
+- **D-15h.** The old TCS OS unsubscribe path: GET and HEAD show a static notice saying how to stop emails; a one-click POST (RFC 8058) gets 410. The ERP can't map a TCS OS token, so it never claims an unsubscribe that did not happen.
+- **D-15i.** A rehearsal host, `admissions-preview.tcsch.edu.gh`, gets the same rules, so Eyram can attach it to the Worker for a short hosted check before cutover. It is a constant in code; remove it in the next deploy after the rehearsal.
+- **D-15j.** The hosts are hard-coded constants (`ADMISSIONS_HOST`, `REHEARSAL_HOST`, `STAFF_ORIGIN`), not environment values.
+
+**Anon surface (confirmation gate, approved by Eyram on 2026-11-26):** new anonymous HTTP answers on the admissions host and the rehearsal host only: two 302 redirects, the static notice, 405, 410 and 404 pages, and the static `/privacy` page on every host. None reads or writes the database, no function or grant changes, and the anon function count stays 170 locally and 171 on hosted.
+
+**What was built:**
+
+- **`frontend/src/lib/admissions-host.ts`:** a pure `routeAdmissionsHost(request)` that returns a fixed `Response` or null. `frontend/src/server.ts` calls it first, inside its existing try block, before TanStack Start. It acts only when the hostname, lower case with no port and no trailing dot, is exactly the admissions host or the rehearsal host. Rules there:
+
+  | Path | Answer |
+  |---|---|
+  | `/inquiry`, `/apply`, `/offer`, `/privacy`, with or without a trailing slash, any query, GET or HEAD | passed to the app unchanged |
+  | the same paths, any other method | 405, `Allow: GET, HEAD` |
+  | `/` | 302 to `/inquiry` (no query carried) |
+  | `/admin`, `/admin/...` | 302 to `https://tcs-erp.weyramkodzo.workers.dev/admissions` (no path or query carried) |
+  | `/api/admissions/unsubscribe/<token>/`, GET or HEAD | 200, the static notice, `Referrer-Policy: no-referrer` |
+  | the same path, any other method | 410 |
+  | any other `/api`, `/hr`, `/finance` path, any method | 410 |
+  | anything else, including every staff path | 404 |
+
+  Every answer is `no-store`, `X-Robots-Tag: noindex` and `nosniff`; HTML answers carry a strict CSP and no script; HEAD gets no body; no token, path or query is ever echoed. Static assets are served by Cloudflare before the Worker on every host, so they need no rule (checked locally: the favicon, logo, `robots.txt` and the manifest load on the admissions host).
+- **Copy** in `public-copy.ts`: `ADMISSIONS_HOST_COPY` (the notice, 410, 404 and 405 wording, contact `admissions@tcsch.edu.gh`) and `PRIVACY_PAGE_COPY`.
+- **`/privacy`:** `routes/privacy.tsx` and `modules/admissions/components/privacy-page.tsx`, in the public look; auth-free in `__root.tsx`. The body is a **placeholder**, and while `PRIVACY_PAGE_COPY.placeholder` is true the page says so at the top. `PRIVACY_POLICY.url` is now `"/privacy"`, relative, so it works on both hosts. That links the save panel's consent line and the offer page. The declaration's own words ("the school's privacy policy" in Data Protection) stay unlinked plain text: the declaration copy changes only through Eyram, and piece C is where the declaration changes.
+- **Tests:** `frontend/src/lib/admissions-host.test.ts` (16 cases: every row above with each method, other hosts untouched including workers.dev, localhost and look-alikes such as `admissions.tcsch.edu.gh.evil.test` and `www.admissions.tcsch.edu.gh`, case, port and trailing dot, the rehearsal host, headers, escaping, no dashes, the relative privacy link). `public-copy.test.ts` now expects `/privacy` and checks both new copy objects for dashes.
+- **Local smoke test:** the built Worker under `wrangler dev`, curl with a `Host` header for every row: every answer as in the table, and the workers.dev host unchanged (staff pages, `/privacy`, `/inquiry`, `/apply`, `/offer` all 200; `/admin` 404 as before).
+- **Deliberate breaks (8, all caught):** every host routed; suffix host match; token echoed in the notice; one-click POST answering 200; `/privacy` dropped from the allowlist; `/admin` carrying path and query; staff paths passed through; `no-store` dropped.
+
+**Rollback:** before cutover there is nothing to roll back, because no request reaches the admissions host. After cutover: roll back the Worker version in Cloudflare (Eyram), or the DNS rollback in "Cutover decisions".
+
+**Go-live gate added:** the `/privacy` placeholder is replaced with the real policy, and `placeholder` set to false, before intake opens (CONSTRAINTS.md). The marketing site needs the absolute link `https://admissions.tcsch.edu.gh/privacy` once DNS moves.
 
 ### Cutover decisions (Eyram, 2026-10-21)
 
@@ -2812,7 +2864,7 @@ An alternative that avoids the service role: the Edge Function signs `HMAC(secre
 | 11 | `get_offer_context(text)` | `admissions-public`: `offer_respond` | `respond_to_offer` |
 | 13 | none new (the anon-executable count stays 170) | `admissions-public`: `pdf_gate` (cross-origin, `ADMISSIONS_LEAD_ORIGINS`; quick interest dropped 2026-10-21) | `capture_lead`, `get_lead_alert` |
 | 14 | `bulk_email_unsubscribe(text)` | Worker `GET` and `POST /api/admissions/unsubscribe/$token/` | — |
-| 15 | none | Worker host routing for `admissions.tcsch.edu.gh` (redirects, `410`s; no lead-path proxy, D-13a) | none |
+| 15 | none | Worker host routing for `admissions.tcsch.edu.gh` and the rehearsal host (redirects, the static unsubscribe notice, `405`, `410` and `404` pages; no lead-path proxy, D-13a), and the static `/privacy` page on every host; built 2026-11-26, approved at the gate | none |
 
 Slice 12's mailer is secret-gated, not anon, but it's reviewed with the same rigour. There are no anon table grants, no anon storage policies (D-9a, decided), and no new anon select policy.
 
@@ -2919,11 +2971,15 @@ Each decision has a recommendation. Rows marked **Decided** or **Superseded** ar
 | D-14c | Bulk sending subdomain | `updates.tcsch.edu.gh`. |
 | D-14d | Server-route path handling | Confirm the exact trailing-slash path works; fallback in `src/server.ts`. |
 | D-15a | Token migration versus TCS OS honouring tokens | **Dropped 2026-10-11:** nothing is imported, so no tokens move. Don't keep TCS OS alive for tokens. |
-| D-15b | Redirect mapping | Attach `admissions.tcsch.edu.gh` to the ERP Worker. Serve identical public paths, 302 `/` and `/admin`, 410 everything else. |
+| D-15b | Redirect mapping | Attach `admissions.tcsch.edu.gh` to the ERP Worker. Serve identical public paths, 302 `/` and `/admin`, 410 everything else. **Refined 2026-11-26 by D-15g and D-15h:** 410 only for the old TCS OS `/api`, `/hr` and `/finance` paths and a one-click unsubscribe POST; a static notice for an unsubscribe GET; 404 for everything else, staff paths included. |
 | D-15c | Pending offers across the window | **Dropped 2026-10-11:** TCS OS offers are test data and aren't carried across. |
 | D-15d | Stopping TCS OS intake | **Decided 2026-10-21:** no WAF rule. The DNS flip stops TCS OS intake, because TCS OS's `ALLOWED_HOSTS` is the admissions host only; a check for records made after the flip follows. |
 | D-15e | DNS and cutover sequence | **Decided 2026-10-21:** as in "Cutover decisions": the staff host stays on workers.dev; the Cloud Run domain mapping is kept until shutdown; a real host test on cutover day, then the cleanup once. |
 | D-15f | How long TCS OS stays read-only before shutdown | 30 days, covering one full draft TTL. Then delete the Cloud Run service, queues and secrets, and rotate or delete the TCS OS Resend key and Turnstile secret. |
+| D-15g | Staff paths on the admissions host | **Decided 2026-11-26 (Eyram):** 404, not a redirect. |
+| D-15h | The old TCS OS unsubscribe path | **Decided 2026-11-26 (Eyram):** GET shows a static notice; a one-click POST gets 410, never a fake success. |
+| D-15i | Rehearsal host | **Decided 2026-11-26 (Eyram):** yes, `admissions-preview.tcsch.edu.gh`, a constant in code, removed after the rehearsal. |
+| D-15j | Where the host names live | **Decided 2026-11-26 (Eyram):** hard-coded constants, not environment values. |
 
 ## Slice 0 detail: reference payslip figures and coverage gaps
 
@@ -3210,17 +3266,37 @@ The query is generated fresh from the current local reset each time, never kept 
   - a capability matrix check with real dev accounts.
 - Test rows are deleted afterwards by the reviewed hand script in "Go-live test data cleanup plan" above, after the last hosted test and before intake opens. **[E]**
 
-**Sequence:**
+**Sequence (corrected 2026-11-26, slice 15 C1, to follow the cutover decisions of 2026-10-21):**
 
-1. **[E] Prepare the ERP.** `npx supabase db push`; enable `pg_cron` and `pg_net`; `npx supabase functions deploy admissions-public admissions-mailer`; `npx supabase secrets set TURNSTILE_SECRET_KEY=… RESEND_API_KEY=… MAILER_SHARED_SECRET=… PUBLIC_BASE_URL=…`; add the Vault secret; deploy the frontend with `frontend/scripts/deploy-production.sh` (CONSTRAINTS.md, "Deployment"). That script currently passes only the two Supabase values into the build, so the slice that adds `VITE_TURNSTILE_SITE_KEY` must extend it to read that key from `frontend/.env.deploy` too. Leave `admissions_settings.public_intake_open = false`.
-2. **[E] Stop TCS OS intake** (D-15d, decided 2026-10-21). No WAF rule: the DNS flip in step 4 stops it. Staff stop using the TCS OS admin before the flip; afterwards Eyram checks the TCS OS project for records made after the flip.
-3. **[E] Set roles and grant capabilities** to the real staff (fifth-role decision, D-2g, D-4b) through Settings. **[E] Open intake:** set `public_intake_open = true`.
-4. **[E] DNS.**
-   - Delete the Cloudflare CNAME for `admissions.tcsch.edu.gh` and attach it as a Worker custom domain. **Keep the Cloud Run domain mapping** until TCS OS shutdown (decided 2026-10-21), so rolling back is a DNS change.
+1. **[E] Verify the ERP is ready** (everything here is already on hosted from earlier rollouts; this step changes nothing unless a check fails):
+   - Migrations: `npx supabase migration list --linked` shows no local migration missing on hosted.
+   - Edge Functions: `admissions-public`, `admissions-worker` and `invite-staff` are deployed at the current commit. (The old names in this step, `admissions-mailer`, `MAILER_SHARED_SECRET` and `PUBLIC_BASE_URL`, are gone: the mailer became `admissions-worker` in slice 12.)
+   - Function secrets present (`npx supabase secrets list --linked`, names only): `TURNSTILE_SECRET_KEY`, `IP_HASH_KEY`, `ADMISSIONS_ALLOWED_ORIGINS`, `ADMISSIONS_LEAD_ORIGINS`, `RESEND_API_KEY`, `MAIL_MODE`, `MAIL_FROM`, `MAIL_REPLY_TO`, `ADMISSIONS_STAFF_EMAIL`, `ERP_BASE_URL`, `MAIL_DAILY_CEILING`, `PUBLIC_APPLY_BASE_URL`, `PDF_GATE_INQUIRY_URL`.
+   - The worker secret is in Vault (made by the slice 12 migration) and the same 4 cron jobs exist (`admissions-mail`, `admissions-upload-sweep`, `admissions-settle-offers`, `admissions-housekeeping`).
+   - The frontend is deployed with `frontend/scripts/deploy-production.sh` and includes slice 15 C1 (host routing inactive until the flip, `/privacy` live).
+   - The anon function count on hosted is 171 (see "Checking hosted against local" above).
+2. **[E] Before cutover day:**
+   - Real staff accounts and capabilities through Settings (D-2g, D-4b).
+   - `https://admissions.tcsch.edu.gh` in `ADMISSIONS_ALLOWED_ORIGINS` and in the Turnstile widget's hostnames (harmless in advance: nothing sends that origin until the flip).
+   - The `/privacy` placeholder replaced with the real policy and deployed (go-live gate).
+   - The go-live cleanup script written, reviewed, and its dry run read on hosted.
+   - The counter bump statement written and reviewed (raises the `INQ-2026` and `APP-2026` counters only).
+   - Staff stop using the TCS OS admin (D-15d: no WAF rule, the DNS flip stops TCS OS intake).
+   - The `admissions@tcsch.edu.gh` mailbox is monitored, because the old unsubscribe notice asks people to email it to be removed (D-15h), and staff know how to honour such a request (there is no unsubscribe button in the ERP until slice 14).
+   - Optional (D-15i): attach `admissions-preview.tcsch.edu.gh` to the Worker, curl every routing row, then detach it.
+3. **[E] Cutover day, in this order:**
+   1. **Switches closed.** In Admissions Settings, the enquiry switch (`public_intake_open`) and the application switch (`public_applications_open`) are off, and stay off through the flip, the real host test and the cleanup. The lead switch (`public_leads_open`) is not part of the flip: the PDF gate already posts to the ERP's Edge Function and does not use the admissions host.
+   2. **DNS flip.** Delete the Cloudflare CNAME for `admissions.tcsch.edu.gh` and attach the host as a custom domain on the `tcs-erp` Worker. **Keep the Cloud Run domain mapping** until TCS OS shutdown, so rolling back is a DNS change.
+   3. **Smoke test every routing row** on the real host: `/inquiry`, `/apply`, `/offer`, `/privacy` load; `/` goes to `/inquiry`; `/admin` goes to the staff host; an old API path answers 410; `/login` answers 404; the unsubscribe notice shows at `/api/admissions/unsubscribe/x/`; the workers.dev staff host still works.
+   4. **Set `PUBLIC_APPLY_BASE_URL`** to `https://admissions.tcsch.edu.gh` (resume and offer links from now on use the admissions host). Links already sent with workers.dev keep working.
+   5. **Real host test:** open both switches briefly; one labelled enquiry and one labelled application on the real host; check both confirmation emails and both staff alerts arrived; **close both switches again.**
+   6. **Cleanup:** the go-live cleanup, dry run then commit, including those two records and the slice 11 test offer (by explicit id). Before it, read the outbox by kind and status to resolve the "1 email waiting, 2 held back" observation.
+   7. **Verification** queries from the cleanup plan.
+   8. **Counter bump**, after the cleanup, so no test record takes 0101.
+   9. **Open intake:** both switches on.
+   10. **Check TCS OS** in its SQL editor for any record created after the flip (stale DNS caches).
    - ~~Point `app.tcsch.edu.gh` at the ERP Worker.~~ Not at cutover: the staff host stays on workers.dev (D-15e, 2026-10-21).
-   - Add both hosts to the Turnstile widget and to Supabase Auth `site_url` and `additional_redirect_urls` for the staff host.
-   - Change the `PUBLIC_APPLY_BASE_URL` function secret (resume email links, slice 10) to `https://admissions.tcsch.edu.gh`, and make sure `ADMISSIONS_ALLOWED_ORIGINS` includes `https://admissions.tcsch.edu.gh` (added 2026-10-21). Resume links already sent keep working only while their old host still reaches the same Worker.
-   - Smoke-test the GET pages, `/` and `/admin` redirects, the `410`s and the unsubscribe notice; then the real host test and the cleanup, in the order in "Cutover decisions".
+4. **Rollback, lightest first** (as in "Cutover decisions"): close the ERP switches; `MAIL_MODE=off` for mail trouble; roll back the Worker version in Cloudflare for a bad frontend or routing release; DNS back to TCS OS (ERP switches closed first, `PUBLIC_APPLY_BASE_URL` back to the workers.dev host).
 5. **[E] Keep TCS OS read-only** for N days (D-15f): Cloud Run still up behind its `*.run.app` URL, with intake blocked. It's only for reference; it gets no traffic after the DNS flip.
 6. **[E] Shut down TCS OS:** delete the Cloud Run service, Cloud Tasks queues and Secret Manager secrets; rotate or delete the TCS OS Resend key and Turnstile secret; delete the TCS OS Supabase project when Eyram decides (the data is test data). Then update both repos' docs.
 

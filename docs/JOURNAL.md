@@ -5343,3 +5343,23 @@ Reported by Eyram from the slice 11 hosted test; the change below is local only 
 - **Why it stays (Eyram).** The offer link is a credential; an address typed on a matched family's form is unverified, so only guardians on record get the link. The confirmation has no link, so it may still go to typed addresses.
 - **What changed.** The confirm step before Generate, Reset and Send link again now says how many addresses from the application form are not on the family record and will not get the link (a count only). Frontend only: it reads the match flags' `differences` under their existing policy; no migration, no new RPC. vitest 247, `tsc`, lint at the baseline, build pass.
 - **Candidate after cutover.** A staff way to add a reviewed typed guardian to the family record; a new write permission, not built.
+
+## 2026-11-26: Slice 11 rollout reported
+
+Docs only; nothing run here. Reported by Eyram on 2026-11-26 for 22 and 23 Oct. Detail in PORT-PLAN, "Slice 11 rollout reported".
+
+- **Live.** Slice 11 (C1 14859e0, C2 3aa79f3, the recipient warning 0c4c7ed) is on hosted: worker, `admissions-public`, both migrations and the frontend, in the handover order. The read-only checks passed (anon count 171, no `token_hash` left, no API access on offer links, the audit constraint, the 4 cron jobs, the generic refusal for a made-up token).
+- **Hosted test.** APP-2026-0005: Generate, Send link again, accepted through the link, staff alert received, corrected to declined ("just testing"); the Reset dialog showed the "not on the family record" line after the redeploy. Nothing else changed on hosted between 23 Oct and 26 Nov (reported by Eyram).
+- **Why the status lines changed.** PORT-PLAN still said C2 was local and the recipient warning uncommitted; both are committed and deployed.
+- **Still open.** The step 10 cleanup ids; the address bar check (not reported); the "1 email waiting, 2 held back" health strip reading (unresolved); the fresh-family retest (skipped).
+
+## 2026-11-26: Slice 15 C1, host routing, the unsubscribe notice, the runbook and /privacy (local only)
+
+Plan approved by Eyram with D-15g (404 for staff paths), D-15h (410 for a one-click unsubscribe POST), D-15i (a rehearsal host as a constant) and D-15j (hard-coded host constants). The new anonymous HTTP answers on the admissions host passed the confirmation gate. Built as one checkpoint; uncommitted, nothing deployed. Detail in PORT-PLAN, "Slice 15 C1 as built".
+
+- **Host routing.** `frontend/src/lib/admissions-host.ts`, called first in `server.ts`. It acts only on `admissions.tcsch.edu.gh` and `admissions-preview.tcsch.edu.gh`, so it is inactive until the DNS flip and changes nothing on the workers.dev staff host. Public pages pass through; `/` and `/admin` redirect; the old unsubscribe path shows a static notice (POST 410); old API, HR and finance paths 410; everything else 404. No database access; anon count unchanged.
+- **`/privacy`.** A static public page with a clearly marked placeholder body; `PRIVACY_POLICY.url` is `/privacy`. Replacing the placeholder is a new go-live gate in CONSTRAINTS.md.
+- **Runbook corrected.** Step 1 is now a verification list of the current functions and secrets (the old mailer names are gone); cutover day follows the 21 Oct order: switches closed through the flip, real host test and cleanup, then the counter bump and open.
+- **Checks.** 16 router cases and the updated copy test; a local smoke test of the built Worker with a `Host` header for every row; 8 deliberate breaks, all caught.
+- **Not started.** Piece C, the stored declaration version; Eyram decides on 2026-11-27.
+

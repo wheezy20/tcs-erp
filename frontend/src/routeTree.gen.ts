@@ -23,6 +23,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as OfferRouteImport } from './routes/offer'
 import { Route as PayrollRouteImport } from './routes/payroll'
 import { Route as PosRouteImport } from './routes/pos'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PurchasingRouteImport } from './routes/purchasing'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SalesRouteImport } from './routes/sales'
@@ -151,6 +152,11 @@ const PayrollRoute = PayrollRouteImport.update({
 const PosRoute = PosRouteImport.update({
   id: '/pos',
   path: '/pos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PurchasingRoute = PurchasingRouteImport.update({
@@ -470,6 +476,7 @@ export interface FileRoutesByFullPath {
   '/offer': typeof OfferRoute
   '/payroll': typeof PayrollRouteWithChildren
   '/pos': typeof PosRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/purchasing': typeof PurchasingRouteWithChildren
   '/reports': typeof ReportsRoute
   '/sales': typeof SalesRouteWithChildren
@@ -537,6 +544,7 @@ export interface FileRoutesByTo {
   '/inquiry': typeof InquiryRoute
   '/login': typeof LoginRoute
   '/offer': typeof OfferRoute
+  '/privacy': typeof PrivacyRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/accounting/balance-sheet': typeof AccountingBalanceSheetRoute
@@ -610,6 +618,7 @@ export interface FileRoutesById {
   '/offer': typeof OfferRoute
   '/payroll': typeof PayrollRouteWithChildren
   '/pos': typeof PosRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/purchasing': typeof PurchasingRouteWithChildren
   '/reports': typeof ReportsRoute
   '/sales': typeof SalesRouteWithChildren
@@ -687,6 +696,7 @@ export interface FileRouteTypes {
     | '/offer'
     | '/payroll'
     | '/pos'
+    | '/privacy'
     | '/purchasing'
     | '/reports'
     | '/sales'
@@ -754,6 +764,7 @@ export interface FileRouteTypes {
     | '/inquiry'
     | '/login'
     | '/offer'
+    | '/privacy'
     | '/reports'
     | '/settings'
     | '/accounting/balance-sheet'
@@ -826,6 +837,7 @@ export interface FileRouteTypes {
     | '/offer'
     | '/payroll'
     | '/pos'
+    | '/privacy'
     | '/purchasing'
     | '/reports'
     | '/sales'
@@ -902,6 +914,7 @@ export interface RootRouteChildren {
   OfferRoute: typeof OfferRoute
   PayrollRoute: typeof PayrollRouteWithChildren
   PosRoute: typeof PosRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
   PurchasingRoute: typeof PurchasingRouteWithChildren
   ReportsRoute: typeof ReportsRoute
   SalesRoute: typeof SalesRouteWithChildren
@@ -1019,6 +1032,13 @@ declare module '@tanstack/react-router' {
       path: '/pos'
       fullPath: '/pos'
       preLoaderRoute: typeof PosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/purchasing': {
@@ -1638,6 +1658,7 @@ const rootRouteChildren: RootRouteChildren = {
   OfferRoute: OfferRoute,
   PayrollRoute: PayrollRouteWithChildren,
   PosRoute: PosRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
   PurchasingRoute: PurchasingRouteWithChildren,
   ReportsRoute: ReportsRoute,
   SalesRoute: SalesRouteWithChildren,

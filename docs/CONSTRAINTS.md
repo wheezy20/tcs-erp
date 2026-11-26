@@ -60,7 +60,13 @@ Things that shape how this gets built, not just what gets built.
       moves to the ERP. The application declaration is ported without a link
       until then; once the policy is published, one link goes into the
       declaration copy constant. Recorded in PORT-PLAN, "Go-live gates still
-      open". Not yet written (reported by Eyram, 2026-10-15). From slice 10 (recorded 2026-10-21) the policy must also describe saved applications: what is kept (the answers entered, which may include details about the child, and the email address), kept for 30 days after the last save and for 60 days at most in all, then deleted; that the health questions, uploaded files, the declaration, the signature and media consent are not saved; and that a saved application can be deleted from the emailed link. From slice 13 (decided 2026-10-21) it must also cover leads (what the PDF gate keeps, marketing consent) and state their retention: leads without consent deleted 12 months after capture, leads with consent 24 months after capture, and any lead deleted on unsubscribe. The marketing site may be repointed to the ERP before the policy exists; the policy must cover leads by cutover.
+      open". Not yet written (reported by Eyram, 2026-10-15). From slice 10 (recorded 2026-10-21) the policy must also describe saved applications: what is kept (the answers entered, which may include details about the child, and the email address), kept for 30 days after the last save and for 60 days at most in all, then deleted; that the health questions, uploaded files, the declaration, the signature and media consent are not saved; and that a saved application can be deleted from the emailed link. From slice 13 (decided 2026-10-21) it must also cover leads (what the PDF gate keeps, marketing consent) and state their retention: leads without consent deleted 12 months after capture, leads with consent 24 months after capture, and any lead deleted on unsubscribe. The marketing site may be repointed to the ERP before the policy exists; the policy must cover leads by cutover. From slice 15 C1 (built 2026-11-26) the ERP has a public `/privacy` page, linked relatively from `PRIVACY_POLICY` (save panel consent and offer page), with a clearly marked placeholder body in `PRIVACY_PAGE_COPY`; the declaration's own words stay unlinked until piece C or Eyram changes them.
+- [ ] `/privacy` placeholder replaced (slice 15 C1, 2026-11-26). Before intake
+      opens, Eyram's real policy text replaces `PRIVACY_PAGE_COPY.paragraphs`
+      in `frontend/src/modules/admissions/public-copy.ts`, `placeholder` is set
+      to false in the same change, and it is deployed. While the placeholder is
+      live the page says it is a placeholder. The marketing site links
+      `https://admissions.tcsch.edu.gh/privacy` once DNS moves.
 - [ ] Go-live test data cleanup (planned 2026-10-15, slice 9b C4). Every test
       inquiry, application, file, family, upload session and saved application draft on hosted is
       removed before real intake opens, once, after the privacy policy, the
@@ -96,16 +102,18 @@ Things that shape how this gets built, not just what gets built.
         locked as already submitted. Public applications closed again
         afterwards (reported by Eyram, 2026-10-21). The anon-executable
         count after the push was not reported.
-- [ ] Offer page and offer email (slice 11, decided 2026-10-22). C1 is
-      committed as 14859e0; C2 is built locally. Neither is on hosted. Before
-      the first real offer:
-      - **C1 and C2 reach hosted together**, worker and public function
-        first, then `db push`, then the frontend straight away (PORT-PLAN,
-        "Slice 11 rollout handover"). The deployed panel before C2 expects
-        a token that no longer comes back.
-      - **Hosted test** with Eyram's own addresses, ending with the offer
-        corrected to declined; its application, offer, links and offer
-        outbox rows join the go-live cleanup by explicit id.
+- [ ] Offer page and offer email (slice 11, decided 2026-10-22). Committed
+      (14859e0, 3aa79f3, 0c4c7ed); rolled out on hosted in the handover
+      order and checked (reported by Eyram, 2026-11-26; PORT-PLAN, "Slice 11
+      rollout reported"). Before the first real offer:
+      - [x] **C1 and C2 reached hosted together** (22 and 23 Oct).
+      - [x] **Hosted test** on APP-2026-0005, ended corrected to declined.
+        Its application, offer, links and offer outbox rows join the go-live
+        cleanup by explicit id; **the ids are not captured yet** (handover
+        step 10).
+      - **Address bar check** (handover step 9.5, must pass): not reported.
+      - **"1 email waiting, 2 held back"** on the email health strip during
+        the test: unresolved.
       - **No live offer link after the go-live cleanup:**
         `select count(*) from public.application_offer_links where revoked_at is null`
         returns 0 for the test offers (they are deleted).
